@@ -145,15 +145,15 @@ export function AdminDashboard() {
           <TabsContent value="my-students"><MyStudentsPanel /></TabsContent>
           <TabsContent value="videos"><VideoManager onStatsRefresh={fetchStats} /></TabsContent>
           <TabsContent value="homework">
-            <ContentManager<Homework> title="إدارة الواجبات | Homework" apiPath="/api/homework" itemName="homework"
-              fields={{ title: { label: 'عنوان الواجب | HW Title', type: 'text' }, content: { label: 'المحتوى | Content', type: 'textarea' } }}
+            <ContentManager<Homework> title="إدارة الواجبات" apiPath="/api/homework" itemName="homework"
+              fields={{ title: { label: 'عنوان الواجب', type: 'text' }, content: { label: 'المحتوى', type: 'textarea' } }}
               renderTitle={(item) => item.title} renderSubtitle={(item) => item.content?.substring(0, 80) || (item.filePath ? `📎 ${item.fileType}` : '')}
               supportFileUpload fileCategory="homework" acceptedTypes=".pdf,.doc,.docx,image/*" supportAnswerKey supportThumbnail supportMCQ onRefresh={fetchStats} />
           </TabsContent>
           <TabsContent value="exams"><ExamTrackingPanel /></TabsContent>
           <TabsContent value="announcements">
-            <ContentManager<Announcement> title="إدارة الإعلانات | Announcements" apiPath="/api/announcements" itemName="announcements"
-              fields={{ title: { label: 'عنوان | Title', type: 'text' }, content: { label: 'المحتوى | Content', type: 'textarea' } }}
+            <ContentManager<Announcement> title="إدارة الإعلانات" apiPath="/api/announcements" itemName="announcements"
+              fields={{ title: { label: 'العنوان', type: 'text' }, content: { label: 'المحتوى', type: 'textarea' } }}
               renderTitle={(item) => item.title} renderSubtitle={(item) => item.content?.substring(0, 100) + '...'} onRefresh={fetchStats} />
           </TabsContent>
           <TabsContent value="community"><CommunityPanel /></TabsContent>
@@ -1999,31 +1999,31 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
       <div className="space-y-4">
         <div className="text-center py-4">
           <Sparkles className="h-10 w-10 text-purple-500 mx-auto mb-3" />
-          <h3 className="text-lg font-bold">AI Question Extraction</h3>
-          <p className="text-sm text-muted-foreground mt-1">Upload a file or YouTube link to extract questions automatically</p>
+          <h3 className="text-lg font-bold">استخراج الأسئلة بالذكاء الاصطناعي</h3>
+          <p className="text-sm text-muted-foreground mt-1">ارفع ملف أو حط رابط يوتيوب واستخرج الأسئلة تلقائي</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <button type="button" onClick={function() { setExtractType('exam') }} className={"p-4 rounded-xl border-2 text-center transition-all " + (extractType === 'exam' ? 'border-primary bg-primary/5 shadow-md' : 'border-muted hover:border-primary/30')}>
             <FileText className={"h-8 w-8 mx-auto mb-2 " + (extractType === 'exam' ? 'text-primary' : 'text-muted-foreground')} />
-            <p className={"font-bold text-sm " + (extractType === 'exam' ? 'text-primary' : '')}>Exam</p>
+            <p className={"font-bold text-sm " + (extractType === 'exam' ? 'text-primary' : '')}>امتحان</p>
           </button>
           <button type="button" onClick={function() { setExtractType('homework') }} className={"p-4 rounded-xl border-2 text-center transition-all " + (extractType === 'homework' ? 'border-primary bg-primary/5 shadow-md' : 'border-muted hover:border-primary/30')}>
             <ClipboardList className={"h-8 w-8 mx-auto mb-2 " + (extractType === 'homework' ? 'text-primary' : 'text-muted-foreground')} />
-            <p className={"font-bold text-sm " + (extractType === 'homework' ? 'text-primary' : '')}>Homework</p>
+            <p className={"font-bold text-sm " + (extractType === 'homework' ? 'text-primary' : '')}>واجب</p>
           </button>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs font-medium">Grade *</Label>
+          <Label className="text-xs font-medium">الصف *</Label>
           <select value={grade} onChange={function(e) { setGrade(e.target.value) }} className="w-full h-10 rounded-lg border border-input bg-transparent px-3 text-sm">
-            <option value="">Select Grade</option>
+            <option value="">اختار الصف</option>
             {GRADES.map(function(g) { return <option key={g} value={g}>{g}</option> })}
           </select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs font-medium">Title *</Label>
-          <Input value={title} onChange={function(e) { setTitle(e.target.value) }} placeholder={extractType === 'exam' ? 'e.g. Chapter 1 Exam' : 'e.g. Fractions Homework'} />
+          <Label className="text-xs font-medium">العنوان *</Label>
+          <Input value={title} onChange={function(e) { setTitle(e.target.value) }} placeholder={extractType === 'exam' ? 'مثلاً: امتحان الوحدة الأولى' : 'مثلاً: واجب الحضارات'} />
         </div>
-        <Button className="w-full" onClick={function() { if (canProceedStep1) setStep(2) }} disabled={!canProceedStep1}>Next - Upload File</Button>
+        <Button className="w-full" onClick={function() { if (canProceedStep1) setStep(2) }} disabled={!canProceedStep1}>التالي - رفع الملف</Button>
       </div>
     )
   }
@@ -2034,7 +2034,7 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
 
     // YouTube mode -> calls /api/ai-extract-youtube
     if (isYTMode) {
-      setStatusMsg('Analyzing video with AI... this may take 1-2 minutes')
+      setStatusMsg('بيحلل الفيديو بالذكاء الاصطناعي... ممكن ياخد 1-2 دقيقة')
       try {
         var ctrl = new AbortController()
         var tmr = setTimeout(function() { ctrl.abort() }, 180000)
@@ -2048,19 +2048,19 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
         var data = await res.json()
         if (res.ok && data.extracted && data.extracted.questions && data.extracted.questions.length > 0) {
           var extracted = data.extracted.questions.map(function(q: any) {
-            return { question: q.question || '', options: (q.options || ['N/A','N/A','N/A','N/A']).slice(0, 4), correct: q.correct || 0 }
+            return { question: q.question || '', options: (q.options || ['-','-','-','-']).slice(0, 4), correct: q.correct || 0 }
           })
           setExtractedQuestions(extracted)
           setStatusMsg('')
           setStep(3)
-          toast.success('Extracted ' + extracted.length + ' questions from video!')
+          toast.success('تم استخراج ' + extracted.length + ' سؤال من الفيديو!')
         } else {
-          toast.error(data.error || 'No questions extracted')
+          toast.error(data.error || 'مفيش أسئلة اتعملت استخراج')
           setStatusMsg('')
         }
       } catch (err: any) {
-        if (err && err.name === 'AbortError') { toast.error('Timeout - try again') }
-        else { toast.error('Error: ' + (err.message || '')) }
+        if (err && err.name === 'AbortError') { toast.error('انتهى الوقت - حاول تاني') }
+        else { toast.error('خطأ: ' + (err.message || '')) }
         setStatusMsg('')
       }
       setExtracting(false)
@@ -2068,7 +2068,7 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
     }
 
     // File / URL mode -> calls /api/ai-extract
-    setStatusMsg('Extracting questions with AI... please wait')
+    setStatusMsg('بيستخرج الأسئلة بالذكاء الاصطناعي... استنى شوية')
     try {
       var fd = new FormData()
       if (file) { fd.append('file', file) }
@@ -2082,19 +2082,19 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
       var data = await res.json()
       if (res.ok && data.extracted && data.extracted.questions && data.extracted.questions.length > 0) {
         var extracted = data.extracted.questions.map(function(q: any) {
-          return { question: q.question || '', options: (q.options || ['N/A','N/A','N/A','N/A']).slice(0, 4), correct: q.correct || 0 }
+          return { question: q.question || '', options: (q.options || ['-','-','-','-']).slice(0, 4), correct: q.correct || 0 }
         })
         setExtractedQuestions(extracted)
         setStatusMsg('')
         setStep(3)
-        toast.success('Extracted ' + extracted.length + ' questions!')
+        toast.success('تم استخراج ' + extracted.length + ' سؤال!')
       } else {
-        toast.error(data.error || 'No questions extracted')
+        toast.error(data.error || 'مفيش أسئلة اتعملت استخراج')
         setStatusMsg('')
       }
     } catch (err: any) {
-      if (err && err.name === 'AbortError') { toast.error('Timeout - try again') }
-      else { toast.error('Error: ' + (err.message || '')) }
+      if (err && err.name === 'AbortError') { toast.error('انتهى الوقت - حاول تاني') }
+      else { toast.error('خطأ: ' + (err.message || '')) }
       setStatusMsg('')
     }
     setExtracting(false)
@@ -2104,9 +2104,9 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3 mb-2">
-          <button type="button" onClick={function() { setStep(1) }} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"><X className="h-4 w-4" /> Back</button>
+          <button type="button" onClick={function() { setStep(1) }} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"><X className="h-4 w-4" /> رجوع</button>
           <div className="flex items-center gap-2 flex-1">
-            <Badge variant="outline" className={"text-xs " + (extractType === 'exam' ? 'border-blue-500/50 text-blue-600' : 'border-emerald-500/50 text-emerald-600')}>{extractType === 'exam' ? 'Exam' : 'Homework'}</Badge>
+            <Badge variant="outline" className={"text-xs " + (extractType === 'exam' ? 'border-blue-500/50 text-blue-600' : 'border-emerald-500/50 text-emerald-600')}>{extractType === 'exam' ? 'امتحان' : 'واجب'}</Badge>
             <span className="text-sm font-medium truncate">{title}</span>
             <Badge variant="secondary" className="text-xs">{grade}</Badge>
           </div>
@@ -2115,30 +2115,30 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
         <div className="p-4 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 space-y-3">
           <div className="text-center">
             <Upload className="h-8 w-8 text-primary mx-auto mb-2" />
-            <p className="text-sm font-medium">Upload exam/homework file or image</p>
-            <p className="text-[10px] text-muted-foreground">PDF, image, or any file containing questions</p>
+            <p className="text-sm font-medium">ارفع ملف الامتحان/الواجب أو صورة</p>
+            <p className="text-[10px] text-muted-foreground">PDF، صورة، أو أي ملف فيه أسئلة</p>
           </div>
           <div className="flex items-center gap-2">
             <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,image/*" className="hidden" onChange={function(e) { setFile(e.target.files?.[0] || null); setFileUrl('') }} />
-            <Button type="button" variant="outline" onClick={function() { fileRef.current?.click() }} className="flex-1"><Upload className="h-4 w-4 ml-2" />{file ? file.name : 'Choose file from device'}</Button>
+            <Button type="button" variant="outline" onClick={function() { fileRef.current?.click() }} className="flex-1"><Upload className="h-4 w-4 ml-2" />{file ? file.name : 'اختار ملف من الجهاز'}</Button>
           </div>
           {file && <p className="text-xs text-muted-foreground text-center">{(file.size / 1024 / 1024).toFixed(1)} MB</p>}
-          <div className="flex items-center gap-3"><div className="flex-grow h-px bg-border" /><span className="text-[11px] text-muted-foreground">or</span><div className="flex-grow h-px bg-border" /></div>
+          <div className="flex items-center gap-3"><div className="flex-grow h-px bg-border" /><span className="text-[11px] text-muted-foreground">أو</span><div className="flex-grow h-px bg-border" /></div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Or paste file URL</Label>
+            <Label className="text-xs">أو حط رابط الملف</Label>
             <Input placeholder="https://example.com/exam.pdf" value={fileUrl} onChange={function(e) { setFileUrl(e.target.value); if (e.target.value.trim()) { setFile(null) } }} dir="ltr" />
           </div>
         </div>
 
-        <div className="flex items-center gap-3"><div className="flex-grow h-px bg-border" /><span className="text-[11px] text-muted-foreground">or extract from video</span><div className="flex-grow h-px bg-border" /></div>
+        <div className="flex items-center gap-3"><div className="flex-grow h-px bg-border" /><span className="text-[11px] text-muted-foreground">أو استخرج من فيديو</span><div className="flex-grow h-px bg-border" /></div>
         <div className={"p-4 rounded-xl border-2 space-y-3 transition-all " + (isYTMode ? 'border-red-500/50 bg-red-500/5' : 'border-dashed border-muted-foreground/30 bg-muted/30')}>
           <div className="flex items-center gap-2">
             <div className={"w-8 h-8 rounded-lg flex items-center justify-center " + (isYTMode ? 'bg-red-500/10' : 'bg-muted')}>
               <svg className={"h-5 w-5 " + (isYTMode ? 'text-red-500' : 'text-muted-foreground')} viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className={"text-sm font-medium " + (isYTMode ? 'text-red-500' : '')}>Extract from YouTube video</p>
-              <p className="text-[10px] text-muted-foreground">AI will watch the video and generate questions</p>
+              <p className={"text-sm font-medium " + (isYTMode ? 'text-red-500' : '')}>استخراج من فيديو يوتيوب</p>
+              <p className="text-[10px] text-muted-foreground">الذكاء الاصطناعي هيشوف الفيديو ويطلع أسئلة</p>
             </div>
           </div>
           <Input
@@ -2151,7 +2151,7 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
           {isYTMode && (
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Number of Questions</Label>
+                <Label className="text-xs font-medium">عدد الأسئلة</Label>
                 <div className="flex gap-2">
                   {[5, 10, 15, 20, 30].map(function(n) {
                     return (
@@ -2167,7 +2167,7 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
         {statusMsg && <div className="flex items-center gap-2 p-3 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400"><Loader2 className="h-4 w-4 animate-spin" /><p className="text-sm">{statusMsg}</p></div>}
         <Button className="w-full" size="lg" onClick={handleExtract} disabled={!canExtract || extracting}>
           {extracting ? <Loader2 className="h-5 w-5 ml-2 animate-spin" /> : isYTMode ? <PlayCircle className="h-5 w-5 ml-2" /> : <Sparkles className="h-5 w-5 ml-2" />}
-          {extracting ? (isYTMode ? 'Analyzing video...' : 'Extracting...') : isYTMode ? 'Extract Questions from Video' : 'Extract Questions'}
+          {extracting ? (isYTMode ? 'بيحلل الفيديو...' : 'بيستخرج...') : isYTMode ? 'استخراج أسئلة من الفيديو' : 'استخراج الأسئلة'}
         </Button>
       </div>
     )
@@ -2189,11 +2189,11 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
   }
 
   var deleteQuestion = function(qi: number) { setExtractedQuestions(extractedQuestions.filter(function(_, i) { return i !== qi })) }
-  var addQuestion = function() { setExtractedQuestions(extractedQuestions.concat([{ question: '', options: ['N/A','N/A','N/A','N/A'], correct: 0 }])) }
+  var addQuestion = function() { setExtractedQuestions(extractedQuestions.concat([{ question: '', options: ['-','-','-','-'], correct: 0 }])) }
 
   var handleSave = async function() {
-    if (extractedQuestions.length === 0) { toast.error('No questions to save'); return }
-    setSaving(true); setStatusMsg('Saving to database...')
+    if (extractedQuestions.length === 0) { toast.error('مفيش أسئلة عشان تحفظ'); return }
+    setSaving(true); setStatusMsg('بيحفظ في الداتابيز...')
     try {
       var fd = new FormData()
       fd.append('type', extractType); fd.append('grade', grade); fd.append('title', title)
@@ -2201,9 +2201,9 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
       // Save endpoint: /api/ai-extract-questions
       var res = await fetch('/api/ai-extract-questions', { method: 'POST', body: fd })
       var data = await res.json()
-      if (res.ok && data.success) { toast.success(data.message || 'Saved successfully!'); onRefresh(); resetAll() }
-      else { toast.error(data.error || 'Save failed') }
-    } catch (err: any) { toast.error('Connection error: ' + (err.message || '')) }
+      if (res.ok && data.success) { toast.success(data.message || 'تم الحفظ بنجاح!'); onRefresh(); resetAll() }
+      else { toast.error(data.error || 'حصلت مشكلة في الحفظ') }
+    } catch (err: any) { toast.error('مشكلة في الاتصال: ' + (err.message || '')) }
     setSaving(false); setStatusMsg('')
   }
 
@@ -2212,18 +2212,18 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button type="button" onClick={function() { setStep(2) }} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"><X className="h-4 w-4" /> Back</button>
-            <Badge variant="outline" className={"text-xs " + (extractType === 'exam' ? 'border-blue-500/50 text-blue-600' : 'border-emerald-500/50 text-emerald-600')}>{extractType === 'exam' ? 'Exam' : 'Homework'}</Badge>
+            <button type="button" onClick={function() { setStep(2) }} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"><X className="h-4 w-4" /> رجوع</button>
+            <Badge variant="outline" className={"text-xs " + (extractType === 'exam' ? 'border-blue-500/50 text-blue-600' : 'border-emerald-500/50 text-emerald-600')}>{extractType === 'exam' ? 'امتحان' : 'واجب'}</Badge>
             <span className="text-sm font-medium truncate">{title}</span>
             <Badge variant="secondary" className="text-xs">{grade}</Badge>
           </div>
-          <Badge className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-0">{extractedQuestions.length} questions</Badge>
+          <Badge className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-0">{extractedQuestions.length} سؤال</Badge>
         </div>
-        <p className="text-xs text-muted-foreground">Review questions before saving. Click the circle next to the correct answer.</p>
+        <p className="text-xs text-muted-foreground">راجع الأسئلة قبل ما تحفظ. دوس على الدايرة جناب الإجابة الصح.</p>
         {statusMsg && <div className="flex items-center gap-2 p-3 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400"><Loader2 className="h-4 w-4 animate-spin" /><p className="text-sm">{statusMsg}</p></div>}
 
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={addQuestion} className="gap-1"><Plus className="h-4 w-4" />Add Question</Button>
+          <Button variant="outline" size="sm" onClick={addQuestion} className="gap-1"><Plus className="h-4 w-4" />أضف سؤال</Button>
         </div>
 
         <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
@@ -2234,13 +2234,13 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
                   <span className="text-xs font-bold text-primary">Q{qi + 1}</span>
                   <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={function() { deleteQuestion(qi) }}><Trash2 className="h-3 w-3" /></Button>
                 </div>
-                <Input value={q.question} onChange={function(e) { updateQuestion(qi, 'question', e.target.value) }} placeholder="Question text..." className="text-sm" />
+                <Input value={q.question} onChange={function(e) { updateQuestion(qi, 'question', e.target.value) }} placeholder="نص السؤال..." className="text-sm" />
                 <div className="grid grid-cols-2 gap-2">
                   {q.options.map(function(opt, oi) {
                     return (
                       <div key={oi} className="flex items-center gap-1.5">
                         <button type="button" className={"w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] transition-colors " + (q.correct === oi ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/30 hover:border-primary/50')} onClick={function() { updateQuestion(qi, 'correct', oi) }}>{String.fromCharCode(65 + oi)}</button>
-                        <Input value={opt} onChange={function(e) { updateQuestion(qi, 'option_' + oi, e.target.value) }} placeholder={"Option " + (oi + 1)} className="h-8 text-xs" />
+                        <Input value={opt} onChange={function(e) { updateQuestion(qi, 'option_' + oi, e.target.value) }} placeholder={"الخيار " + (oi + 1)} className="h-8 text-xs" />
                       </div>
                     )
                   })}
@@ -2251,15 +2251,15 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
         </div>
 
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={addQuestion} className="gap-1"><Plus className="h-4 w-4" />Add Question</Button>
+          <Button variant="outline" size="sm" onClick={addQuestion} className="gap-1"><Plus className="h-4 w-4" />أضف سؤال</Button>
         </div>
 
         <div className="flex gap-2 pt-2">
           <Button className="flex-1" onClick={handleSave} disabled={saving || extractedQuestions.length === 0}>
             {saving ? <Loader2 className="h-4 w-4 ml-1 animate-spin" /> : <Save className="h-4 w-4 ml-1" />}
-            {saving ? 'Saving...' : 'Save to Database'}
+            {saving ? 'بيحفظ...' : 'حفظ في الداتابيز'}
           </Button>
-          <Button variant="outline" onClick={resetAll}>Cancel</Button>
+          <Button variant="outline" onClick={resetAll}>إلغاء</Button>
         </div>
       </div>
     )
@@ -2268,7 +2268,7 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2"><Sparkles className="h-5 w-5 text-purple-500" />AI Question Extraction</CardTitle>
+        <CardTitle className="text-lg flex items-center gap-2"><Sparkles className="h-5 w-5 text-purple-500" />استخراج الأسئلة بالذكاء الاصطناعي</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex items-center justify-center gap-2 mb-6">
@@ -2284,9 +2284,9 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
           })}
         </div>
         <div className="flex justify-center gap-6 mb-4 text-[10px] text-muted-foreground">
-          <span className={step >= 1 ? 'text-primary font-medium' : ''}>Type & Data</span>
-          <span className={step >= 2 ? 'text-primary font-medium' : ''}>Upload & Extract</span>
-          <span className={step >= 3 ? 'text-primary font-medium' : ''}>Review & Save</span>
+          <span className={step >= 1 ? 'text-primary font-medium' : ''}>النوع والبيانات</span>
+          <span className={step >= 2 ? 'text-primary font-medium' : ''}>رفع واستخراج</span>
+          <span className={step >= 3 ? 'text-primary font-medium' : ''}>مراجعة وحفظ</span>
         </div>
         {step === 1 && renderStep1()}
         {step === 2 && renderStep2()}
