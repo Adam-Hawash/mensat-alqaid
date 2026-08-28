@@ -76,7 +76,7 @@ export default function HeroSection() {
         </div>
       )}
 
-      {/* Ambient light effects */
+      {/* Ambient light effects */}
       <div className="absolute inset-0 -z-10 pointer-events-none">
         <div className="absolute top-20 right-20 h-96 w-96 rounded-full bg-[#0D9488]/8 blur-[100px]" />
         <div className="absolute bottom-20 left-20 h-72 w-72 rounded-full bg-[#0D9488]/5 blur-[80px]" />
