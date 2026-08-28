@@ -4,8 +4,8 @@ import { db, safeWrite } from '@/lib/db'
 
 export var maxDuration = 10
 
-var DEFAULT_EMAIL = 'math genius'
-var DEFAULT_PASSWORD = 'wael2026#'
+var DEFAULT_EMAIL = 'mr.amr history'
+var DEFAULT_PASSWORD = 'amr2026#@'
 var ADMIN_NAME = 'مستر عمرو رشدي'
 
 export async function POST(request) {
