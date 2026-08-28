@@ -1,1 +1,0 @@
-(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,27816,(o,t,e)=>{let n=Error("Could not parse module '[project]/mensat-alqaid-git/src/components/admin/AdminDashboard.tsx'\n\nExpected '</', got 'p'");throw n.code="MODULE_UNPARSABLE",n},75334,o=>{o.n(o.i(27816))}]);
