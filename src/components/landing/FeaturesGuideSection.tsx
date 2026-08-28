@@ -39,28 +39,28 @@ export default function FeaturesGuideSection() {
       icon: GUIDE_ICONS[1],
       titleAr: cfg.guide_card2_title || 'شاهد الدروس المسجلة',
       titleEn: cfg.guide_card2_title_en || 'Watch Recorded Lessons',
-      description: cfg.guide_card2_desc || 'شروحات مبسطة لكل وحدة تاريخية: من الحضارات القديمة للعصر الحديث. كل درس مرتبط باللي قبله عشان تبني الصورة الكاملة وتفهم التاريخ كقصة واحدة.'
+      description: cfg.guide_card2_desc || 'شروحات مبسطة لكل وحدة تاريخية: من الحضارات القديمة للعصر الحديث. كل درس مرتبط باللي قبله عشان تبني الصورة الكاملة وتفهم التاريخ كقصة واحدة.',
       color: GUIDE_COLORS[1],
     },
     {
       icon: GUIDE_ICONS[2],
       titleAr: cfg.guide_card3_title || 'حل الواجبات الأسبوعية',
       titleEn: cfg.guide_card3_title_en || 'Weekly Homework',
-      description: cfg.guide_card3_desc || 'واجبات أسبوعية تركز على ربط الأحداث وتحليل الخرائط الزمنية. مش مجرد حفظ — ده فهم وتحليل وتطبيق على أحداث حقيقية.'
+      description: cfg.guide_card3_desc || 'واجبات أسبوعية تركز على ربط الأحداث وتحليل الخرائط الزمنية. مش مجرد حفظ — ده فهم وتحليل وتطبيق على أحداث حقيقية.',
       color: GUIDE_COLORS[2],
     },
     {
       icon: GUIDE_ICONS[3],
       titleAr: cfg.guide_card4_title || 'جرّب الامتحانات التجريبية',
       titleEn: cfg.guide_card4_title_en || 'Practice Exams',
-      description: cfg.guide_card4_desc || 'امتحانات شبه الامتحان الحقيقي بأسئلة تفكير وتحليل. النتيجة بتطلع فورًا وتعرف نقاط قوّتك واللي محتاج تراجعه.'
+      description: cfg.guide_card4_desc || 'امتحانات شبه الامتحان الحقيقي بأسئلة تفكير وتحليل. النتيجة بتطلع فورًا وتعرف نقاط قوّتك واللي محتاج تراجعه.',
       color: GUIDE_COLORS[3],
     },
     {
       icon: GUIDE_ICONS[4],
       titleAr: cfg.guide_card5_title || 'انضم للحصص المباشرة',
       titleEn: cfg.guide_card5_title_en || 'Live Zoom Sessions',
-      description: cfg.guide_card5_desc || 'حصص مباشرة على Zoom مع مستر عمرو. اسأل واستفهم لحظة بلحظة، وشارك في مناقشات مع زملائك.'
+      description: cfg.guide_card5_desc || 'حصص مباشرة على Zoom مع مستر عمرو. اسأل واستفهم لحظة بلحظة، وشارك في مناقشات مع زملائك.',
       color: GUIDE_COLORS[4],
     },
     {
