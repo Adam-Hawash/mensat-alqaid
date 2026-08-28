@@ -98,7 +98,7 @@ export function Navbar() {
               />
             ) : (
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <span className="text-xs font-bold">MG</span>
+                <span className="text-xs font-bold">قائد</span>
               </div>
             )}
             <div className="hidden sm:block">

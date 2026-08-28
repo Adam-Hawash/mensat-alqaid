@@ -62,38 +62,38 @@ export default function HeroSection() {
   const showPhoto = !!dbPhoto || fallbackPhotoExists
 
   return (
-    <section className="relative overflow-hidden bg-[#F5F3EF] dark:bg-[#0F0D0A]" dir="rtl">
-      {/* Banner Image at Top */}
+    <section className="relative overflow-hidden bg-[#FFFBF5] dark:bg-[#0C1220]" dir="rtl">
+      {/* Banner as full section background */
       {showBg && (
-        <div className="relative w-full">
+        <div className="absolute inset-0 z-0">
           <img
             src={heroBg}
             alt="منصة القائد Banner"
-            className="w-full h-auto max-h-[360px] object-cover object-center"
+            className="w-full h-full object-cover"
           />
-          {/* Gradient overlay: hidden in light mode, dark fade in dark mode */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0F0D0A] via-[#0F0D0A]/50 to-transparent opacity-0 dark:opacity-100 transition-opacity" />
+          {/* Dark overlay for readability */}
+          <div className="absolute inset-0 bg-[#FFFBF5]/85 dark:bg-[#0C1220]/80" />
         </div>
       )}
 
-      {/* Ambient light effects */}
+      {/* Ambient light effects */
       <div className="absolute inset-0 -z-10 pointer-events-none">
-        <div className="absolute top-20 right-20 h-96 w-96 rounded-full bg-[#C49A38]/8 blur-[100px]" />
-        <div className="absolute bottom-20 left-20 h-72 w-72 rounded-full bg-[#C49A38]/5 blur-[80px]" />
-        <div className="absolute top-16 left-10 text-[#C49A38]/10 text-6xl font-light select-none hidden lg:block">
-          a2+b2=c2
+        <div className="absolute top-20 right-20 h-96 w-96 rounded-full bg-[#0D9488]/8 blur-[100px]" />
+        <div className="absolute bottom-20 left-20 h-72 w-72 rounded-full bg-[#0D9488]/5 blur-[80px]" />
+        <div className="absolute top-16 left-10 text-[#0D9488]/10 text-5xl font-light select-none hidden lg:block">
+          تاريخ
         </div>
-        <div className="absolute bottom-32 right-16 text-[#C49A38]/8 text-5xl font-light select-none hidden lg:block">
-          f(x)
+        <div className="absolute bottom-32 right-16 text-[#0D9488]/8 text-4xl font-light select-none hidden lg:block">
+          جغرافيا
         </div>
-        <div className="absolute top-1/2 left-1/3 text-[#C49A38]/6 text-4xl font-light select-none hidden xl:block">
-          sum int pi
+        <div className="absolute top-1/2 left-1/3 text-[#0D9488]/6 text-3xl font-light select-none hidden xl:block">
+          حضارات
         </div>
       </div>
 
-      {/* Subtle gradient when no banner */}
+      {/* Subtle gradient when no banner */
       {!showBg && (
-        <div className="absolute inset-0 bg-gradient-to-br from-[#F5F3EF] via-[#EDE9E3] to-[#F5F3EF] dark:from-[#0F0D0A] dark:via-[#1A1714] dark:to-[#0F0D0A] -z-10" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#FFFBF5] via-[#F0F7F4] to-[#FFFBF5] dark:from-[#0C1220] dark:via-[#131D2E] dark:to-[#0C1220] -z-10" />
       )}
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 py-12 sm:py-20 lg:py-24">
@@ -101,17 +101,17 @@ export default function HeroSection() {
           {/* Text Content */}
           <div className="space-y-6 text-center lg:text-right order-2 lg:order-1">
             {/* Badge */}
-            <div className="inline-flex items-center gap-2 rounded-full bg-[#C49A38]/15 px-4 py-1.5 text-sm font-medium text-[#C49A38] border border-[#C49A38]/20">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#0D9488]/15 px-4 py-1.5 text-sm font-medium text-[#0D9488] border border-[#0D9488]/20">
               <Award className="h-4 w-4" />
               <span>
                 {cfg.hero_badge ||
-                  'Comprehensive Learning Platform | منصة تعليمية متكاملة'}
+                  'منصة تعليمية متكاملة | Comprehensive Learning Platform'}
               </span>
             </div>
 
             {/* Title */}
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl text-foreground">
-              <span className="block text-[#C49A38]">
+              <span className="block text-[#0D9488]">
                 {cfg.hero_title_line1 || 'منصة القائد'}
               </span>
               <span className="block mt-1 text-2xl sm:text-3xl lg:text-4xl font-semibold text-foreground/80">
@@ -122,14 +122,14 @@ export default function HeroSection() {
             {/* Subtitle */}
             <p className="max-w-xl text-muted-foreground text-base sm:text-lg leading-relaxed lg:mx-0 mx-auto">
               {cfg.hero_subtitle ||
-                'نبسّط لك الدراسات والتاريخ ونجعلها سهلة وممتعة! Algebra, Geometry, Formulas, Cheat Sheets — واجبات أسبوعية، امتحانات منتظمة، ومتابعة مستمرة لتقدّمك الأكاديمي.'}
+                'نبسّط لك الدراسات والتاريخ ونجعلها سهلة وممتعة! خرائط، أحداث تاريخية، حضارات قديمة — واجبات أسبوعية، امتحانات منتظمة، ومتابعة مستمرة لتقدّمك الأكاديمي.'}
             </p>
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
               <Button
                 size="lg"
-                className="text-base px-8 py-6 min-h-[44px] bg-[#C49A38] hover:bg-[#D4A843] text-white font-semibold transition-colors duration-200"
+                className="text-base px-8 py-6 min-h-[44px] bg-[#0D9488] hover:bg-[#2DD4BF] text-white font-semibold transition-colors duration-200"
                 onClick={() => setView('auth-register')}
               >
                 سجّل الآن | Register Now
@@ -137,7 +137,7 @@ export default function HeroSection() {
               <Button
                 variant="outline"
                 size="lg"
-                className="text-base px-8 py-6 min-h-[44px] border-[#C49A38]/40 text-[#C49A38] hover:bg-[#C49A38]/10 hover:text-[#C49A38] transition-colors duration-200"
+                className="text-base px-8 py-6 min-h-[44px] border-[#0D9488]/40 text-[#0D9488] hover:bg-[#0D9488]/10 hover:text-[#0D9488] transition-colors duration-200"
                 onClick={() => setView('auth-login')}
               >
                 لديّ حساب | I Have an Account
@@ -150,7 +150,7 @@ export default function HeroSection() {
                 href={cfg.hero_developer_url || 'https://hero-developer-portfolio-11.vercel.app'}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm font-semibold text-muted-foreground/50 hover:text-[#C49A38] transition-colors underline underline-offset-4 decoration-muted-foreground/20 hover:decoration-[#C49A38]/50"
+                className="text-sm font-semibold text-muted-foreground/50 hover:text-[#0D9488] transition-colors underline underline-offset-4 decoration-muted-foreground/20 hover:decoration-[#0D9488]/50"
               >
                 Hero Developer
               </a>
@@ -159,7 +159,7 @@ export default function HeroSection() {
                 href={cfg.hero_developer_url || 'https://hero-developer-portfolio-11.vercel.app'}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-muted-foreground/30 font-light tracking-wider hover:text-[#C49A38] transition-colors"
+                className="text-xs text-muted-foreground/30 font-light tracking-wider hover:text-[#0D9488] transition-colors"
               >
                 Made by Adam Hawash
               </a>
@@ -169,8 +169,8 @@ export default function HeroSection() {
             <div className="flex items-center justify-center lg:justify-start gap-8 pt-6">
               <div className="text-center">
                 <div className="flex items-center justify-center gap-1.5 mb-1">
-                  <BookOpen className="h-4 w-4 text-[#C49A38]/60" />
-                  <p className="text-2xl font-bold text-[#C49A38]">
+                  <BookOpen className="h-4 w-4 text-[#0D9488]/60" />
+                  <p className="text-2xl font-bold text-[#0D9488]">
                     {stats?.totalVideos
                       ? stats.totalVideos
                       : cfg.hero_stat1_value || '100+'}
@@ -185,8 +185,8 @@ export default function HeroSection() {
 
               <div className="text-center">
                 <div className="flex items-center justify-center gap-1.5 mb-1">
-                  <Users className="h-4 w-4 text-[#C49A38]/60" />
-                  <p className="text-2xl font-bold text-[#C49A38]">
+                  <Users className="h-4 w-4 text-[#0D9488]/60" />
+                  <p className="text-2xl font-bold text-[#0D9488]">
                     {stats?.approvedStudents
                       ? stats.approvedStudents
                       : cfg.hero_stat2_value || '500+'}
@@ -201,8 +201,8 @@ export default function HeroSection() {
 
               <div className="text-center">
                 <div className="flex items-center justify-center gap-1.5 mb-1">
-                  <Clock className="h-4 w-4 text-[#C49A38]/60" />
-                  <p className="text-2xl font-bold text-[#C49A38]">
+                  <Clock className="h-4 w-4 text-[#0D9488]/60" />
+                  <p className="text-2xl font-bold text-[#0D9488]">
                     {cfg.hero_stat3_value || '24/7'}
                   </p>
                 </div>
@@ -213,12 +213,12 @@ export default function HeroSection() {
             </div>
           </div>
 
-          {/* Instructor Photo */}
+          {/* Instructor Photo - RECTANGULAR */}
           <div className="flex justify-center lg:justify-end order-1 lg:order-2">
             <div className="relative group">
-              {/* Gold glow ring */}
-              <div className="absolute -inset-4 rounded-full bg-gradient-to-br from-[#C49A38]/20 via-[#C49A38]/5 to-transparent blur-2xl transition-opacity duration-500 group-hover:opacity-80" />
-              <div className="relative w-56 h-56 sm:w-72 sm:h-72 lg:w-80 lg:h-80 rounded-full overflow-hidden border-2 border-[#C49A38]/30 gold-glow bg-[#EDE9E3] dark:bg-[#1A1714]">
+              {/* Teal glow ring */}
+              <div className="absolute -inset-4 rounded-2xl bg-gradient-to-br from-[#0D9488]/20 via-[#0D9488]/5 to-transparent blur-2xl transition-opacity duration-500 group-hover:opacity-80" />
+              <div className="relative w-64 h-80 sm:w-72 sm:h-96 rounded-2xl overflow-hidden border-2 border-[#0D9488]/30 bg-[#F0F7F4] dark:bg-[#131D2E]" style={{boxShadow: '0 0 40px rgba(13, 148, 136, 0.15)'}}>
                 {showPhoto ? (
                   <img
                     src={heroPhoto}
@@ -226,14 +226,14 @@ export default function HeroSection() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[#C49A38]/30">
+                  <div className="w-full h-full flex items-center justify-center text-[#0D9488]/30">
                     <GraduationCap className="h-24 w-24" />
                   </div>
                 )}
               </div>
               {/* Badge overlay */}
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white dark:bg-[#1A1714] border border-[#C49A38]/30 rounded-full px-4 py-1.5 shadow-sm">
-                <p className="text-[#C49A38] font-bold text-sm tracking-wider">
+              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white dark:bg-[#131D2E] border border-[#0D9488]/30 rounded-full px-4 py-1.5 shadow-sm">
+                <p className="text-[#0D9488] font-bold text-sm tracking-wider">
                   {(cfg.hero_title_line1 || 'منصة القائد').toUpperCase()}
                 </p>
               </div>

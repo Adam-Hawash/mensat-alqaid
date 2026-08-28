@@ -62,7 +62,7 @@ export function Footer() {
   var hasSocial = fb || wa || ig || yt
 
   return (
-    <footer className="border-t bg-[#F9F7F4] dark:bg-[#0F0D0A] mt-auto">
+    <footer className="border-t bg-[#F0F7F4] dark:bg-[#0C1220] mt-auto">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
         {hasSocial && (
           <div className="flex items-center justify-center gap-5 mb-6">

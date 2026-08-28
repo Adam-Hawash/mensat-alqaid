@@ -116,7 +116,7 @@ export function AdminDashboard() {
 
         {stats && (
           <div className="grid gap-4 grid-cols-2 lg:grid-cols-5 mb-6">
-            <StatCard icon={Users} label="إجمالي الطلاب" value={stats.totalStudents} color="bg-[#C49A38]/10 text-[#C49A38]" />
+            <StatCard icon={Users} label="إجمالي الطلاب" value={stats.totalStudents} color="bg-[#0D9488]/10 text-[#0D9488]" />
             <StatCard icon={Clock} label="بانتظار الموافقة" value={stats.pendingStudents} color="bg-amber-500/10 text-amber-600 dark:text-amber-400" />
             <StatCard icon={UserCheck} label="طلاب مفعلين" value={stats.approvedStudents} color="bg-teal-50 text-teal-600 dark:text-teal-400" />
             <StatCard icon={Video} label="إجمالي الفيديوهات" value={stats.totalVideos} color="bg-violet-50 text-violet-500 dark:text-violet-400" />

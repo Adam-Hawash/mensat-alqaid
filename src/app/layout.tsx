@@ -41,7 +41,7 @@ export default async function RootLayout({
     /* DB not available yet */
   }
 
-  var faviconUrl = initialConfig.favicon_url || "https://imgh.in/host/4pdrhw";
+  var faviconUrl = initialConfig.favicon_url || "/favicon.png";
 
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>

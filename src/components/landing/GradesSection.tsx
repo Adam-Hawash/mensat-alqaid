@@ -24,7 +24,7 @@ export function GradesSection() {
   }
 
   return (
-    <section className="py-12 sm:py-20 bg-[#F9F7F4] dark:bg-[#0F0D0A]">
+    <section className="py-12 sm:py-20 bg-[#F0F7F4] dark:bg-[#0C1220]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="text-center mb-12">
           <h2 className="text-2xl font-bold sm:text-3xl text-foreground">{cfg.grades_title || 'السنوات الدراسية'}</h2>

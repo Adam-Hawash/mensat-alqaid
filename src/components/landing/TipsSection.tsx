@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react'
 
 var TIP_ICONS = [Clock, Brain, Pencil, MessageCircle]
 var TIP_COLORS = [
-  'bg-[#C49A38]/10 text-[#C49A38] dark:bg-[#C49A38]/15 dark:text-[#E5BE5A]',
+  'bg-[#0D9488]/10 text-[#0D9488] dark:bg-[#0D9488]/15 dark:text-[#5EEAD4]',
   'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400',
   'bg-amber-500/10 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400',
   'bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400',
@@ -115,7 +115,7 @@ export default function TipsSection() {
   }
 
   return (
-    <section className="py-16 sm:py-20 relative bg-background dark:bg-[#0F0D0A]" dir="rtl">
+    <section className="py-16 sm:py-20 relative bg-background dark:bg-[#0C1220]" dir="rtl">
       {/* Background image */}
       {tipsBgImage && (
         <>
@@ -130,7 +130,7 @@ export default function TipsSection() {
             fetchPriority="high"
             onLoad={function() { setBgLoaded(true) }}
           />
-          <div className="absolute inset-0 -z-10 bg-background/80 dark:bg-[#0F0D0A]/80" />
+          <div className="absolute inset-0 -z-10 bg-background/80 dark:bg-[#0C1220]/80" />
         </>
       )}
 

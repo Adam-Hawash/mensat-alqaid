@@ -98,7 +98,7 @@ export default function GallerySection() {
   // Show placeholder when no items
   if (!loading && images.length === 0) {
     return (
-      <section className="py-16 sm:py-20 bg-[#F9F7F4] dark:bg-[#0F0D0A]" dir="rtl">
+      <section className="py-16 sm:py-20 bg-[#F0F7F4] dark:bg-[#0C1220]" dir="rtl">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="text-center mb-12 space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
@@ -129,7 +129,7 @@ export default function GallerySection() {
   }
 
   return (
-    <section className="py-16 sm:py-20 bg-[#F9F7F4] dark:bg-[#0F0D0A]" dir="rtl">
+    <section className="py-16 sm:py-20 bg-[#F0F7F4] dark:bg-[#0C1220]" dir="rtl">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         {/* Header */}
         <div className="text-center mb-12 space-y-3">

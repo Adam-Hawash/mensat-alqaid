@@ -27,16 +27,16 @@ export async function POST(request: Request) {
       subject: `طالب جديد مسجّل: ${studentName} — منصة القائد`,
       html: `
         <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
-          <div style="background: #09090B; border-radius: 12px; padding: 24px; color: #F5F0E3;">
-            <h1 style="margin: 0 0 8px 0; color: #D4A843;">منصة القائد</h1>
-            <p style="color: #8C8577; margin: 0 0 20px 0;">إشعار تسجيل طالب جديد</p>
-            <div style="background: #1A1A1F; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+          <div style="background: #0C1220; border-radius: 12px; padding: 24px; color: #F0FDFA;">
+            <h1 style="margin: 0 0 8px 0; color: #2DD4BF;">منصة القائد</h1>
+            <p style="color: #8C9DAF; margin: 0 0 20px 0;">إشعار تسجيل طالب جديد</p>
+            <div style="background: #1A2A3A; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
               <p style="margin: 8px 0;"><strong>اسم الطالب:</strong> ${studentName}</p>
               <p style="margin: 8px 0;"><strong>رقم الهاتف:</strong> ${studentPhone}</p>
               <p style="margin: 8px 0;"><strong>الصف:</strong> ${studentGrade}</p>
               ${parentInfo}
             </div>
-            <p style="color: #8C8577; font-size: 13px;">يرجى تسجيل الدخول للوحة التحكم لقبول أو رفض هذا الطلب.</p>
+            <p style="color: #8C9DAF; font-size: 13px;">يرجى تسجيل الدخول للوحة التحكم لقبول أو رفض هذا الطلب.</p>
           </div>
         </div>
       `,

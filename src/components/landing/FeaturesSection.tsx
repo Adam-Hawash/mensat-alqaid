@@ -13,7 +13,7 @@ export function FeaturesSection() {
       icon: BookOpen,
       title: cfg.feature1_title || 'شرح مبسط | Simplified Explanations',
       description: cfg.feature1_desc || 'شرح واضح ومبسط لكل درس رياضيات بطريقة تساعد الطالب على الفهم السريع والاستيعاب العميق لمفاهيم Algebra و Geometry الأساسية.',
-      color: 'bg-[#C49A38]/10 text-[#C49A38] dark:bg-[#C49A38]/15 dark:text-[#E5BE5A]',
+      color: 'bg-[#0D9488]/10 text-[#0D9488] dark:bg-[#0D9488]/15 dark:text-[#5EEAD4]',
     },
     {
       icon: Brain,
@@ -36,7 +36,7 @@ export function FeaturesSection() {
   ]
 
   return (
-    <section className="py-16 sm:py-20 bg-[#F9F7F4] dark:bg-[#0F0D0A]">
+    <section className="py-16 sm:py-20 bg-[#F0F7F4] dark:bg-[#0C1220]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="text-center mb-12">
           <h2 className="text-2xl font-bold sm:text-3xl text-foreground">{cfg.features_title || 'لماذا تختارنا؟ | Why Choose Us?'}</h2>
