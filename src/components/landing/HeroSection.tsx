@@ -234,7 +234,7 @@ export default function HeroSection() {
               {/* Badge overlay */}
               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white dark:bg-[#131D2E] border border-[#0D9488]/30 rounded-full px-4 py-1.5 shadow-sm">
                 <p className="text-[#0D9488] font-bold text-sm tracking-wider">
-                  {(cfg.hero_title_line1 || 'منصة القائد').toUpperCase()}
+                  {cfg.instructor_name || 'مستر عمرو رشدي'}
                 </p>
               </div>
             </div>

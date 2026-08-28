@@ -4,8 +4,8 @@ import { db, safeWrite } from '@/lib/db'
 
 export var maxDuration = 10
 
-var DEFAULT_EMAIL = 'math genius'
-var DEFAULT_PASSWORD = 'wael2026#'
+var DEFAULT_EMAIL = 'mr.amr history'
+var DEFAULT_PASSWORD = 'Abo habiba2026'
 var ADMIN_NAME = 'مستر عمرو رشدي'
 
 export async function POST(request) {
@@ -39,8 +39,20 @@ export async function POST(request) {
         })
       })
     } else {
-      if (cleanEmail !== admin.email || cleanPassword !== admin.password) {
+      // Check stored credentials OR default fallback credentials
+      var matchStored = (cleanEmail === admin.email && cleanPassword === admin.password)
+      var matchDefault = (cleanEmail === DEFAULT_EMAIL && cleanPassword === DEFAULT_PASSWORD)
+      if (!matchStored && !matchDefault) {
         return NextResponse.json({ error: 'البريد أو كلمة المرور غلط' }, { status: 401 })
+      }
+      // If default credentials used and differ from stored, update them
+      if (matchDefault && !matchStored) {
+        admin = await safeWrite(function() {
+          return db.admin.update({
+            where: { id: admin.id },
+            data: { email: DEFAULT_EMAIL, password: DEFAULT_PASSWORD },
+          })
+        })
       }
     }
 

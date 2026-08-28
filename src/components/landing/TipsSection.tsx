@@ -2,10 +2,10 @@
 
 import { Card, CardContent } from '@/components/ui/card'
 import { useAppStore } from '@/stores/app-store'
-import { Lightbulb, Clock, Brain, Pencil, MessageCircle } from 'lucide-react'
+import { Lightbulb, Clock, Brain, Pencil, MessageCircle, MapPin, Link2, BookOpen } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
-var TIP_ICONS = [Clock, Brain, Pencil, MessageCircle]
+var TIP_ICONS = [MapPin, Link2, BookOpen, Clock]
 var TIP_COLORS = [
   'bg-[#0D9488]/10 text-[#0D9488] dark:bg-[#0D9488]/15 dark:text-[#5EEAD4]',
   'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400',
@@ -45,30 +45,30 @@ export default function TipsSection() {
   var tips = [
     {
       icon: TIP_ICONS[0],
-      titleAr: cfg.tips_card1_title || 'حدد وقت يومي للمراجعة',
-      titleEn: cfg.tips_card1_title_en || 'Set Daily Review Time',
-      description: cfg.tips_card1_desc || 'خصص 20-30 دقيقة كل يوم لمراجعة ما تعلمته. الاستمرارية هي مفتاح التفوّق في الدراسات والتاريخ. Dedicate 20-30 minutes daily for review.',
+      titleAr: cfg.tips_card1_title || 'اربط الأحداث بالخريطة الزمنية',
+      titleEn: cfg.tips_card1_title_en || 'Link Events to a Timeline',
+      description: cfg.tips_card1_desc || 'حط كل حدث تاريخي على خريطة زمنية وشوف إزاي الأحداث متسلسلة ومترابطة. مثلاً: الحروب الصليبية سبّبت انتقال التجارة من البحر المتوسط إلى البحر الأحمر، وده أثّر على اقتصاد مصر والشام. لما بتيربط الأحداث ببعض، التاريخ بيبقى قصة واحدة مش حاجات منسية. Build a timeline and see how events connect sequentially.',
       color: TIP_COLORS[0],
     },
     {
       icon: TIP_ICONS[1],
-      titleAr: cfg.tips_card2_title || 'ركز على الفهم وليس الحفظ',
-      titleEn: cfg.tips_card2_title_en || 'Focus on Understanding, Not Memorization',
-      description: cfg.tips_card2_desc || 'حاول فهم لماذا وليس كيف فقط. الفهم العميق يبقي المعلومة لفترة أطول ويساعدك في حل مسائل جديدة. Understand why, not just how.',
+      titleAr: cfg.tips_card2_title || 'ابحث عن السبب والنتيجة',
+      titleEn: cfg.tips_card2_title_en || 'Find Cause & Effect',
+      description: cfg.tips_card2_desc || 'كل حدث تاريخي ليه سبب ونتيجة. اسأل نفسك دايمًا: ليه حصل كده؟ وبعدها إيه اللي تغيّر؟ مثلاً: الثورة الفرنسية حصلت بسبب الأزمة الاقتصادية، ونتيجتها ظهور نابليون وتغيير خريطة أوروبا كلها. فهم السبب والنتيجة بيخلّي تحفظ القصة مش التفاصيل. Every event has a cause and consequence — understand the chain.',
       color: TIP_COLORS[1],
     },
     {
       icon: TIP_ICONS[2],
-      titleAr: cfg.tips_card3_title || 'حل مسائل إضافية كل يوم',
-      titleEn: cfg.tips_card3_title_en || 'Solve Extra Problems Daily',
-      description: cfg.tips_card3_desc || 'لا تكتفي بالواجبات فقط. حل مسائل إضافية من الكتاب المدرسي لتعزيز مهاراتك. Practice beyond homework for stronger skills.',
+      titleAr: cfg.tips_card3_title || 'استخدم خرائط جغرافيا كدليل',
+      titleEn: cfg.tips_card3_title_en || 'Use Maps as Your Guide',
+      description: cfg.tips_card3_desc || 'التاريخ مرتبط بالجغرافيا ارتباط وثيق. لما تقرأ عن معركة أو غزو، افتح الخريطة وشوف الموقع الاستراتيجي. مثلاً: موقع مصر بين قارتين خلّاها محط اهتمام كل الإمبراطوريات من الفراعنة للإسلام للمملوك. فهم المكان بيساعدك تفهم إزاي الأحداث اتشكلت. History and geography are deeply connected — maps make it clear.',
       color: TIP_COLORS[2],
     },
     {
       icon: TIP_ICONS[3],
-      titleAr: cfg.tips_card4_title || 'لا تتردد في السؤال',
-      titleEn: cfg.tips_card4_title_en || 'Never Hesitate to Ask',
-      description: cfg.tips_card4_desc || 'إذا لم تفهم شيئاً اسأل فوراً. السؤال الجيد هو بداية الفهم العميق. Ask immediately when something is unclear.',
+      titleAr: cfg.tips_card4_title || 'راجع بأسلوب السرد القصصي',
+      titleEn: cfg.tips_card4_title_en || 'Review by Storytelling',
+      description: cfg.tips_card4_desc || 'بعد ما تخلص درس، حاول تحكيه لحد تاني بأسلوبك. لما بتشرح الحدث بوصفك وكلامك، بتعيد ترتيب الأفكار في دماغك وتلاحظ فجوات فهمك. مثلاً: اروي قصة صلاح الدين من بداية نشأته لحد تحرير القدس — القصة بتثبّت المعلومة أحسن من أي حفظ. Tell the story in your own words to solidify understanding.',
       color: TIP_COLORS[3],
     },
   ]
@@ -139,13 +139,13 @@ export default function TipsSection() {
         <div className="text-center mb-10 sm:mb-12 space-y-3">
           <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
             <Lightbulb className="h-4 w-4" />
-            <span>{cfg.tips_badge || 'نصائح للتفوّق | Tips for Excellence'}</span>
+            <span>{cfg.tips_badge || 'نصائح تاريخية | History Tips'}</span>
           </div>
           <h2 className="text-2xl font-bold sm:text-3xl text-foreground">
-            {cfg.tips_title || 'نصائح للتفوّق في الدراسات والتاريخ | Tips for Excellence'}
+            {cfg.tips_title || 'نصائح مستر عمرو لفهم التاريخ | Mr. Amr\'s History Tips'}
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto text-sm sm:text-base">
-            {cfg.tips_subtitle || 'نصائح ذهبية للتفوّق في الدراسات والتاريخ — Golden advice for excellence in Mathematics'}
+            {cfg.tips_subtitle || 'نصائح ذهبية لتربط الأحداث التاريخية ببعض وتفهم القصة الكاملة ورا كل حدث — Golden advice to connect historical events and understand the full story'}
           </p>
         </div>
 
@@ -165,7 +165,7 @@ export default function TipsSection() {
                 )}
                 <img
                   src={tipsSectionImage}
-                  alt="نصائح مستر وائل"
+                  alt="نصائح مستر عمرو"
                   className={"w-full aspect-[3/4] object-cover transition-opacity duration-500 " + (sectionImgLoaded ? 'opacity-100' : 'opacity-0 absolute inset-0')}
                   loading="eager"
                   onLoad={function() { setSectionImgLoaded(true) }}

@@ -4,16 +4,16 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useAppStore } from '@/stores/app-store'
 import {
-  BookOpen,
+  UserPlus,
   Video,
   ClipboardList,
-  FileText,
-  Layers,
-  Trophy,
+  FileCheck,
+  MessageSquare,
+  BarChart3,
   Compass,
 } from 'lucide-react'
 
-var GUIDE_ICONS = [BookOpen, Video, ClipboardList, FileText, Layers, Trophy]
+var GUIDE_ICONS = [UserPlus, Video, ClipboardList, FileCheck, MessageSquare, BarChart3]
 var GUIDE_COLORS = [
   'bg-[#0D9488]/10 text-[#0D9488] dark:bg-[#0D9488]/15 dark:text-[#5EEAD4]',
   'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400',
@@ -30,44 +30,44 @@ export default function FeaturesGuideSection() {
   var cards = [
     {
       icon: GUIDE_ICONS[0],
-      titleAr: cfg.guide_card1_title || 'تسجيل حسابك',
-      titleEn: cfg.guide_card1_title_en || 'Register',
-      description: cfg.guide_card1_desc || 'أنشئ حسابك في المنصة بسرعة وسهولة. اختر صفّك الدراسي وابدأ رحلتك التعليمية فوراً. Create your account quickly and start learning.',
+      titleAr: cfg.guide_card1_title || 'سجّل حسابك',
+      titleEn: cfg.guide_card1_title_en || 'Create Your Account',
+      description: cfg.guide_card1_desc || 'أنشئ حسابك في منصة القائد باسمك وصفك الدراسي. العملية تستغرق أقل من دقيقة وتبدأ فورًا في الوصول لمحتوى التاريخ والدراسات. Sign up in under a minute and access all history content.',
       color: GUIDE_COLORS[0],
     },
     {
       icon: GUIDE_ICONS[1],
-      titleAr: cfg.guide_card2_title || 'مشاهدة الدروس',
-      titleEn: cfg.guide_card2_title_en || 'Watch Lessons',
-      description: cfg.guide_card2_desc || 'تابع شروحات مبسّطة ومتسلسلة لكل درس رياضيات بأسلوب تفاعلي يجعل الفهم أسهل. Watch simplified, step-by-step video lessons.',
+      titleAr: cfg.guide_card2_title || 'تابع الدروس المسجّلة',
+      titleEn: cfg.guide_card2_title_en || 'Watch Recorded Lessons',
+      description: cfg.guide_card2_desc || 'شروحات مبسّطة ومتسلسلة لكل وحدة تاريخية: من الحضارات القديمة لحد العصر الحديث. كل درس مرتبط باللي قبله عشان تبني الصورة الكاملة. Simplified lessons from ancient civilizations to the modern era, each building on the previous one.',
       color: GUIDE_COLORS[1],
     },
     {
       icon: GUIDE_ICONS[2],
-      titleAr: cfg.guide_card3_title || 'حل الواجبات',
-      titleEn: cfg.guide_card3_title_en || 'Homework',
-      description: cfg.guide_card3_desc || 'أكمل واجباتك الأسبوعية وحلّ التمارين لتثبيت المعلومات واختبار فهمك. Complete weekly homework to reinforce your learning.',
+      titleAr: cfg.guide_card3_title || 'حل الواجبات الأسبوعية',
+      titleEn: cfg.guide_card3_title_en || 'Complete Weekly Homework',
+      description: cfg.guide_card3_desc || 'واجبات أسبوعية تركز على ربط الأحداث وتحليل الخرائط الزمنية. مش مجرد حفظ — ده فهم وتحليل وتطبيق على أحداث حقيقية. Weekly assignments focused on connecting events and analyzing timelines, not just memorization.',
       color: GUIDE_COLORS[2],
     },
     {
       icon: GUIDE_ICONS[3],
-      titleAr: cfg.guide_card4_title || 'أداء الامتحانات',
-      titleEn: cfg.guide_card4_title_en || 'Take Exams',
-      description: cfg.guide_card4_desc || 'شارك في الامتحانات الدورية لمتابعة مستواك والاستعداد للامتحانات النهائية. Take periodic exams to track your progress.',
+      titleAr: cfg.guide_card4_title || 'جرّب الامتحانات التجريبية',
+      titleEn: cfg.guide_card4_title_en || 'Take Practice Exams',
+      description: cfg.guide_card4_desc || 'امتحانات شبه الامتحان الحقيقي بأسئلة تفكير وتحليل. تابع نتيجتك فورًا واعرف نقاط قوّتك واللي محتاج تراجعه قبل الامتحان. Realistic practice exams with analytical questions and instant results.',
       color: GUIDE_COLORS[3],
     },
     {
       icon: GUIDE_ICONS[4],
-      titleAr: cfg.guide_card5_title || 'بطاقات تعليمية',
-      titleEn: cfg.guide_card5_title_en || 'Flashcards',
-      description: cfg.guide_card5_desc || 'استخدم البطاقات التعليمية لمراجعة المصطلحات والقوانين الرياضية بشكل سريع. Review formulas and terms with flashcards.',
+      titleAr: cfg.guide_card5_title || 'انضم للحصص المباشرة',
+      titleEn: cfg.guide_card5_title_en || 'Join Live Sessions',
+      description: cfg.guide_card5_desc || 'حصص مباشرة على Zoom مع مستر عمرو رشدي. اسأل واستفهم لحظة بلحظة، وشارك في مناقشات جماعية مع زملائك. Live Zoom sessions with Mr. Amr — ask questions in real-time and join group discussions.',
       color: GUIDE_COLORS[4],
     },
     {
       icon: GUIDE_ICONS[5],
-      titleAr: cfg.guide_card6_title || 'تحديات ومسابقات',
-      titleEn: cfg.guide_card6_title_en || 'Challenges',
-      description: cfg.guide_card6_desc || 'تنافس مع زملائك في تحديات رياضية ممتعة واربح مراكز متقدمة. Compete in fun math challenges with your classmates.',
+      titleAr: cfg.guide_card6_title || 'تابع تقدّمك',
+      titleEn: cfg.guide_card6_title_en || 'Track Your Progress',
+      description: cfg.guide_card6_desc || 'لوحة متابعة توريّك مستواك في كل وحدة: كم درس شاهدته، واجب حلّه، وامتحان خلصته. اعرف بالضبط إزاي تتقدّم وإيه اللي محتاج مجهود أكتر. A progress dashboard showing lessons watched, homework done, and exam scores.',
       color: GUIDE_COLORS[5],
     },
   ]
@@ -78,13 +78,13 @@ export default function FeaturesGuideSection() {
         <div className="text-center mb-12 space-y-3">
           <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
             <Compass className="h-4 w-4" />
-            <span>{cfg.guide_badge || 'دليلك التعليمي | Learning Guide'}</span>
+            <span>{cfg.guide_badge || 'إزاي تستخدم المنصة؟ | Getting Started'}</span>
           </div>
           <h2 className="text-2xl font-bold sm:text-3xl text-foreground">
-            {cfg.guide_title || 'كيف تستخدم المنصة؟ | How to Use the Platform'}
+            {cfg.guide_title || 'خطوات بسيطة تبدأ بيها رحلتك | Start Your Journey in Simple Steps'}
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto text-sm sm:text-base">
-            {cfg.guide_subtitle || 'ست خطوات بسيطة لتبدأ رحلتك التعليمية في منصة القائد — Six simple steps to begin your learning journey'}
+            {cfg.guide_subtitle || 'ست خطوات هتوصلك من التسجيل لحد التفوّق في التاريخ والدراسات — Six steps from sign-up to excellence in history'}
           </p>
         </div>
 
@@ -98,13 +98,13 @@ export default function FeaturesGuideSection() {
                 <CardContent className="p-6 space-y-4">
                   <div className="flex items-center gap-3">
                     <div
-                      className={"inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-lg transition-transform duration-300 group-hover:scale-110 " + card.color}
+                      className={"inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 " + card.color}
                     >
                       <card.icon className="h-6 w-6" />
                     </div>
                     <Badge
                       variant="secondary"
-                      className="text-xs font-medium"
+                      className="text-xs font-medium bg-[#0D9488]/10 text-[#0D9488]"
                     >
                       {String(index + 1).padStart(2, '0')}
                     </Badge>
