@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { put } from '@vercel/blob'
 
+export const maxDuration = 60
+
 export async function POST(req: NextRequest) {
   try {
     var formData = await req.formData()

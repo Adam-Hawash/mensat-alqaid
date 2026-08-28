@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
     '@prisma/adapter-libsql',
     '@libsql/isomorphic-fetch',
     '@libsql/isomorphic-ws',
+    '@vercel/blob',
   ],
   experimental: {
     serverActions: { bodySizeLimit: '500mb' },
