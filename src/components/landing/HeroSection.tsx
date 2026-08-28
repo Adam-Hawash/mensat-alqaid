@@ -105,7 +105,7 @@ export default function HeroSection() {
               <Award className="h-4 w-4" />
               <span>
                 {cfg.hero_badge ||
-                  'منصة تعليمية متكاملة | Comprehensive Learning Platform'}
+                  'تاريخ ودراسات ببساطة | History Made Easy'}
               </span>
             </div>
 
@@ -122,7 +122,7 @@ export default function HeroSection() {
             {/* Subtitle */}
             <p className="max-w-xl text-muted-foreground text-base sm:text-lg leading-relaxed lg:mx-0 mx-auto">
               {cfg.hero_subtitle ||
-                'نبسّط لك الدراسات والتاريخ ونجعلها سهلة وممتعة! خرائط، أحداث تاريخية، حضارات قديمة — واجبات أسبوعية، امتحانات منتظمة، ومتابعة مستمرة لتقدّمك الأكاديمي.'}
+                'هنساعدك تفهم التاريخ والدراسات بأسلوب سهل وبسيط — خرائط، أحداث، حضارات، واجبات أسبوعية، امتحانات، ومتابعة مع مستر عمرو رشدي.'}
             </p>
 
             {/* CTA Buttons */}
@@ -132,7 +132,7 @@ export default function HeroSection() {
                 className="text-base px-8 py-6 min-h-[44px] bg-[#0D9488] hover:bg-[#2DD4BF] text-white font-semibold transition-colors duration-200"
                 onClick={() => setView('auth-register')}
               >
-                سجّل الآن | Register Now
+                سجّل دلوقتي
               </Button>
               <Button
                 variant="outline"
@@ -140,7 +140,7 @@ export default function HeroSection() {
                 className="text-base px-8 py-6 min-h-[44px] border-[#0D9488]/40 text-[#0D9488] hover:bg-[#0D9488]/10 hover:text-[#0D9488] transition-colors duration-200"
                 onClick={() => setView('auth-login')}
               >
-                لديّ حساب | I Have an Account
+                عندي حساب
               </Button>
             </div>
 
@@ -177,7 +177,7 @@ export default function HeroSection() {
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {cfg.hero_stat1_label || 'Video Lessons | دروس فيديو'}
+                  {cfg.hero_stat1_label || 'درس فيديو'}
                 </p>
               </div>
 
@@ -193,7 +193,7 @@ export default function HeroSection() {
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {cfg.hero_stat2_label || 'Students | طالب'}
+                  {cfg.hero_stat2_label || 'طالب'}
                 </p>
               </div>
 
@@ -207,7 +207,7 @@ export default function HeroSection() {
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {cfg.hero_stat3_label || 'Tracking | متابعة'}
+                  {cfg.hero_stat3_label || 'متابعة مستمرة'}
                 </p>
               </div>
             </div>

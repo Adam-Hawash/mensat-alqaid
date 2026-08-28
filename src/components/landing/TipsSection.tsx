@@ -45,30 +45,30 @@ export default function TipsSection() {
   var tips = [
     {
       icon: TIP_ICONS[0],
-      titleAr: cfg.tips_card1_title || 'اربط الأحداث بالخريطة الزمنية',
-      titleEn: cfg.tips_card1_title_en || 'Link Events to a Timeline',
-      description: cfg.tips_card1_desc || 'حط كل حدث تاريخي على خريطة زمنية وشوف إزاي الأحداث متسلسلة ومترابطة. مثلاً: الحروب الصليبية سبّبت انتقال التجارة من البحر المتوسط إلى البحر الأحمر، وده أثّر على اقتصاد مصر والشام. لما بتيربط الأحداث ببعض، التاريخ بيبقى قصة واحدة مش حاجات منسية. Build a timeline and see how events connect sequentially.',
+      titleAr: cfg.tips_card1_title || 'حط الأحداث على ترتيب زمني',
+      titleEn: cfg.tips_card1_title_en || 'Build a Timeline',
+      description: cfg.tips_card1_desc || 'حط كل حدث تاريخي على خريطة زمنية وشوف إزاي الأحداث متسلسلة ومترابطة. مثلاً: الحروب الصليبية سبّبت انتقال التجارة من البحر المتوسط للبحر الأحمر، وده أثّر على اقتصاد مصر والشام. لما بتيربط الأحداث ببعض، التاريخ بيبقى قصة واحدة مش حاجات منسية.',
       color: TIP_COLORS[0],
     },
     {
       icon: TIP_ICONS[1],
-      titleAr: cfg.tips_card2_title || 'ابحث عن السبب والنتيجة',
-      titleEn: cfg.tips_card2_title_en || 'Find Cause & Effect',
-      description: cfg.tips_card2_desc || 'كل حدث تاريخي ليه سبب ونتيجة. اسأل نفسك دايمًا: ليه حصل كده؟ وبعدها إيه اللي تغيّر؟ مثلاً: الثورة الفرنسية حصلت بسبب الأزمة الاقتصادية، ونتيجتها ظهور نابليون وتغيير خريطة أوروبا كلها. فهم السبب والنتيجة بيخلّي تحفظ القصة مش التفاصيل. Every event has a cause and consequence — understand the chain.',
+      titleAr: cfg.tips_card2_title || 'اسأل نفسك: ليه حصل كده؟',
+      titleEn: cfg.tips_card2_title_en || 'Ask: Why Did This Happen?',
+      description: cfg.tips_card2_desc || 'كل حدث تاريخي ليه سبب ونتيجة. اسأل نفسك دايمًا: ليه حصل كده؟ وبعدها إيه اللي تغيّر؟ مثلاً: الثورة الفرنسية حصلت بسبب الأزمة الاقتصادية، ونتيجتها ظهور نابليون وتغيير خريطة أوروبا كلها. فهم السبب والنتيجة بيخلّي تحفظ القصة مش التفاصيل.',
       color: TIP_COLORS[1],
     },
     {
       icon: TIP_ICONS[2],
-      titleAr: cfg.tips_card3_title || 'استخدم خرائط جغرافيا كدليل',
-      titleEn: cfg.tips_card3_title_en || 'Use Maps as Your Guide',
-      description: cfg.tips_card3_desc || 'التاريخ مرتبط بالجغرافيا ارتباط وثيق. لما تقرأ عن معركة أو غزو، افتح الخريطة وشوف الموقع الاستراتيجي. مثلاً: موقع مصر بين قارتين خلّاها محط اهتمام كل الإمبراطوريات من الفراعنة للإسلام للمملوك. فهم المكان بيساعدك تفهم إزاي الأحداث اتشكلت. History and geography are deeply connected — maps make it clear.',
+      titleAr: cfg.tips_card3_title || 'افتح الخريطة مع كل درس',
+      titleEn: cfg.tips_card3_title_en || 'Always Use a Map',
+      description: cfg.tips_card3_desc || 'التاريخ مرتبط بالجغرافيا. لما تقرأ عن معركة أو غزو، افتح الخريطة وشوف المكان. مثلاً: موقع مصر بين قارتين خلّاها محط اهتمام كل الإمبراطوريات من الفراعنة للإسلام للمماليك. فهم المكان بيساعدك تفهم إزاي الأحداث اتشكلت.',
       color: TIP_COLORS[2],
     },
     {
       icon: TIP_ICONS[3],
-      titleAr: cfg.tips_card4_title || 'راجع بأسلوب السرد القصصي',
-      titleEn: cfg.tips_card4_title_en || 'Review by Storytelling',
-      description: cfg.tips_card4_desc || 'بعد ما تخلص درس، حاول تحكيه لحد تاني بأسلوبك. لما بتشرح الحدث بوصفك وكلامك، بتعيد ترتيب الأفكار في دماغك وتلاحظ فجوات فهمك. مثلاً: اروي قصة صلاح الدين من بداية نشأته لحد تحرير القدس — القصة بتثبّت المعلومة أحسن من أي حفظ. Tell the story in your own words to solidify understanding.',
+      titleAr: cfg.tips_card4_title || 'احكي الدرس لحد تاني بأسلوبك',
+      titleEn: cfg.tips_card4_title_en || 'Retell in Your Own Words',
+      description: cfg.tips_card4_desc || 'بعد ما تخلص درس، حاول تحكيه لحد تاني بأسلوبك. لما بتشرح الحدث بكلامك، بتعيد ترتيب الأفكار في دماغك وتلاحظ فجوات فهمك. مثلاً: اروي قصة صلاح الدين من بداية نشأته لحد تحرير القدس — القصة بتثبّت المعلومة أحسن من أي حفظ.',
       color: TIP_COLORS[3],
     },
   ]
@@ -139,13 +139,13 @@ export default function TipsSection() {
         <div className="text-center mb-10 sm:mb-12 space-y-3">
           <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
             <Lightbulb className="h-4 w-4" />
-            <span>{cfg.tips_badge || 'نصائح تاريخية | History Tips'}</span>
+            <span>{cfg.tips_badge || 'نصائح مهمة من مستر عمرو'}</span>
           </div>
           <h2 className="text-2xl font-bold sm:text-3xl text-foreground">
-            {cfg.tips_title || 'نصائح مستر عمرو لفهم التاريخ | Mr. Amr\'s History Tips'}
+            {cfg.tips_title || 'خدات من مستر عمرو عشان تفهم التاريخ' }
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto text-sm sm:text-base">
-            {cfg.tips_subtitle || 'نصائح ذهبية لتربط الأحداث التاريخية ببعض وتفهم القصة الكاملة ورا كل حدث — Golden advice to connect historical events and understand the full story'}
+            {cfg.tips_subtitle || 'حاجات بسيطة هتخلّي التاريخ يكون أسهل عليك — وتفهم كل الأحداث ومترابطة ببعض'}
           </p>
         </div>
 

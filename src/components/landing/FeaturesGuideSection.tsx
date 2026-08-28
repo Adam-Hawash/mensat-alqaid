@@ -30,44 +30,44 @@ export default function FeaturesGuideSection() {
   var cards = [
     {
       icon: GUIDE_ICONS[0],
-      titleAr: cfg.guide_card1_title || 'سجّل حسابك',
+      titleAr: cfg.guide_card1_title || 'عمل حساب على المنصة',
       titleEn: cfg.guide_card1_title_en || 'Create Your Account',
-      description: cfg.guide_card1_desc || 'أنشئ حسابك في منصة القائد باسمك وصفك الدراسي. العملية تستغرق أقل من دقيقة وتبدأ فورًا في الوصول لمحتوى التاريخ والدراسات. Sign up in under a minute and access all history content.',
+      description: cfg.guide_card1_desc || 'سجّل باسمك واختار سنتك الدراسية. العملية بتاخد أقل من دقيقة وبعدها تقدر توصل لكل دروس التاريخ والدراسات.',
       color: GUIDE_COLORS[0],
     },
     {
       icon: GUIDE_ICONS[1],
-      titleAr: cfg.guide_card2_title || 'تابع الدروس المسجّلة',
+      titleAr: cfg.guide_card2_title || 'شاهد الدروس المسجلة',
       titleEn: cfg.guide_card2_title_en || 'Watch Recorded Lessons',
-      description: cfg.guide_card2_desc || 'شروحات مبسّطة ومتسلسلة لكل وحدة تاريخية: من الحضارات القديمة لحد العصر الحديث. كل درس مرتبط باللي قبله عشان تبني الصورة الكاملة. Simplified lessons from ancient civilizations to the modern era, each building on the previous one.',
+      description: cfg.guide_card2_desc || 'شروحات مبسطة لكل وحدة تاريخية: من الحضارات القديمة للعصر الحديث. كل درس مرتبط باللي قبله عشان تبني الصورة الكاملة وتفهم التاريخ كقصة واحدة.'
       color: GUIDE_COLORS[1],
     },
     {
       icon: GUIDE_ICONS[2],
       titleAr: cfg.guide_card3_title || 'حل الواجبات الأسبوعية',
-      titleEn: cfg.guide_card3_title_en || 'Complete Weekly Homework',
-      description: cfg.guide_card3_desc || 'واجبات أسبوعية تركز على ربط الأحداث وتحليل الخرائط الزمنية. مش مجرد حفظ — ده فهم وتحليل وتطبيق على أحداث حقيقية. Weekly assignments focused on connecting events and analyzing timelines, not just memorization.',
+      titleEn: cfg.guide_card3_title_en || 'Weekly Homework',
+      description: cfg.guide_card3_desc || 'واجبات أسبوعية تركز على ربط الأحداث وتحليل الخرائط الزمنية. مش مجرد حفظ — ده فهم وتحليل وتطبيق على أحداث حقيقية.'
       color: GUIDE_COLORS[2],
     },
     {
       icon: GUIDE_ICONS[3],
       titleAr: cfg.guide_card4_title || 'جرّب الامتحانات التجريبية',
-      titleEn: cfg.guide_card4_title_en || 'Take Practice Exams',
-      description: cfg.guide_card4_desc || 'امتحانات شبه الامتحان الحقيقي بأسئلة تفكير وتحليل. تابع نتيجتك فورًا واعرف نقاط قوّتك واللي محتاج تراجعه قبل الامتحان. Realistic practice exams with analytical questions and instant results.',
+      titleEn: cfg.guide_card4_title_en || 'Practice Exams',
+      description: cfg.guide_card4_desc || 'امتحانات شبه الامتحان الحقيقي بأسئلة تفكير وتحليل. النتيجة بتطلع فورًا وتعرف نقاط قوّتك واللي محتاج تراجعه.'
       color: GUIDE_COLORS[3],
     },
     {
       icon: GUIDE_ICONS[4],
       titleAr: cfg.guide_card5_title || 'انضم للحصص المباشرة',
-      titleEn: cfg.guide_card5_title_en || 'Join Live Sessions',
-      description: cfg.guide_card5_desc || 'حصص مباشرة على Zoom مع مستر عمرو رشدي. اسأل واستفهم لحظة بلحظة، وشارك في مناقشات جماعية مع زملائك. Live Zoom sessions with Mr. Amr — ask questions in real-time and join group discussions.',
+      titleEn: cfg.guide_card5_title_en || 'Live Zoom Sessions',
+      description: cfg.guide_card5_desc || 'حصص مباشرة على Zoom مع مستر عمرو. اسأل واستفهم لحظة بلحظة، وشارك في مناقشات مع زملائك.'
       color: GUIDE_COLORS[4],
     },
     {
       icon: GUIDE_ICONS[5],
-      titleAr: cfg.guide_card6_title || 'تابع تقدّمك',
-      titleEn: cfg.guide_card6_title_en || 'Track Your Progress',
-      description: cfg.guide_card6_desc || 'لوحة متابعة توريّك مستواك في كل وحدة: كم درس شاهدته، واجب حلّه، وامتحان خلصته. اعرف بالضبط إزاي تتقدّم وإيه اللي محتاج مجهود أكتر. A progress dashboard showing lessons watched, homework done, and exam scores.',
+      titleAr: cfg.guide_card6_title || 'تابع مستواك',
+      titleEn: cfg.guide_card6_title_en || 'Track Progress',
+      description: cfg.guide_card6_desc || 'لوحة متابعة توريّك مستواك في كل وحدة: كم درس شاهدته، واجب حلّه، وامتحان خلصته. اعرف بالضبط إزاي بتتقدم.',
       color: GUIDE_COLORS[5],
     },
   ]
@@ -78,13 +78,13 @@ export default function FeaturesGuideSection() {
         <div className="text-center mb-12 space-y-3">
           <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
             <Compass className="h-4 w-4" />
-            <span>{cfg.guide_badge || 'إزاي تستخدم المنصة؟ | Getting Started'}</span>
+            <span>{cfg.guide_badge || 'خطوات بسيطة'}</span>
           </div>
           <h2 className="text-2xl font-bold sm:text-3xl text-foreground">
-            {cfg.guide_title || 'خطوات بسيطة تبدأ بيها رحلتك | Start Your Journey in Simple Steps'}
+            {cfg.guide_title || 'إزاي تستخدم المنصة؟'}
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto text-sm sm:text-base">
-            {cfg.guide_subtitle || 'ست خطوات هتوصلك من التسجيل لحد التفوّق في التاريخ والدراسات — Six steps from sign-up to excellence in history'}
+            {cfg.guide_subtitle || 'ست خطوات بس هتوصلك من أول ما تسجّل لحد ما تتفوق في التاريخ والدراسات'}
           </p>
         </div>
 
