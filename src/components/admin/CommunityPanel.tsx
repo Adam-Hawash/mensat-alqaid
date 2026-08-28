@@ -7,15 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Send, Loader2, MessageSquare, Users, Trash2, Pencil, Check, X } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
+import { GRADES } from '@/stores/app-store'
 import type { Discussion } from '@/stores/app-store'
-
-const GRADES = [
-  'الصف السادس الابتدائي',
-  'الصف الأول الاعدادي',
-  'الصف الثاني الاعدادي',
-  'الصف الثالث الاعدادي',
-    'اولي باكالوريا',
-]
 
 export function CommunityPanel() {
   const [selectedGrade, setSelectedGrade] = useState('')
@@ -186,7 +179,7 @@ export function CommunityPanel() {
                               <p className={`text-xs font-semibold ${isAdmin ? 'text-sky-600 dark:text-sky-400' : 'text-foreground'}`}>
                                 {d.studentName}
                               </p>
-                              {isAdmin && <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-sky-300/40 text-sky-600">admin</Badge>}
+                              {isAdmin && <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-sky-300/40 text-sky-600">أدمن</Badge>}
                             </div>
 
                             {isEditing ? (

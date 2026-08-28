@@ -73,11 +73,11 @@ export function PublicVideosSection() {
         <div className="flex flex-wrap justify-center gap-2 mb-8">
           {[
             { value: 'all', label: 'الكل' },
-            { value: 'الصف السادس الابتدائي', label: 'الصف السادس' },
-            { value: 'الصف الأول الاعدادي', label: 'الأول الإعدادي' },
-            { value: 'الصف الثاني الاعدادي', label: 'الثاني الإعدادي' },
-            { value: 'الصف الثالث الاعدادي', label: 'الثالث الإعدادي' },
+            { value: 'أولى إعدادي', label: 'أولى إعدادي' },
+            { value: 'تانية إعدادي', label: 'تانية إعدادي' },
+            { value: 'تالتة إعدادي', label: 'تالتة إعدادي' },
             { value: 'أولى بكالوريا', label: 'أولى بكالوريا' },
+            { value: 'تانية بكالوريا', label: 'تانية بكالوريا' },
           ].map(function (g) {
             var isActive = gradeFilter === g.value
             return (

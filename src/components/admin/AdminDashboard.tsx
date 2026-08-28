@@ -438,7 +438,7 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
           <div className="flex gap-1 flex-wrap items-center">
             <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="h-8 rounded-md border border-input bg-transparent px-2 text-xs">
               <option value="">كل الصفوف</option>
-              {GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.en}</option>)}
+              {GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar}</option>)}
             </select>
             <div className="flex gap-1 bg-muted rounded-lg p-1">
               {(['pending', 'all', 'approved', 'rejected'] as const).map((f) => (
@@ -612,7 +612,7 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
           <div className="flex gap-2 items-center flex-wrap">
             <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-3 text-sm">
               <option value="">كل الصفوف</option>
-              {GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.en}</option>)}
+              {GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar}</option>)}
             </select>
             <Button size="sm" onClick={() => setShowForm(!showForm)}><Plus className="h-4 w-4 ml-1" />إضافة فيديو</Button>
           </div>
@@ -627,7 +627,7 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
               <div className="space-y-1.5">
                 <Label className="text-xs">الصف الدراسي *</Label>
                 <select value={formGrade} onChange={(e) => setFormGrade(e.target.value)} className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm">
-                  <option value="">اختر الصف</option>{GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.en}</option>)}
+                  <option value="">اختر الصف</option>{GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5">
@@ -938,7 +938,7 @@ function ExamTrackingPanel() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5"><Label className="text-xs">الصف</Label>
                 <select value={formGrade} onChange={(e) => setFormGrade(e.target.value)} className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm">
-                  <option value="">اختر الصف</option>{GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.en}</option>)}
+                  <option value="">اختر الصف</option>{GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5"><Label className="text-xs">العنوان</Label>
@@ -1012,8 +1012,8 @@ function ExamTrackingPanel() {
                       {q.options.map((opt, oi) => (
                         <div key={oi} className="flex items-center gap-2 mr-6">
                           <button type="button" className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] transition-colors ${q.correct === oi ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/30'}`}
-                            onClick={() => { const n = [...formQuestions]; n[qi] = { ...n[qi], correct: oi }; setFormQuestions(n) }}>{String.fromCharCode(65 + oi)}</button>
-                          <Input value={opt} onChange={(e) => { const n = [...formQuestions]; const newOpts = [...n[qi].options]; newOpts[oi] = e.target.value; n[qi] = { ...n[qi], options: newOpts }; setFormQuestions(n) }} placeholder={`الخيار ${String.fromCharCode(65 + oi)}`} className="h-8 text-sm" />
+                            onClick={() => { const n = [...formQuestions]; n[qi] = { ...n[qi], correct: oi }; setFormQuestions(n) }}>{["أ","ب","ت","ث"][oi]}</button>
+                          <Input value={opt} onChange={(e) => { const n = [...formQuestions]; const newOpts = [...n[qi].options]; newOpts[oi] = e.target.value; n[qi] = { ...n[qi], options: newOpts }; setFormQuestions(n) }} placeholder={`الخيار ${["أ","ب","ت","ث"][oi]`} className="h-8 text-sm" />
                         </div>
                       ))}
                       <div className="flex gap-2 mr-6">
@@ -1435,7 +1435,7 @@ function MyStudentsPanel() {
             <CardTitle className="text-lg flex items-center gap-2"><BarChart3 className="h-5 w-5 text-primary" />طلابي | My Students</CardTitle>
             <select value={grade} onChange={(e) => setGrade(e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-3 text-sm min-w-[200px]">
               <option value="">اختر الصف لعرض التحليلات</option>
-              {GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.en}</option>)}
+              {GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar}</option>)}
             </select>
           </div>
         </CardHeader>
@@ -1813,7 +1813,7 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
           <div className="flex gap-2 items-center flex-wrap">
             <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-3 text-sm">
               <option value="">كل الصفوف</option>
-              {GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.en}</option>)}
+              {GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar}</option>)}
             </select>
             <Button size="sm" onClick={() => setShowForm(!showForm)}><Plus className="h-4 w-4 ml-1" />إضافة</Button>
           </div>
@@ -1826,7 +1826,7 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
             <div className="space-y-1.5">
               <Label className="text-xs">الصف الدراسي</Label>
               <select value={formGrade} onChange={(e) => setFormGrade(e.target.value)} className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm">
-                <option value="">اختر الصف</option>{GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.en}</option>)}
+                <option value="">اختر الصف</option>{GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar}</option>)}
               </select>
             </div>
             {Object.entries(fields).map(([key, field]) => (
@@ -2231,7 +2231,7 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
             return (
               <div key={qi} className="p-3 rounded-lg border bg-card space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-primary">Q{qi + 1}</span>
+                  <span className="text-xs font-bold text-primary">س{qi + 1}</span>
                   <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={function() { deleteQuestion(qi) }}><Trash2 className="h-3 w-3" /></Button>
                 </div>
                 <Input value={q.question} onChange={function(e) { updateQuestion(qi, 'question', e.target.value) }} placeholder="نص السؤال..." className="text-sm" />
@@ -2239,7 +2239,7 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
                   {q.options.map(function(opt, oi) {
                     return (
                       <div key={oi} className="flex items-center gap-1.5">
-                        <button type="button" className={"w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] transition-colors " + (q.correct === oi ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/30 hover:border-primary/50')} onClick={function() { updateQuestion(qi, 'correct', oi) }}>{String.fromCharCode(65 + oi)}</button>
+                        <button type="button" className={"w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] transition-colors " + (q.correct === oi ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/30 hover:border-primary/50')} onClick={function() { updateQuestion(qi, 'correct', oi) }}>{["أ","ب","ت","ث"][oi]</button>
                         <Input value={opt} onChange={function(e) { updateQuestion(qi, 'option_' + oi, e.target.value) }} placeholder={"الخيار " + (oi + 1)} className="h-8 text-xs" />
                       </div>
                     )

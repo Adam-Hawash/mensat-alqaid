@@ -6,17 +6,17 @@ import { Badge } from '@/components/ui/badge'
 import { BookOpen, Lock, PlayCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 
-// Arabic grade to English mapping
-var GRADE_EN: Record<string, string> = {
-  'الصف السادس الابتدائي': 'Grade 6',
-  'الصف الأول الإعدادي': 'Grade 7',
-  'الصف الثاني الإعدادي': 'Grade 8',
-  'الصف الثالث الإعدادي': 'Grade 9',
-  'اولي باكالوريا': 'Grade 10',
+// Grade short name mapping (Arabic only)
+var GRADE_SHORT: Record<string, string> = {
+  'أولى إعدادي': 'م1',
+  'تانية إعدادي': 'م2',
+  'تالتة إعدادي': 'م3',
+  'أولى بكالوريا': 'ب1',
+  'تانية بكالوريا': 'ب2',
 }
 
-function toEnglish(grade: string) {
-  return GRADE_EN[grade] || grade
+function toShortName(grade: string) {
+  return GRADE_SHORT[grade] || grade
 }
 
 export default function LessonsSection() {
@@ -198,7 +198,7 @@ export default function LessonsSection() {
                           {video.title}
                         </p>
                         <p className={"text-muted-foreground truncate mt-0.5 " + (isCenter ? 'text-xs' : 'text-[9px]')}>
-                          {toEnglish(video.grade)}
+                          {toShortName(video.grade)}
                         </p>
                       </div>
                     </div>
