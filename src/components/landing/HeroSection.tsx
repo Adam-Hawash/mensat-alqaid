@@ -63,7 +63,7 @@ export default function HeroSection() {
 
   return (
     <section className="relative overflow-hidden bg-[#FFFBF5] dark:bg-[#0C1220]" dir="rtl">
-      {/* Banner as full section background */
+      {/* Banner as full section background */}
       {showBg && (
         <div className="absolute inset-0 z-0">
           <img
