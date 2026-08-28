@@ -1,0 +1,3 @@
+{
+  "/api/exams/submit/route": "app/api/exams/submit/route.js"
+}

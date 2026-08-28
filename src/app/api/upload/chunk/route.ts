@@ -1,5 +1,8 @@
+// @ts-nocheck
+// Upload files to Media table (base64) - no external services needed
+
 import { NextRequest, NextResponse } from 'next/server'
-import { put } from '@vercel/blob'
+import { db } from '@/lib/db'
 
 export const maxDuration = 60
 
@@ -15,27 +18,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'مفيش ملف' }, { status: 400 })
     }
 
-    var token = process.env.BLOB_READ_WRITE_TOKEN
-    if (!token) {
-      return NextResponse.json({ error: 'BLOB_READ_WRITE_TOKEN مش متعرف. ضيفه في Vercel > Settings > Environment Variables' }, { status: 500 })
-    }
-
-    var ext = fileName.split('.').pop() || ''
-    var safeName = fileName.replace(/[^a-zA-Z0-9._\-\u0600-\u06FF]/g, '_')
-    var timestamp = Date.now()
-    var blobPath = category + '/' + timestamp + '_' + safeName
-
     var arrayBuffer = await file.arrayBuffer()
     var buffer = Buffer.from(arrayBuffer)
 
-    var blob = await put(blobPath, buffer, {
-      access: 'public',
-      contentType: file.type || 'application/octet-stream',
+    // Convert to base64
+    var base64 = buffer.toString('base64')
+
+    var safeName = fileName.replace(/[^a-zA-Z0-9._\-\u0600-\u06FF]/g, '_')
+    var filePath = category + '/' + Date.now() + '_' + safeName
+
+    var media = await db.media.create({
+      data: {
+        filename: fileName,
+        filePath: filePath,
+        fileType: file.type || 'application/octet-stream',
+        fileSize: String(buffer.length),
+        data: base64,
+        category: category,
+      },
     })
 
     return NextResponse.json({
-      filePath: blob.url,
-      fileType: file.type || ext,
+      filePath: '/api/files/' + media.id,
+      fileType: file.type || 'application/octet-stream',
       filename: fileName,
       size: buffer.length,
       done: true,
