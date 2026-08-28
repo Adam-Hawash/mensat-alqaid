@@ -79,7 +79,7 @@ var DEFAULTS = {
   guide_card5_desc: 'استخدم البطاقات التعليمية لمراجعة المصطلحات والأحداث التاريخية بشكل سريع. Review key dates and terms with flashcards.',
   guide_card6_title: 'تحديات ومسابقات',
   guide_card6_title_en: 'Challenges',
-  guide_card6_desc: 'تنافس مع زملائك في تحديات معرفية ممتعة واربح مراكز متقدمة. Compete in fun knowledge challenges with your classmates.'
+  guide_card6_desc: 'تنافس مع زملائك في تحديات معرفية ممتعة واربح مراكز متقدمة. Compete in fun knowledge challenges with your classmates.',
 
   // === Gallery ===
   gallery_title: 'صور طلابي الأعزاء | My Beloved Students',
