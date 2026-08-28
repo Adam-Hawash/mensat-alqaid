@@ -91,7 +91,7 @@ export default function HeroSection() {
         </div>
       </div>
 
-      {/* Subtle gradient when no banner */
+      {/* Subtle gradient when no banner */}
       {!showBg && (
         <div className="absolute inset-0 bg-gradient-to-br from-[#FFFBF5] via-[#F0F7F4] to-[#FFFBF5] dark:from-[#0C1220] dark:via-[#131D2E] dark:to-[#0C1220] -z-10" />
       )}
