@@ -39,6 +39,9 @@ export function AdminDashboard() {
   const [resendSaving, setResendSaving] = useState(false)
   const [heroDevUrl, setHeroDevUrl] = useState('')
   const [heroDevSaving, setHeroDevSaving] = useState(false)
+  const [heroDevLabel, setHeroDevLabel] = useState('')
+  const [madeByLabel, setMadeByLabel] = useState('')
+  const [heroLabelSaving, setHeroLabelSaving] = useState(false)
   const [vodafoneCash, setVodafoneCash] = useState('')
   const [instapay, setInstapay] = useState('')
   const [fawry, setFawry] = useState('')
@@ -70,6 +73,8 @@ export function AdminDashboard() {
         const cfgData = await cfgRes.json()
         setResendApiKey(cfgData.resend_api_key || '')
         setHeroDevUrl(cfgData.hero_developer_url || '')
+        setHeroDevLabel(cfgData.hero_developer_label || 'Hero Developer')
+        setMadeByLabel(cfgData.footer_made_by_label || 'Made by Adam Hawash')
         setVodafoneCash(cfgData.payment_vodafone_cash || '')
         setInstapay(cfgData.payment_instapay || '')
         setFawry(cfgData.payment_fawry || '')
@@ -231,7 +236,36 @@ export function AdminDashboard() {
                       </Button>
                     </div>
                     <Input value={heroDevUrl} onChange={(e) => setHeroDevUrl(e.target.value)} placeholder="https://hero-developer-portfolio-11.vercel.app" dir="ltr" type="url" className="font-mono text-xs" />
-                    <p className="text-[10px] text-muted-foreground">الرابط يظهر في الهيدر (Hero Developer) والفوتر (Made by Adam Hawash). غيّره في أي وقت وبيتنعكس فوراً.</p>
+                    <p className="text-[10px] text-muted-foreground">الرابط يظهر في الفوتر. غيّره في أي وقت وبيتنعكس فوراً.</p>
+                  </div>
+                  {/* Hero Developer & Made by Labels */}
+                  <div className="border-t pt-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-muted-foreground">كلمات المُطوّر (Hero Developer / Made by)</p>
+                      <Button size="sm" variant="outline" onClick={async () => {
+                        setHeroLabelSaving(true)
+                        try {
+                          const res = await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hero_developer_label: heroDevLabel, footer_made_by_label: madeByLabel }) })
+                          if (res.ok) {
+                            const cfg = useAppStore.getState().siteConfig
+                            useAppStore.getState().setSiteConfig({ ...cfg, hero_developer_label: heroDevLabel, footer_made_by_label: madeByLabel })
+                            toast.success('تم حفظ كلمات المُطوّر')
+                          } else { toast.error('خطأ في الحفظ') }
+                        } catch { toast.error('خطأ في الحفظ') }
+                        setHeroLabelSaving(false)
+                      }} disabled={heroLabelSaving}>
+                        {heroLabelSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                      </Button>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">كلمة Hero Developer (النص الظاهر)</Label>
+                      <Input value={heroDevLabel} onChange={(e) => setHeroDevLabel(e.target.value)} placeholder="Hero Developer" className="text-xs" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">كلمة Made by ... (النص الظاهر في الفوتر)</Label>
+                      <Input value={madeByLabel} onChange={(e) => setMadeByLabel(e.target.value)} placeholder="Made by Adam Hawash" className="text-xs" />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">غيّر النصوص اللي بتظهر جنب أيقونة المُطوّر في الفوتر. مثلاً ممكن تكتب "Developed by Adam Hawash" أو أي كلمات تختارها.</p>
                   </div>
                   {/* Payment Numbers */}
                   <div className="border-t pt-4 space-y-3">

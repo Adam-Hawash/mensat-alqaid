@@ -161,13 +161,13 @@ export default function HeroSection() {
               {/* Photo container with orange offset frame */}
               <div className="relative">
                 <div className="absolute inset-0 translate-x-3 translate-y-3 rounded-[28px]" style={{ background: 'linear-gradient(135deg, #F97316 0%, #FB923C 100%)' }} />
-                <div className="relative w-64 h-80 sm:w-80 sm:h-[420px] lg:w-[360px] lg:h-[460px] rounded-[28px] overflow-hidden bg-[#1a4d4d] shadow-2xl">
+                <div className="relative w-72 h-80 sm:w-80 sm:h-[420px] lg:w-[400px] lg:h-[460px] rounded-[28px] overflow-hidden bg-[#1a4d4d] shadow-2xl">
                   {hasPhoto && photoLoaded ? (
                     <img
                       src={heroPhoto}
                       alt={instructorName}
-                      className="w-full h-full object-cover object-top"
-                      style={{ objectPosition: '50% 18%' }}
+                      className="w-full h-full object-cover"
+                      style={{ objectPosition: '50% 25%' }}
                     />
                   ) : hasPhoto ? (
                     <div className="w-full h-full flex items-center justify-center">

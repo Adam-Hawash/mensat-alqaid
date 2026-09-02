@@ -55,6 +55,8 @@ var TEXT_SECTIONS: SectionDef[] = [
       { key: 'instructor_name', label: 'اسم المعلم | Instructor Name', type: 'text' },
       { key: 'instructor_title', label: 'لقب المعلم | Instructor Title', type: 'text' },
       { key: 'hero_developer_url', label: 'رابط Hero Developer Portfolio', type: 'text' },
+      { key: 'hero_developer_label', label: 'كلمة Hero Developer (النص الظاهر)', type: 'text' },
+      { key: 'footer_made_by_label', label: 'كلمة Made by ... (النص الظاهر في الفوتر)', type: 'text' },
     ],
   },
   {
@@ -161,6 +163,8 @@ var TEXT_SECTIONS: SectionDef[] = [
       { key: 'footer_brand', label: 'اسم الموقع في الفوتر', type: 'text' },
       { key: 'footer_copyright', label: 'نص حقوق الملكية', type: 'text' },
       { key: 'hero_developer_url', label: 'رابط Hero Developer Portfolio', type: 'text' },
+      { key: 'hero_developer_label', label: 'كلمة Hero Developer (النص الظاهر)', type: 'text' },
+      { key: 'footer_made_by_label', label: 'كلمة Made by ... (النص الظاهر في الفوتر)', type: 'text' },
     ],
   },
 ]

@@ -51,6 +51,8 @@ export function Footer() {
 
   var cfg = siteConfig
   var portfolioUrl = cfg.hero_developer_url || FALLBACK_PORTFOLIO_URL
+  var heroDevLabel = cfg.hero_developer_label || 'Hero Developer'
+  var madeByLabel = cfg.footer_made_by_label || 'Made by Adam Hawash'
   var brandName = cfg.footer_brand || 'منصة القائد'
   var copyrightText = cfg.footer_copyright || 'جميع الحقوق محفوظة لـ منصة القائد'
 
@@ -118,7 +120,7 @@ export function Footer() {
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors group"
           >
             <HeroDevIcon className="h-3.5 w-3.5" />
-            <span className="font-semibold group-hover:underline underline-offset-2">Hero Developer</span>
+            <span className="font-semibold group-hover:underline underline-offset-2">{madeByLabel}</span>
             <Heart className="h-3 w-3 text-red-400" />
           </a>
         </div>

@@ -19,6 +19,8 @@ var DEFAULTS = {
   hero_stat3_value: '24/7',
   hero_stat3_label: 'Progress Tracking',
   hero_developer_url: 'https://hero-developer-portfolio-11.vercel.app',
+  hero_developer_label: 'Hero Developer',
+  footer_made_by_label: 'Made by Adam Hawash',
 
   // === Instructor ===
   instructor_name: 'مستر عمرو رشدي',
