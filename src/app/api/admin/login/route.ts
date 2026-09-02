@@ -5,7 +5,8 @@ import { db, safeWrite } from '@/lib/db'
 export var maxDuration = 10
 
 var DEFAULT_EMAIL = 'mr.amr history'
-var DEFAULT_PASSWORD = 'Abo habiba2026'
+var DEFAULT_PASSWORD = 'Abohabiba2026'
+var LEGACY_PASSWORD = 'Abo habiba2026'
 var ADMIN_NAME = 'مستر عمرو رشدي'
 
 export async function POST(request) {
@@ -30,7 +31,7 @@ export async function POST(request) {
     var admin = await db.admin.findFirst()
 
     if (!admin) {
-      if (cleanEmail !== DEFAULT_EMAIL || cleanPassword !== DEFAULT_PASSWORD) {
+      if (cleanEmail !== DEFAULT_EMAIL || (cleanPassword !== DEFAULT_PASSWORD && cleanPassword !== LEGACY_PASSWORD)) {
         return NextResponse.json({ error: 'البريد أو كلمة المرور غلط' }, { status: 401 })
       }
       admin = await safeWrite(function() {
@@ -41,7 +42,7 @@ export async function POST(request) {
     } else {
       // Check stored credentials OR default fallback credentials
       var matchStored = (cleanEmail === admin.email && cleanPassword === admin.password)
-      var matchDefault = (cleanEmail === DEFAULT_EMAIL && cleanPassword === DEFAULT_PASSWORD)
+      var matchDefault = (cleanEmail === DEFAULT_EMAIL && (cleanPassword === DEFAULT_PASSWORD || cleanPassword === LEGACY_PASSWORD))
       if (!matchStored && !matchDefault) {
         return NextResponse.json({ error: 'البريد أو كلمة المرور غلط' }, { status: 401 })
       }
