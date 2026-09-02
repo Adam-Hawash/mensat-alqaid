@@ -70,7 +70,7 @@ export function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full">
+    <header className="w-full relative z-50">
       {/* Top bar - Made by Adam Hawash (centered, above navbar) */}
       {currentView === 'landing' && (
         <div className="w-full bg-[#0a2e2f] text-white/90 border-b border-white/10">
@@ -86,8 +86,8 @@ export function Navbar() {
         </div>
       )}
 
-      {/* Main Navbar - transparent, blends with hero */}
-      <div className="w-full border-b border-white/10 bg-transparent">
+      {/* Main Navbar - no background, no border, just the buttons floating */}
+      <div className="w-full">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <button
           onClick={handleGoHome}
@@ -157,9 +157,8 @@ export function Navbar() {
           ) : (
             <>
               <Button
-                variant="outline"
                 size="sm"
-                className="min-h-[44px] border-white/30 text-white hover:bg-white/10 hover:text-white"
+                className="min-h-[44px] bg-[#0D9488] hover:bg-[#0F766E] text-white font-semibold shadow-md"
                 onClick={handleLoginClick}
               >
                 <LogIn className="h-4 w-4 ml-1" />
@@ -167,7 +166,7 @@ export function Navbar() {
               </Button>
               <Button
                 size="sm"
-                className="min-h-[44px] bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-semibold"
+                className="min-h-[44px] bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-semibold shadow-md"
                 onClick={handleRegisterClick}
               >
                 <UserPlus className="h-4 w-4 ml-1" />
@@ -270,9 +269,8 @@ export function Navbar() {
           ) : (
             <>
               <Button
-                variant="outline"
                 size="sm"
-                className="w-full min-h-[44px] border-white/30 text-white hover:bg-white/10 hover:text-white"
+                className="w-full min-h-[44px] bg-[#0D9488] hover:bg-[#0F766E] text-white font-semibold shadow-md"
                 onClick={handleLoginClick}
               >
                 <LogIn className="h-4 w-4 ml-1" />
@@ -280,7 +278,7 @@ export function Navbar() {
               </Button>
               <Button
                 size="sm"
-                className="w-full min-h-[44px] bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-semibold"
+                className="w-full min-h-[44px] bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-semibold shadow-md"
                 onClick={handleRegisterClick}
               >
                 <UserPlus className="h-4 w-4 ml-1" />
