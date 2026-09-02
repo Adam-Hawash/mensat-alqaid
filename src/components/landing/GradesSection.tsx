@@ -5,11 +5,11 @@ import { useAppStore, GRADES } from '@/stores/app-store'
 import { toast } from 'sonner'
 
 var gradeIcons: Record<string, string> = {
-  'أولى إعدادي': '1',
-  'تانية إعدادي': '2',
-  'تالتة إعدادي': '3',
-  'أولى بكالوريا': '1B',
-  'تانية بكالوريا': '2B',
+  'أولى إعدادي': '1ع',
+  'تانية إعدادي': '2ع',
+  'تالتة إعدادي': '3ع',
+  'أولى بكالوريا': '1ب',
+  'تانية بكالوريا': '2ب',
 }
 
 var gradeColors: Record<string, string> = {

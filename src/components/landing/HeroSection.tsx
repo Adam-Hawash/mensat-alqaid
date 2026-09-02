@@ -106,9 +106,8 @@ export default function HeroSection() {
                 إنشاء حسابك +
               </Button>
               <Button
-                variant="outline"
                 size="lg"
-                className="text-base px-8 py-6 min-h-[44px] border-white/30 text-white hover:bg-white/10 hover:text-white rounded-xl transition-all duration-200"
+                className="text-base px-8 py-6 min-h-[44px] bg-[#F97316] hover:bg-[#FB923C] text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-orange-500/30 border border-orange-400/30"
                 onClick={() => setView('auth-login')}
               >
                 <LogIn className="h-5 w-5 ml-2" />
@@ -161,13 +160,14 @@ export default function HeroSection() {
 
               {/* Photo container with orange offset frame */}
               <div className="relative">
-                <div className="absolute inset-0 translate-x-3 translate-y-3 rounded-2xl" style={{ background: 'linear-gradient(135deg, #F97316 0%, #FB923C 100%)' }} />
-                <div className="relative w-56 h-72 sm:w-72 sm:h-96 lg:w-80 lg:h-[420px] rounded-2xl overflow-hidden bg-[#1a4d4d] shadow-2xl">
+                <div className="absolute inset-0 translate-x-3 translate-y-3 rounded-[28px]" style={{ background: 'linear-gradient(135deg, #F97316 0%, #FB923C 100%)' }} />
+                <div className="relative w-64 h-80 sm:w-80 sm:h-[420px] lg:w-[360px] lg:h-[460px] rounded-[28px] overflow-hidden bg-[#1a4d4d] shadow-2xl">
                   {hasPhoto && photoLoaded ? (
                     <img
                       src={heroPhoto}
                       alt={instructorName}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover object-top"
+                      style={{ objectPosition: '50% 18%' }}
                     />
                   ) : hasPhoto ? (
                     <div className="w-full h-full flex items-center justify-center">

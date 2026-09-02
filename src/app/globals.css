@@ -123,8 +123,16 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    /* Smooth but moderate scrolling - not too fast (instant) and not too slow (heavy animation) */
+    scroll-behavior: smooth;
+    scroll-padding-top: 1rem;
+  }
   body {
     @apply bg-background text-foreground;
+    /* Natural wheel scrolling - lets browser handle native speed without scroll-jacking */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
