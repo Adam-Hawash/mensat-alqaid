@@ -47,6 +47,8 @@ export default function HeroSection() {
   var heroTitle = cfg.hero_title_line1 || 'منصة القائد'
   var heroSubtitle = cfg.hero_subtitle || 'هنساعدك تفهم التاريخ والدراسات بأسلوب سهل وبسيط'
   var heroBadge = cfg.hero_badge || 'تاريخ ودراسات ببساطة'
+  var heroDevLabel = cfg.hero_developer_label || 'Hero Developer'
+  var heroDevUrl = cfg.hero_developer_url || 'https://hero-developer-portfolio-11.vercel.app'
 
   return (
     <section className="relative overflow-hidden" dir="rtl" style={{ background: 'linear-gradient(135deg, #0a2e2f 0%, #0F3D3E 40%, #1a4d4d 100%)' }}>
@@ -178,6 +180,17 @@ export default function HeroSection() {
                       <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                     </div>
                   )}
+
+                  {/* Hero Developer badge - centered on image (bottom) - like reference */}
+                  <a
+                    href={heroDevUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-black/50 backdrop-blur-md text-white text-xs font-semibold px-4 py-1.5 rounded-full border border-white/20 hover:bg-black/70 hover:text-yellow-300 transition-colors whitespace-nowrap z-10"
+                  >
+                    <span className="text-yellow-400">&lt;/&gt;</span>
+                    <span>{heroDevLabel}</span>
+                  </a>
                 </div>
               </div>
 

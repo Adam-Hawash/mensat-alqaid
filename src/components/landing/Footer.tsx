@@ -102,17 +102,7 @@ export function Footer() {
         <div className="h-px bg-border mb-6" />
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <GraduationCap className="h-4 w-4" />
-            </div>
-            <span className="font-bold text-sm">{brandName}</span>
-          </div>
-
-          <p className="text-xs text-muted-foreground text-center">
-            &copy; {year} {copyrightText}
-          </p>
-
+          {/* Right side (start in RTL) - Hero Developer */}
           <a
             href={portfolioUrl}
             target="_blank"
@@ -120,6 +110,29 @@ export function Footer() {
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors group"
           >
             <HeroDevIcon className="h-3.5 w-3.5" />
+            <span className="font-semibold group-hover:underline underline-offset-2">{heroDevLabel}</span>
+          </a>
+
+          {/* Center - Brand & Copyright */}
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <GraduationCap className="h-4 w-4" />
+              </div>
+              <span className="font-bold text-sm">{brandName}</span>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              &copy; {year} {copyrightText}
+            </p>
+          </div>
+
+          {/* Left side (end in RTL) - Made by Adam Hawash */}
+          <a
+            href={portfolioUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors group"
+          >
             <span className="font-semibold group-hover:underline underline-offset-2">{madeByLabel}</span>
             <Heart className="h-3 w-3 text-red-400" />
           </a>

@@ -1,5 +1,5 @@
 'use client'
- 
+
 import { useState, useSyncExternalStore } from 'react'
 import Image from 'next/image'
 import { useTheme } from 'next-themes'
@@ -15,8 +15,11 @@ import {
   X,
   LayoutDashboard,
   Youtube,
+  Heart,
 } from 'lucide-react'
 import { toast } from 'sonner'
+
+const FALLBACK_PORTFOLIO_URL = 'https://hero-developer-portfolio-11.vercel.app'
 
 export function Navbar() {
   const { theme, setTheme } = useTheme()
@@ -39,6 +42,8 @@ export function Navbar() {
   const youtubeLink = cfg.social_youtube || ''
   const navBrand = cfg.navbar_brand || 'منصة القائد'
   const navSubtitle = cfg.navbar_subtitle || 'مستر عمرو رشدي'
+  const portfolioUrl = cfg.hero_developer_url || FALLBACK_PORTFOLIO_URL
+  const madeByLabel = cfg.footer_made_by_label || 'Made by Adam Hawash'
 
   const isAuthenticated = !!currentStudent || isAdminLoggedIn
 
@@ -65,8 +70,25 @@ export function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+    <header className="sticky top-0 z-50 w-full">
+      {/* Top bar - Made by Adam Hawash (centered, above navbar) */}
+      {currentView === 'landing' && (
+        <div className="w-full bg-[#0a2e2f] text-white/90 border-b border-white/10">
+          <a
+            href={portfolioUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-1.5 py-1.5 text-[11px] hover:text-yellow-300 transition-colors group"
+          >
+            <span className="font-semibold group-hover:underline underline-offset-2">{madeByLabel}</span>
+            <Heart className="h-2.5 w-2.5 text-red-400" />
+          </a>
+        </div>
+      )}
+
+      {/* Main Navbar */}
+      <div className="w-full border-b border-border bg-background/80 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <button
           onClick={handleGoHome}
           className="flex items-center gap-2 transition-opacity hover:opacity-80 cursor-pointer"
@@ -268,6 +290,7 @@ export function Navbar() {
           )}
         </div>
       )}
+      </div>
     </header>
   )
 }
