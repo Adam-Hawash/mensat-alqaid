@@ -141,16 +141,28 @@ export default function HeroSection() {
 
           {/* Instructor Photo - Left Side in RTL */}
           <div className="flex justify-center lg:justify-end order-1 lg:order-2">
-            <div className="relative">
-              {/* Orange backdrop shape */}
-              <div className="absolute -inset-3 sm:-inset-4 rounded-2xl bg-gradient-to-br from-orange-400/30 to-orange-600/10 blur-xl" />
-              {/* Photo container */}
+            <div className="relative pb-10">
+              {/* Orange geometric backdrop shape */}
+              <div className="absolute -bottom-2 -left-4 sm:-bottom-4 sm:-left-8 w-44 h-36 sm:w-64 sm:h-52 lg:w-72 lg:h-56" style={{
+                background: 'linear-gradient(135deg, #F97316 0%, #FB923C 55%, #FDBA74 100%)',
+                clipPath: 'polygon(28% 0%, 100% 0%, 72% 100%, 0% 100%)'
+              }} />
+              {/* Soft orange glow */}
+              <div className="absolute -top-6 -right-6 w-32 h-32 sm:w-44 sm:h-44 rounded-full pointer-events-none" style={{
+                background: 'radial-gradient(circle, rgba(251,146,60,0.35) 0%, rgba(251,146,60,0) 70%)'
+              }} />
+              {/* Dotted circle decorations */}
+              <svg className="absolute -top-8 -left-10 w-24 h-24 sm:w-32 sm:h-32 opacity-40 pointer-events-none" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="38" fill="none" stroke="#5EEAD4" strokeWidth="2.5" strokeDasharray="3 7" />
+              </svg>
+              <svg className="absolute -bottom-14 -right-8 w-20 h-20 sm:w-28 sm:h-28 opacity-30 pointer-events-none" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="38" fill="none" stroke="#5EEAD4" strokeWidth="2.5" strokeDasharray="3 7" />
+              </svg>
+
+              {/* Photo container with orange offset frame */}
               <div className="relative">
-                {/* White outline effect */}
-                <div className="absolute inset-0 rounded-2xl" style={{
-                  boxShadow: '0 0 0 3px rgba(255,255,255,0.3), 0 0 0 6px rgba(255,255,255,0.1)'
-                }} />
-                <div className="w-56 h-72 sm:w-72 sm:h-96 lg:w-80 lg:h-[420px] rounded-2xl overflow-hidden bg-[#1a4d4d]">
+                <div className="absolute inset-0 translate-x-3 translate-y-3 rounded-2xl" style={{ background: 'linear-gradient(135deg, #F97316 0%, #FB923C 100%)' }} />
+                <div className="relative w-56 h-72 sm:w-72 sm:h-96 lg:w-80 lg:h-[420px] rounded-2xl overflow-hidden bg-[#1a4d4d] shadow-2xl">
                   {hasPhoto && photoLoaded ? (
                     <img
                       src={heroPhoto}
@@ -168,8 +180,16 @@ export default function HeroSection() {
                   )}
                 </div>
               </div>
+
+              {/* Orange chevrons below photo */}
+              <div className="absolute -bottom-6 left-2 sm:left-6 hidden sm:flex items-end gap-1 pointer-events-none" dir="ltr" aria-hidden="true">
+                <span className="text-5xl lg:text-6xl font-black leading-none text-orange-400 drop-shadow-lg">«</span>
+                <span className="text-4xl lg:text-5xl font-black leading-none text-orange-400/80 drop-shadow-lg">«</span>
+                <span className="text-3xl lg:text-4xl font-black leading-none text-orange-400/60 drop-shadow-lg">«</span>
+              </div>
+
               {/* Name badge below photo */}
-              <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-5 py-2 shadow-lg">
+              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-5 py-2 shadow-lg">
                 <p className="text-white font-bold text-sm tracking-wider whitespace-nowrap">
                   {instructorName}
                 </p>
