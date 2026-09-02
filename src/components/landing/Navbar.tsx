@@ -1,17 +1,9 @@
 'use client'
-  
+ 
 import { useState, useSyncExternalStore } from 'react'
 import Image from 'next/image'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { useAppStore } from '@/stores/app-store'
 import {
   Sun,
@@ -21,11 +13,8 @@ import {
   LogIn,
   Menu,
   X,
-  Loader2,
   LayoutDashboard,
-  Shield,
   Youtube,
-  Settings,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -38,13 +27,9 @@ export function Navbar() {
   const {
     currentView,
     setView,
-    showAdminLogin,
-    setShowAdminLogin,
     currentStudent,
     currentAdmin,
     isAdminLoggedIn,
-    setCurrentAdmin,
-    setAdminLoggedIn,
     logout,
     siteConfig,
   } = useAppStore()
@@ -56,7 +41,6 @@ export function Navbar() {
   const navSubtitle = cfg.navbar_subtitle || 'مستر عمرو رشدي'
 
   const isAuthenticated = !!currentStudent || isAdminLoggedIn
-  const isAuthPage = currentView === 'auth-login' || currentView === 'auth-register'
 
   const handleLogout = () => {
     logout()
@@ -81,361 +65,209 @@ export function Navbar() {
   }
 
   return (
-    <>
-      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <button
-            onClick={handleGoHome}
-            className="flex items-center gap-2 transition-opacity hover:opacity-80 cursor-pointer"
-          >
-            {instructorPhoto ? (
-              <Image
-                src={instructorPhoto}
-                alt="مستر عمرو رشدي"
-                width={36}
-                height={36}
-                className="h-9 w-9 rounded-lg object-cover border border-primary/30"
-              />
-            ) : (
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <span className="text-xs font-bold">قائد</span>
-              </div>
-            )}
-            <div className="hidden sm:block">
-              <h1 className="text-sm font-bold leading-tight text-foreground">
-                {navBrand}
-              </h1>
-              <p className="text-[11px] text-muted-foreground leading-tight">
-                {navSubtitle}
-              </p>
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+        <button
+          onClick={handleGoHome}
+          className="flex items-center gap-2 transition-opacity hover:opacity-80 cursor-pointer"
+        >
+          {instructorPhoto ? (
+            <Image
+              src={instructorPhoto}
+              alt={navSubtitle}
+              width={36}
+              height={36}
+              className="h-9 w-9 rounded-full object-cover border-2 border-yellow-400/50"
+            />
+          ) : (
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 text-white">
+              <span className="text-xs font-bold">قائد</span>
             </div>
-          </button>
+          )}
+          <div className="hidden sm:block">
+            <p className="text-[10px] text-muted-foreground leading-tight">MR</p>
+            <h1 className="text-sm font-bold leading-tight text-foreground">
+              {navBrand}
+            </h1>
+          </div>
+        </button>
 
-          <nav className="hidden md:flex items-center gap-2">
-            {currentStudent ? (
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground">
-                  أهلاً بـ{' '}
-                  <span className="font-semibold text-foreground">
-                    {currentStudent.name}
-                  </span>
+        <nav className="hidden md:flex items-center gap-2">
+          {currentStudent ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">
+                أهلاً بـ{' '}
+                <span className="font-semibold text-foreground">
+                  {currentStudent.name}
                 </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="min-h-[44px] text-foreground"
-                  onClick={handleLogout}
-                >
-                  <LogOut className="h-4 w-4 ml-1" />
-                  خروج
-                </Button>
-              </div>
-            ) : isAdminLoggedIn && currentAdmin ? (
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="min-h-[44px] text-foreground"
-                  onClick={() => setView('admin-dashboard')}
-                >
-                  <LayoutDashboard className="h-4 w-4 ml-1" />
-                  لوحة التحكم
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="min-h-[44px] text-foreground"
-                  onClick={handleLogout}
-                >
-                  <LogOut className="h-4 w-4 ml-1" />
-                  خروج
-                </Button>
-              </div>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="min-h-[44px] text-foreground"
-                  onClick={handleLoginClick}
-                >
-                  <LogIn className="h-4 w-4 ml-1" />
-                  سجل دخولك
-                </Button>
-                <Button
-                  size="sm"
-                  className="min-h-[44px] bg-primary hover:bg-primary/90 text-primary-foreground"
-                  onClick={handleRegisterClick}
-                >
-                  <UserPlus className="h-4 w-4 ml-1" />
-                  اعمل حساب
-                </Button>
-                {!isAuthPage && (
-                  <button
-                    onClick={() => setShowAdminLogin(true)}
-                    className="text-[10px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors cursor-pointer px-1 flex items-center gap-1"
-                    aria-label="Admin"
-                  >
-                    <Settings className="h-3 w-3" />
-                    <span>إعدادات</span>
-                  </button>
-                )}
-              </>
-            )}
-          </nav>
-
-          <div className="flex items-center gap-2">
-            {youtubeLink && (
-              <a
-                href={youtubeLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center min-h-[44px] min-w-[44px] text-muted-foreground hover:text-red-500 transition-colors"
-                title="YouTube"
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-[44px] text-foreground"
+                onClick={handleLogout}
               >
-                <Youtube className="h-4 w-4" />
-              </a>
-            )}
-
-            {mounted && (
+                <LogOut className="h-4 w-4 ml-1" />
+                خروج
+              </Button>
+            </div>
+          ) : isAdminLoggedIn && currentAdmin ? (
+            <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
-                size="icon"
-                className="min-h-[44px] min-w-[44px] text-foreground"
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                aria-label="Toggle theme"
+                size="sm"
+                className="min-h-[44px] text-foreground"
+                onClick={() => setView('admin-dashboard')}
               >
-                {theme === 'dark' ? (
-                  <Sun className="h-4 w-4" />
-                ) : (
-                  <Moon className="h-4 w-4" />
-                )}
+                <LayoutDashboard className="h-4 w-4 ml-1" />
+                لوحة التحكم
               </Button>
-            )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-[44px] text-foreground"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4 ml-1" />
+                خروج
+              </Button>
+            </div>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-[44px] text-foreground"
+                onClick={handleLoginClick}
+              >
+                <LogIn className="h-4 w-4 ml-1" />
+                سجل دخولك
+              </Button>
+              <Button
+                size="sm"
+                className="min-h-[44px] bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-semibold"
+                onClick={handleRegisterClick}
+              >
+                <UserPlus className="h-4 w-4 ml-1" />
+                إنشاء حسابك +
+              </Button>
+            </>
+          )}
+        </nav>
 
+        <div className="flex items-center gap-2">
+          {youtubeLink && (
+            <a
+              href={youtubeLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center min-h-[44px] min-w-[44px] text-muted-foreground hover:text-red-500 transition-colors"
+              title="YouTube"
+            >
+              <Youtube className="h-4 w-4" />
+            </a>
+          )}
+
+          {mounted && (
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden min-h-[44px] min-w-[44px] text-foreground"
-              onClick={() => setMobileMenu(!mobileMenu)}
-              aria-label={mobileMenu ? 'اقفل القائمة' : 'افتح القائمة'}
+              className="min-h-[44px] min-w-[44px] text-foreground"
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              aria-label="Toggle theme"
             >
-              {mobileMenu ? (
-                <X className="h-5 w-5" />
+              {theme === 'dark' ? (
+                <Sun className="h-4 w-4" />
               ) : (
-                <Menu className="h-5 w-5" />
+                <Moon className="h-4 w-4" />
               )}
             </Button>
-          </div>
-        </div>
-
-        {mobileMenu && (
-          <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-md px-4 py-3 space-y-2">
-            {currentStudent ? (
-              <>
-                <p className="text-sm text-muted-foreground py-2">
-                  أهلاً بـ{' '}
-                  <span className="font-semibold text-foreground">
-                    {currentStudent.name}
-                  </span>
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full min-h-[44px] text-foreground"
-                  onClick={handleLogout}
-                >
-                  <LogOut className="h-4 w-4 ml-1" />
-                  خروج
-                </Button>
-              </>
-            ) : isAdminLoggedIn && currentAdmin ? (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full min-h-[44px] justify-start text-foreground"
-                  onClick={() => {
-                    setView('admin-dashboard')
-                    setMobileMenu(false)
-                  }}
-                >
-                  <LayoutDashboard className="h-4 w-4 ml-2" />
-                  لوحة التحكم
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full min-h-[44px] text-foreground"
-                  onClick={handleLogout}
-                >
-                  <LogOut className="h-4 w-4 ml-1" />
-                  خروج
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full min-h-[44px] text-foreground"
-                  onClick={handleLoginClick}
-                >
-                  <LogIn className="h-4 w-4 ml-1" />
-                  سجل دخولك
-                </Button>
-                <Button
-                  size="sm"
-                  className="w-full min-h-[44px] bg-primary hover:bg-primary/90 text-primary-foreground"
-                  onClick={handleRegisterClick}
-                >
-                  <UserPlus className="h-4 w-4 ml-1" />
-                  اعمل حساب
-                </Button>
-                {!isAuthPage && (
-                  <button
-                    onClick={() => {
-                      setShowAdminLogin(true)
-                      setMobileMenu(false)
-                    }}
-                    className="w-full text-center text-[10px] text-muted-foreground/30 hover:text-muted-foreground/60 py-2 transition-colors cursor-pointer flex items-center justify-center gap-1"
-                  >
-                    <Settings className="h-3 w-3" />
-                    <span>إعدادات</span>
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </header>
-
-      <AdminLoginDialog />
-    </>
-  )
-}
-
-function AdminLoginDialog() {
-  const {
-    showAdminLogin,
-    setShowAdminLogin,
-    setCurrentAdmin,
-    setAdminLoggedIn,
-    setView,
-  } = useAppStore()
-
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [statusMsg, setStatusMsg] = useState('')
-
-  const handleLogin = async () => {
-    if (!email || !password) {
-      toast.error('اكتب الايميل والباسورد')
-      return
-    }
-    if (loading) return
-    setLoading(true)
-    setStatusMsg('بيحاول يوصل بالسيرفر...')
-
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 15000)
-
-    try {
-      setStatusMsg('بيحقق من البيانات...')
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-        signal: controller.signal,
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setStatusMsg('بيحمل لوحة التحكم...')
-        setCurrentAdmin(data.admin)
-        setAdminLoggedIn(true)
-        setShowAdminLogin(false)
-        setView('admin-dashboard')
-        toast.success('أهلاً بيك في لوحة التحكم')
-      } else {
-        toast.error(data.error || 'البيانات غلط')
-      }
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        toast.error('الانترنت بطيء شوية... حاول تاني')
-      } else {
-        toast.error('حصل مشكلة في الاتصال')
-      }
-    } finally {
-      clearTimeout(timeout)
-      setLoading(false)
-      setStatusMsg('')
-    }
-  }
-
-  return (
-    <Dialog open={showAdminLogin} onOpenChange={(open) => { if (!loading) setShowAdminLogin(open) }}>
-      <DialogContent className="sm:max-w-md" dir="rtl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-center gap-2 text-lg">
-            <Shield className="h-5 w-5 text-primary" />
-            دخول المشرفين
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 pt-2">
-          <div className="space-y-2">
-            <Label htmlFor="admin-dialog-email" className="text-foreground">
-              الايميل
-            </Label>
-            <Input
-              id="admin-dialog-email"
-              type="email"
-              placeholder="البريد الالكتروني"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !loading && handleLogin()}
-              dir="ltr"
-              className="min-h-[44px]"
-              disabled={loading}
-              autoComplete="email"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="admin-dialog-password" className="text-foreground">
-              الباسورد
-            </Label>
-            <Input
-              id="admin-dialog-password"
-              type="password"
-              placeholder="كلمة المرور"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !loading && handleLogin()}
-              dir="ltr"
-              className="min-h-[44px]"
-              disabled={loading}
-              autoComplete="current-password"
-            />
-          </div>
-          {statusMsg && (
-            <p className="text-xs text-center text-muted-foreground animate-pulse">{statusMsg}</p>
           )}
+
           <Button
-            className="w-full min-h-[44px] font-semibold bg-primary hover:bg-primary/90 text-primary-foreground"
-            onClick={handleLogin}
-            disabled={loading}
+            variant="ghost"
+            size="icon"
+            className="md:hidden min-h-[44px] min-w-[44px] text-foreground"
+            onClick={() => setMobileMenu(!mobileMenu)}
+            aria-label={mobileMenu ? 'اقفل القائمة' : 'افتح القائمة'}
           >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 ml-2 animate-spin" />
-                بيسجل دخول...
-              </>
+            {mobileMenu ? (
+              <X className="h-5 w-5" />
             ) : (
-              'دخول لوحة التحكم'
+              <Menu className="h-5 w-5" />
             )}
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+
+      {/* Mobile Menu */}
+      {mobileMenu && (
+        <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-md px-4 py-3 space-y-2">
+          {currentStudent ? (
+            <>
+              <p className="text-sm text-muted-foreground py-2">
+                أهلاً بـ{' '}
+                <span className="font-semibold text-foreground">
+                  {currentStudent.name}
+                </span>
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full min-h-[44px] text-foreground"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4 ml-1" />
+                خروج
+              </Button>
+            </>
+          ) : isAdminLoggedIn && currentAdmin ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full min-h-[44px] justify-start text-foreground"
+                onClick={() => {
+                  setView('admin-dashboard')
+                  setMobileMenu(false)
+                }}
+              >
+                <LayoutDashboard className="h-4 w-4 ml-2" />
+                لوحة التحكم
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full min-h-[44px] text-foreground"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4 ml-1" />
+                خروج
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full min-h-[44px] text-foreground"
+                onClick={handleLoginClick}
+              >
+                <LogIn className="h-4 w-4 ml-1" />
+                سجل دخولك
+              </Button>
+              <Button
+                size="sm"
+                className="w-full min-h-[44px] bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-semibold"
+                onClick={handleRegisterClick}
+              >
+                <UserPlus className="h-4 w-4 ml-1" />
+                إنشاء حسابك +
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+    </header>
   )
 }
