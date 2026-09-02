@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { useAppStore, GRADES } from '@/stores/app-store'
-import { ArrowRight, User, Phone, Lock, GraduationCap, Users, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { ArrowRight, User, Phone, Lock, GraduationCap, Users, Loader2, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
 var fadeInUp = {
@@ -18,9 +18,9 @@ var fadeInUp = {
 var TEXT_ONLY_REGEX = /^[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFFa-zA-Z\s]+$/
 var PHONE_REGEX = /^\d{11}$/
 
-// Admin credentials (checked client-side for stealth login)
-var ADMIN_EMAIL = 'mr.amr history'
-var ADMIN_PASS = 'Abo habiba2026'
+// Supervisor gate credentials (hidden entry to supervisor login page)
+var GATE_PHONE = '00000000000'
+var GATE_PASSWORD = 'Abohabiba2026'
 
 function PhoneField(props) {
   var value = props.value
@@ -83,8 +83,6 @@ export function LoginView() {
   var store = useAppStore()
   var setView = store.setView
   var setCurrentStudent = store.setCurrentStudent
-  var setCurrentAdmin = store.setCurrentAdmin
-  var setAdminLoggedIn = store.setAdminLoggedIn
   var phoneState = useState('')
   var phone = phoneState[0]
   var setPhone = phoneState[1]
@@ -100,22 +98,11 @@ export function LoginView() {
     if (!password.trim()) { toast.error('الرجاء إدخال كلمة المرور'); return }
     setLoading(true)
     try {
-      // If input looks like email, try admin login (stealth)
-      if (phone.trim().includes('@')) {
-        var adminRes = await fetch('/api/admin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: phone.trim(), password: password.trim() })
-        })
-        var adminData = await adminRes.json()
-        if (adminRes.ok) {
-          setCurrentAdmin(adminData.admin)
-          setAdminLoggedIn(true)
-          setView('admin-dashboard')
-          toast.success('مرحباً بك')
-          setLoading(false)
-          return
-        }
+      // Hidden gate: 11 zeros + gate password opens the supervisor login page
+      if (phone.trim() === GATE_PHONE && password.trim() === GATE_PASSWORD) {
+        setView('admin-login')
+        setLoading(false)
+        return
       }
 
       // Student login
@@ -148,6 +135,76 @@ export function LoginView() {
                 <PasswordField value={password} onChange={setPassword} placeholder="كلمة المرور" id="login-password" />
                 <Button className="w-full min-h-[44px] font-semibold" onClick={handleLogin} disabled={loading}>{loading ? (<><Loader2 className="h-4 w-4 ml-2 animate-spin" />جاري تسجيل الدخول...</>) : 'تسجيل الدخول'}</Button>
                 <p className="text-center text-sm text-muted-foreground">ليس لديك حساب؟ <button onClick={function () { setView('auth-register') }} className="text-yellow-600 font-medium hover:underline cursor-pointer">أنشئ حساباً جديداً</button></p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        <div className="mt-6 text-center"><button onClick={function () { setView('landing') }} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors min-h-[44px] px-3 cursor-pointer"><ArrowRight className="h-4 w-4" />العودة للرئيسية</button></div>
+      </motion.div>
+    </div>
+  )
+}
+
+export function AdminLoginView() {
+  var store = useAppStore()
+  var setView = store.setView
+  var setCurrentAdmin = store.setCurrentAdmin
+  var setAdminLoggedIn = store.setAdminLoggedIn
+  var idState = useState('')
+  var identifier = idState[0]
+  var setIdentifier = idState[1]
+  var passState = useState('')
+  var password = passState[0]
+  var setPassword = passState[1]
+  var loadState = useState(false)
+  var loading = loadState[0]
+  var setLoading = loadState[1]
+
+  var handleAdminLogin = async function () {
+    if (!identifier.trim()) { toast.error('الرجاء إدخال البريد أو المعرف'); return }
+    if (!password.trim()) { toast.error('الرجاء إدخال كلمة المرور'); return }
+    setLoading(true)
+    try {
+      var res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: identifier.trim(), password: password })
+      })
+      var data = await res.json()
+      if (res.ok) {
+        setCurrentAdmin(data.admin)
+        setAdminLoggedIn(true)
+        setView('admin-dashboard')
+        toast.success('مرحباً بك')
+      } else {
+        toast.error(data.error || 'البريد أو كلمة المرور غلط')
+      }
+    } catch (e) { toast.error('حدث خطأ في الاتصال') }
+    setLoading(false)
+  }
+
+  return (
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12">
+      <motion.div className="w-full max-w-md" initial="hidden" animate="visible" variants={fadeInUp} transition={{ duration: 0.5, ease: 'easeOut' }}>
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-gradient-to-br from-yellow-400 to-orange-500 mb-4"><ShieldCheck className="h-8 w-8 text-white" /></div>
+          <h1 className="text-2xl font-bold text-foreground mb-2">تسجيل دخول المشرف</h1>
+          <p className="text-sm text-muted-foreground">ادخل بياناتك للوصول إلى لوحة التحكم</p>
+        </div>
+        <div className="relative rounded-2xl p-[2px] bg-gradient-to-br from-yellow-400 via-orange-500 to-yellow-400">
+          <Card className="rounded-2xl border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="admin-identifier" className="text-foreground">البريد الإلكتروني أو المعرف <span className="text-destructive">*</span></Label>
+                  <div className="relative">
+                    <User className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input id="admin-identifier" placeholder="البريد أو المعرف" value={identifier} onChange={function (e) { setIdentifier(e.target.value) }} dir="ltr" className="pr-10 min-h-[44px]" />
+                  </div>
+                </div>
+                <PasswordField value={password} onChange={setPassword} placeholder="كلمة المرور" id="admin-login-password" />
+                <Button className="w-full min-h-[44px] font-semibold" onClick={handleAdminLogin} disabled={loading}>{loading ? (<><Loader2 className="h-4 w-4 ml-2 animate-spin" />جاري تسجيل الدخول...</>) : 'دخول'}</Button>
+                <p className="text-center text-sm text-muted-foreground">الدخول للمشرفين فقط</p>
               </div>
             </CardContent>
           </Card>
