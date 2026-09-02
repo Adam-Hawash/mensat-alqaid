@@ -5,7 +5,7 @@ import { Navbar } from '@/components/landing/Navbar'
 import { Footer } from '@/components/landing/Footer'
 import { StudentPendingView } from '@/components/landing/StudentPendingView'
 import { StudentPaymentView } from '@/components/landing/StudentPaymentView'
-import { LoginView, RegisterView } from '@/components/landing/AuthPages'
+import { LoginView, RegisterView, AdminLoginView } from '@/components/landing/AuthPages'
 import dynamic from 'next/dynamic'
 import { useEffect, useState, useRef } from 'react'
 import { GraduationCap, Loader2 } from 'lucide-react'
@@ -155,6 +155,12 @@ export default function HomePage() {
       {currentView === 'auth-register' && (
         <main className="flex-1">
           <RegisterView />
+        </main>
+      )}
+
+      {currentView === 'admin-login' && (
+        <main className="flex-1">
+          <AdminLoginView />
         </main>
       )}
 
