@@ -7,6 +7,7 @@ export type AppView =
   | 'student-pending'
   | 'student-portal'
   | 'admin-dashboard'
+  | 'admin-login'
   | 'student-payment'
 
 export interface Student {
@@ -123,19 +124,19 @@ export const GRADES = [
 ] as const
 
 export const GRADE_SHORT_NAMES: Record<string, string> = {
-  'أولى إعدادي': 'م1',
-  'تانية إعدادي': 'م2',
-  'تالتة إعدادي': 'م3',
-  'أولى بكالوريا': 'ب1',
-  'تانية بكالوريا': 'ب2',
+  'أولى إعدادي': '1ع',
+  'تانية إعدادي': '2ع',
+  'تالتة إعدادي': '3ع',
+  'أولى بكالوريا': '1ب',
+  'تانية بكالوريا': '2ب',
 }
 
 export const GRADES_EN = [
-  { ar: 'أولى إعدادي', en: 'م1' },
-  { ar: 'تانية إعدادي', en: 'م2' },
-  { ar: 'تالتة إعدادي', en: 'م3' },
-  { ar: 'أولى بكالوريا', en: 'ب1' },
-  { ar: 'تانية بكالوريا', en: 'ب2' },
+  { ar: 'أولى إعدادي', en: '1ع' },
+  { ar: 'تانية إعدادي', en: '2ع' },
+  { ar: 'تالتة إعدادي', en: '3ع' },
+  { ar: 'أولى بكالوريا', en: '1ب' },
+  { ar: 'تانية بكالوريا', en: '2ب' },
 ] as const
 
 export interface Stats {
