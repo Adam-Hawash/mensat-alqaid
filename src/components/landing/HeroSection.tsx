@@ -47,8 +47,10 @@ export default function HeroSection() {
   var heroTitle = cfg.hero_title_line1 || 'منصة القائد'
   var heroSubtitle = cfg.hero_subtitle || 'هنساعدك تفهم التاريخ والدراسات بأسلوب سهل وبسيط'
   var heroBadge = cfg.hero_badge || 'تاريخ ودراسات ببساطة'
-  var heroDevLabel = cfg.hero_developer_label || 'Hero Developer'
-  var heroDevUrl = cfg.hero_developer_url || 'https://hero-developer-portfolio-11.vercel.app'
+
+  // Stats for the "Mr." badge on the instructor photo
+  var videosCount = stats?.totalVideos ? stats.totalVideos : '100+'
+  var studentsCount = stats?.approvedStudents ? stats.approvedStudents : '500+'
 
   return (
     <section className="relative overflow-hidden" dir="rtl" style={{ background: 'linear-gradient(135deg, #0a2e2f 0%, #0F3D3E 40%, #1a4d4d 100%)' }}>
@@ -181,16 +183,21 @@ export default function HeroSection() {
                     </div>
                   )}
 
-                  {/* Hero Developer badge - centered on image (bottom) - like reference */}
-                  <a
-                    href={heroDevUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-black/50 backdrop-blur-md text-white text-xs font-semibold px-4 py-1.5 rounded-full border border-white/20 hover:bg-black/70 hover:text-yellow-300 transition-colors whitespace-nowrap z-10"
-                  >
-                    <span className="text-yellow-400">&lt;/&gt;</span>
-                    <span>{heroDevLabel}</span>
-                  </a>
+                  {/* "Mr." badge on instructor photo - with videos & students count */}
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5 bg-black/55 backdrop-blur-md text-white rounded-2xl border border-white/20 px-5 py-2.5 shadow-lg z-10 min-w-[150px]">
+                    <p className="text-sm font-bold text-yellow-300 leading-tight">مستر</p>
+                    <div className="flex items-center gap-2 text-[10px] text-white/90 justify-center mt-0.5">
+                      <span className="flex items-center gap-1">
+                        <span className="font-bold">{videosCount}</span>
+                        <span className="text-white/70">فيديو</span>
+                      </span>
+                      <span className="w-1 h-1 rounded-full bg-white/40" />
+                      <span className="flex items-center gap-1">
+                        <span className="font-bold">{studentsCount}</span>
+                        <span className="text-white/70">طالب</span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
