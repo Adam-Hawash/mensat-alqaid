@@ -47,10 +47,8 @@ export default function HeroSection() {
   var heroTitle = cfg.hero_title_line1 || 'منصة القائد'
   var heroSubtitle = cfg.hero_subtitle || 'هنساعدك تفهم التاريخ والدراسات بأسلوب سهل وبسيط'
   var heroBadge = cfg.hero_badge || 'تاريخ ودراسات ببساطة'
-
-  // Stats for the "Mr." badge on the instructor photo
-  var videosCount = stats?.totalVideos ? stats.totalVideos : '100+'
-  var studentsCount = stats?.approvedStudents ? stats.approvedStudents : '500+'
+  var heroDevLabel = cfg.hero_developer_label || 'Hero Developer'
+  var heroDevUrl = cfg.hero_developer_url || 'https://hero-developer-portfolio-11.vercel.app'
 
   return (
     <section className="relative overflow-hidden" dir="rtl" style={{ background: 'linear-gradient(135deg, #0a2e2f 0%, #0F3D3E 40%, #1a4d4d 100%)' }}>
@@ -140,6 +138,19 @@ export default function HeroSection() {
                 <p className="text-xs text-white/50 mt-1">متابعة مستمرة</p>
               </div>
             </div>
+
+            {/* Hero Developer link - under stats, aligned to right (start in RTL) */}
+            <div className="flex justify-center lg:justify-start pt-4">
+              <a
+                href={heroDevUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[11px] text-white/45 hover:text-yellow-300 transition-colors group"
+              >
+                <span className="text-yellow-400/70">&lt;/&gt;</span>
+                <span className="font-semibold group-hover:underline underline-offset-2">{heroDevLabel}</span>
+              </a>
+            </div>
           </div>
 
           {/* Instructor Photo - Left Side in RTL */}
@@ -182,22 +193,6 @@ export default function HeroSection() {
                       <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                     </div>
                   )}
-
-                  {/* "Mr." badge on instructor photo - with videos & students count */}
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5 bg-black/55 backdrop-blur-md text-white rounded-2xl border border-white/20 px-5 py-2.5 shadow-lg z-10 min-w-[150px]">
-                    <p className="text-sm font-bold text-yellow-300 leading-tight">مستر</p>
-                    <div className="flex items-center gap-2 text-[10px] text-white/90 justify-center mt-0.5">
-                      <span className="flex items-center gap-1">
-                        <span className="font-bold">{videosCount}</span>
-                        <span className="text-white/70">فيديو</span>
-                      </span>
-                      <span className="w-1 h-1 rounded-full bg-white/40" />
-                      <span className="flex items-center gap-1">
-                        <span className="font-bold">{studentsCount}</span>
-                        <span className="text-white/70">طالب</span>
-                      </span>
-                    </div>
-                  </div>
                 </div>
               </div>
 
