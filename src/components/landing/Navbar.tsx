@@ -86,8 +86,8 @@ export function Navbar() {
         </div>
       )}
 
-      {/* Main Navbar - sticky, transparent background that lets hero show through */}
-      <div className="w-full bg-background/70 backdrop-blur-md border-b border-border/40">
+      {/* Main Navbar - sticky, fully transparent so hero shows through */}
+      <div className="w-full bg-transparent">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <button
           onClick={handleGoHome}
