@@ -48,10 +48,10 @@ const AdminDashboard = dynamic(() => import('@/components/admin/AdminDashboard')
   loading: () => <div className="flex items-center justify-center py-20"><div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" /></div>,
 })
 
-// Minimum loading screen duration (ms)
-var MIN_LOADING_MS = 2000
+// Minimum loading screen duration (ms) - keep loading until images are preloaded
+var MIN_LOADING_MS = 4000
 // Maximum loading screen duration - force show content even if APIs fail (ms)
-var MAX_LOADING_MS = 5000
+var MAX_LOADING_MS = 6000
 
 export default function HomePage() {
   var store = useAppStore()

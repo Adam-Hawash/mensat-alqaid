@@ -47,6 +47,7 @@ export default async function RootLayout({
   }
 
   var faviconUrl = initialConfig.favicon_url || "/favicon.png";
+  var instructorPhoto = initialConfig.instructor_photo || "/images/instructor.jpg";
 
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
@@ -63,6 +64,9 @@ export default async function RootLayout({
         />
 
         <link rel="icon" href={faviconUrl} />
+
+        {/* Preload instructor photo so it's ready immediately when hero renders */}
+        <link rel="preload" as="image" href={instructorPhoto} fetchPriority="high" />
 
         <script
           dangerouslySetInnerHTML={{

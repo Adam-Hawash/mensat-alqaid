@@ -86,8 +86,8 @@ export function Navbar() {
         </div>
       )}
 
-      {/* Main Navbar - sticky, fully transparent so hero shows through */}
-      <div className="w-full bg-transparent">
+      {/* Main Navbar - sticky, solid white background so all text/buttons are clearly visible */}
+      <div className="w-full bg-white dark:bg-[#0C1220] border-b border-border shadow-sm">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <button
           onClick={handleGoHome}
@@ -107,8 +107,8 @@ export function Navbar() {
             </div>
           )}
           <div className="hidden sm:block">
-            <p className="text-[10px] text-white/60 leading-tight">MR</p>
-            <h1 className="text-sm font-bold leading-tight text-white">
+            <p className="text-[10px] text-muted-foreground leading-tight">MR</p>
+            <h1 className="text-sm font-bold leading-tight text-foreground">
               {navBrand}
             </h1>
           </div>
@@ -117,16 +117,16 @@ export function Navbar() {
         <nav className="hidden md:flex items-center gap-2">
           {currentStudent ? (
             <div className="flex items-center gap-3">
-              <span className="text-sm text-white/70">
+              <span className="text-sm text-muted-foreground">
                 أهلاً بـ{' '}
-                <span className="font-semibold text-white">
+                <span className="font-semibold text-foreground">
                   {currentStudent.name}
                 </span>
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                className="min-h-[44px] border-white/30 text-white hover:bg-white/10 hover:text-white"
+                className="min-h-[44px] text-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={handleLogout}
               >
                 <LogOut className="h-4 w-4 ml-1" />
@@ -138,7 +138,7 @@ export function Navbar() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="min-h-[44px] text-white hover:bg-white/10 hover:text-white"
+                className="min-h-[44px] text-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={() => setView('admin-dashboard')}
               >
                 <LayoutDashboard className="h-4 w-4 ml-1" />
@@ -147,7 +147,7 @@ export function Navbar() {
               <Button
                 variant="outline"
                 size="sm"
-                className="min-h-[44px] border-white/30 text-white hover:bg-white/10 hover:text-white"
+                className="min-h-[44px] text-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={handleLogout}
               >
                 <LogOut className="h-4 w-4 ml-1" />
@@ -182,7 +182,7 @@ export function Navbar() {
               href={youtubeLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center min-h-[44px] min-w-[44px] text-white/70 hover:text-red-400 transition-colors"
+              className="flex items-center justify-center min-h-[44px] min-w-[44px] text-muted-foreground hover:text-red-500 transition-colors"
               title="YouTube"
             >
               <Youtube className="h-4 w-4" />
@@ -193,7 +193,7 @@ export function Navbar() {
             <Button
               variant="ghost"
               size="icon"
-              className="min-h-[44px] min-w-[44px] text-white hover:bg-white/10"
+              className="min-h-[44px] min-w-[44px] text-foreground hover:bg-accent"
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
               aria-label="Toggle theme"
             >
@@ -208,7 +208,7 @@ export function Navbar() {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden min-h-[44px] min-w-[44px] text-white hover:bg-white/10"
+            className="md:hidden min-h-[44px] min-w-[44px] text-foreground hover:bg-accent"
             onClick={() => setMobileMenu(!mobileMenu)}
             aria-label={mobileMenu ? 'اقفل القائمة' : 'افتح القائمة'}
           >
@@ -221,21 +221,21 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Menu - transparent dark when on landing */}
+      {/* Mobile Menu - solid background so all text is clearly visible */}
       {mobileMenu && (
-        <div className="md:hidden border-t border-white/10 bg-[#0a2e2f]/95 backdrop-blur-md px-4 py-3 space-y-2">
+        <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-md px-4 py-3 space-y-2">
           {currentStudent ? (
             <>
-              <p className="text-sm text-white/70 py-2">
+              <p className="text-sm text-muted-foreground py-2">
                 أهلاً بـ{' '}
-                <span className="font-semibold text-white">
+                <span className="font-semibold text-foreground">
                   {currentStudent.name}
                 </span>
               </p>
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full min-h-[44px] border-white/30 text-white hover:bg-white/10 hover:text-white"
+                className="w-full min-h-[44px] text-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={handleLogout}
               >
                 <LogOut className="h-4 w-4 ml-1" />
@@ -247,7 +247,7 @@ export function Navbar() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full min-h-[44px] justify-start text-white hover:bg-white/10 hover:text-white"
+                className="w-full min-h-[44px] justify-start text-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={() => {
                   setView('admin-dashboard')
                   setMobileMenu(false)
@@ -259,7 +259,7 @@ export function Navbar() {
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full min-h-[44px] border-white/30 text-white hover:bg-white/10 hover:text-white"
+                className="w-full min-h-[44px] text-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={handleLogout}
               >
                 <LogOut className="h-4 w-4 ml-1" />
@@ -270,7 +270,7 @@ export function Navbar() {
             <>
               <Button
                 size="sm"
-                className="w-full min-h-[44px] bg-[#0D9488] hover:bg-[#0F766E] text-white font-semibold shadow-md"
+                className="w-full min-h-[44px] bg-[#0D9488] hover:bg-[#0F766E] text-white font-semibold"
                 onClick={handleLoginClick}
               >
                 <LogIn className="h-4 w-4 ml-1" />
@@ -278,7 +278,7 @@ export function Navbar() {
               </Button>
               <Button
                 size="sm"
-                className="w-full min-h-[44px] bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-semibold shadow-md"
+                className="w-full min-h-[44px] bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-semibold"
                 onClick={handleRegisterClick}
               >
                 <UserPlus className="h-4 w-4 ml-1" />

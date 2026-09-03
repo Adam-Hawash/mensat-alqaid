@@ -35,11 +35,17 @@ export default function HeroSection() {
   var heroPhoto = dbPhoto || '/images/instructor.jpg'
   var hasPhoto = !!dbPhoto
 
+  // Preload the image immediately so it shows up as soon as possible
   useEffect(() => {
     if (hasPhoto) {
       var img = new Image()
       img.onload = function () { setPhotoLoaded(true) }
+      img.onerror = function () { setPhotoLoaded(true) } // show anyway on error
       img.src = dbPhoto
+      // If image is already cached, onload may not fire - check complete
+      if (img.complete) setPhotoLoaded(true)
+    } else {
+      setPhotoLoaded(true) // fallback image doesn't need loading
     }
   }, [dbPhoto, hasPhoto])
 
