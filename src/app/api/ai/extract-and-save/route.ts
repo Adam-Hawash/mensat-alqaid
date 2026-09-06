@@ -1,10 +1,8 @@
 // @ts-nocheck
-// FILE: src/app/api/ai-extract-questions/route.ts
-// ROUTE: POST /api/ai-extract-questions
-// PURPOSE: Save extracted questions to database (exam or homework)
-//          Called from AIExtractionPanel Step 3 after user reviews.
-//          PRESERVES question types (mcq + writing/مقالي) with modelAnswer,
-//          points and acceptedAnswers — same contract as /api/ai/extract-and-save.
+// FILE: src/app/api/ai/extract-and-save/route.ts
+// ROUTE: POST /api/ai/extract-and-save
+// PURPOSE: Save already-extracted questions to database (exam or homework)
+//          Receives pre-extracted questions JSON from AdminDashboard review step
 
 import { NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
@@ -17,9 +15,7 @@ export async function POST(request) {
     var type = formData.get('type') || 'exam'
     var grade = formData.get('grade') || ''
     var title = formData.get('title') || ''
-    var questionsJson = formData.get('questions') || ''
-
-    console.log('Save request:', { type: type, grade: grade, title: title, hasQuestions: !!questionsJson })
+    var questionsJson = formData.get('questions') || '[]'
 
     if (!grade.trim()) {
       return NextResponse.json({ error: 'Grade is required' }, { status: 400 })
@@ -27,24 +23,20 @@ export async function POST(request) {
     if (!title.trim()) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 })
     }
-    if (!questionsJson.trim()) {
-      return NextResponse.json({ error: 'No questions provided' }, { status: 400 })
-    }
 
-    var extractedQuestions = []
+    var questions = []
     try {
-      extractedQuestions = JSON.parse(questionsJson)
+      questions = JSON.parse(questionsJson)
     } catch (e) {
-      console.error('JSON parse error:', e)
       return NextResponse.json({ error: 'Invalid questions format' }, { status: 400 })
     }
 
-    if (!Array.isArray(extractedQuestions) || extractedQuestions.length === 0) {
-      return NextResponse.json({ error: 'No valid questions' }, { status: 400 })
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return NextResponse.json({ error: 'No questions to save' }, { status: 400 })
     }
 
-    // Convert to DB format — preserve type/writing/modelAnswer/points
-    var dbQuestions = extractedQuestions.map(function(q) {
+    // Convert to DB format - preserve ALL fields (type, modelAnswer, acceptedAnswers)
+    var dbQuestions = questions.map(function(q) {
       var questionText = q.question || q.q || ''
       var isWriting = q.type === 'writing' || q.type === 'essay'
       if (!isWriting && Array.isArray(q.options)) {
@@ -54,53 +46,31 @@ export async function POST(request) {
       if (!isWriting && (!q.options || q.options.length === 0)) {
         isWriting = true
       }
+      var pts = (typeof q.points === 'number' && q.points > 0) ? q.points : (isWriting ? 5 : 1)
       if (isWriting) {
-        var wPts = (typeof q.points === 'number' && q.points > 0) ? q.points : 5
         return {
           type: 'writing',
           question: questionText,
           options: [],
           correct: -1,
-          points: wPts,
+          points: pts,
           modelAnswer: q.modelAnswer || q.answer || '',
           acceptedAnswers: Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers : [],
         }
       }
-      var pts = (typeof q.points === 'number' && q.points > 0) ? q.points : 1
-
-      // Shuffle question order
-      // (shuffle options and update correct index)
       var opts = Array.isArray(q.options) ? q.options.slice(0, 4) : ['N/A', 'N/A', 'N/A', 'N/A']
       while (opts.length < 4) { opts.push('N/A') }
       var correctIdx = typeof q.correct === 'number' ? q.correct : 0
-      if (correctIdx < 0 || correctIdx >= opts.length) { correctIdx = 0 }
-      var correctText = opts[correctIdx]
-      var shuffled = opts.slice()
-      for (var oi = shuffled.length - 1; oi > 0; oi--) {
-        var oj = Math.floor(Math.random() * (oi + 1))
-        var otemp = shuffled[oi]
-        shuffled[oi] = shuffled[oj]
-        shuffled[oj] = otemp
-      }
-      var newCorrect = shuffled.indexOf(correctText)
-      if (newCorrect < 0) newCorrect = 0
+      if (correctIdx < 0 || correctIdx > 3) { correctIdx = 0 }
       return {
         type: 'mcq',
         question: questionText,
-        options: shuffled,
-        correct: newCorrect,
+        options: opts,
+        correct: correctIdx,
         points: pts,
         modelAnswer: q.modelAnswer || '',
       }
     })
-
-    // Shuffle overall question order (MCQs and writing mixed)
-    for (var si = dbQuestions.length - 1; si > 0; si--) {
-      var sj = Math.floor(Math.random() * (si + 1))
-      var stemp = dbQuestions[si]
-      dbQuestions[si] = dbQuestions[sj]
-      dbQuestions[sj] = stemp
-    }
 
     var questionsStr = JSON.stringify(dbQuestions)
     var savedItem = null
@@ -111,7 +81,7 @@ export async function POST(request) {
           data: {
             title: title.trim(),
             grade: grade,
-            content: dbQuestions.length + ' questions extracted by AI',
+            content: questions.length + ' questions extracted by AI',
             questions: questionsStr,
             passScore: 50
           }
@@ -119,7 +89,7 @@ export async function POST(request) {
       })
       return NextResponse.json({
         success: true,
-        message: 'Exam saved successfully! (' + dbQuestions.length + ' questions)',
+        message: 'Exam saved successfully! (' + questions.length + ' questions)',
         examId: savedItem.id
       })
     } else {
@@ -128,14 +98,14 @@ export async function POST(request) {
           data: {
             title: title.trim(),
             grade: grade,
-            content: dbQuestions.length + ' questions extracted by AI',
+            content: questions.length + ' questions extracted by AI',
             questions: questionsStr
           }
         })
       })
       return NextResponse.json({
         success: true,
-        message: 'Homework saved successfully! (' + dbQuestions.length + ' questions)',
+        message: 'Homework saved successfully! (' + questions.length + ' questions)',
         homeworkId: savedItem.id
       })
     }

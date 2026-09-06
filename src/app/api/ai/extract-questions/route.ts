@@ -1,6 +1,6 @@
 // @ts-nocheck
 // FILE: src/app/api/ai/extract-questions/route.ts
-// ROUTE: POST /api/ai-extract
+// ROUTE: POST /api/ai/extract-questions
 // PURPOSE: SMART extraction of questions from uploaded file (PDF/image) or URL
 //          for منصة القائد (الدراسات الاجتماعية والتاريخ — مستر عمرو رشدي).
 //          Returns questions ONLY (does NOT save to database).

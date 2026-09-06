@@ -796,6 +796,8 @@ interface MCQQuestion {
   options: string[]
   correct: number
   points: number
+  type?: string
+  modelAnswer?: string
 }
 
 function ExamTrackingPanel() {
@@ -1023,9 +1025,9 @@ function ExamTrackingPanel() {
             {/* MCQ Question Builder */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-xs">أسئلة اختيار من متعدد (اختياري - تصحيح أوتوماتيك)</Label>
+                <Label className="text-xs">أسئلة الامتحان (اختياري + مقالي)</Label>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setShowQBuilder(!showQBuilder)}>
-                  {showQBuilder ? 'إخفاء' : '+ إضافة أسئلة MCQ'}
+                  {showQBuilder ? 'إخفاء' : '+ إضافة أسئلة'}
                 </Button>
               </div>
               {showQBuilder && (
@@ -1036,27 +1038,50 @@ function ExamTrackingPanel() {
                     <span className="text-xs text-muted-foreground">/ 100</span>
                     <span className="text-xs text-muted-foreground mr-auto">{formQuestions.length} سؤال | {formQuestions.reduce((s, q) => s + q.points, 0)} درجة</span>
                   </div>
-                  {formQuestions.map((q, qi) => (
-                    <div key={qi} className="p-3 rounded-lg border bg-muted/30 space-y-2">
+                  {formQuestions.map((q, qi) => {
+                    var qIsWriting = q.type === 'writing' || (!q.options || q.options.length === 0)
+                    return (
+                    <div key={qi} className={"p-3 rounded-lg border space-y-2 " + (qIsWriting ? 'bg-amber-500/5 border-amber-500/30' : 'bg-muted/30')}>
                       <div className="flex items-start gap-2">
                         <span className="text-xs font-bold text-primary mt-1.5">{qi + 1}</span>
                         <Input value={q.q} onChange={(e) => { const n = [...formQuestions]; n[qi] = { ...n[qi], q: e.target.value }; setFormQuestions(n) }} placeholder="نص السؤال" className="text-sm" />
+                        <Button variant="ghost" size="sm" className="h-7 shrink-0 text-[10px] px-1.5" onClick={() => { const n = [...formQuestions]; if (qIsWriting) { n[qi] = { ...n[qi], type: 'mcq', options: ['', '', '', ''], correct: 0 } } else { n[qi] = { ...n[qi], type: 'writing', options: [], modelAnswer: '' } } setFormQuestions(n) }}>{qIsWriting ? 'اختياري' : 'مقالي'}</Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-destructive" onClick={() => setFormQuestions(formQuestions.filter((_, i) => i !== qi))}><Trash2 className="h-3.5 w-3.5" /></Button>
                       </div>
-                      {q.options.map((opt, oi) => (
-                        <div key={oi} className="flex items-center gap-2 mr-6">
-                          <button type="button" className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] transition-colors ${q.correct === oi ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/30'}`}
-                            onClick={() => { const n = [...formQuestions]; n[qi] = { ...n[qi], correct: oi }; setFormQuestions(n) }}>{["أ","ب","ت","ث"][oi]}</button>
-                          <Input value={opt} onChange={(e) => { const n = [...formQuestions]; const newOpts = [...n[qi].options]; newOpts[oi] = e.target.value; n[qi] = { ...n[qi], options: newOpts }; setFormQuestions(n) }} placeholder={"الخيار " + ["أ","ب","ت","ث"][oi]} className="h-8 text-sm" />
+                      {qIsWriting ? (
+                        <div className="mr-6 space-y-2">
+                          <textarea
+                            value={q.modelAnswer || ''}
+                            onChange={(e) => { const n = [...formQuestions]; n[qi] = { ...n[qi], modelAnswer: e.target.value }; setFormQuestions(n) }}
+                            placeholder="الإجابة النموذجية (التصحيح الذكي هيفهم معنى إجابة الطالب مش الحرف)..."
+                            rows={3}
+                            dir="auto"
+                            className="w-full p-2 rounded-lg border border-input bg-background text-xs min-h-[60px]"
+                          />
+                          <Label className="text-xs flex items-center gap-1">الدرجة: <Input type="number" value={q.points} onChange={(e) => { const n = [...formQuestions]; n[qi] = { ...n[qi], points: Number(e.target.value) || 0 }; setFormQuestions(n) }} className="w-14 h-7 text-xs" min={1} /></Label>
                         </div>
-                      ))}
-                      <div className="flex gap-2 mr-6">
-                        {q.options.length < 6 && <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { const n = [...formQuestions]; n[qi] = { ...n[qi], options: [...n[qi].options, ''] }; setFormQuestions(n) }}>+ خيار</Button>}
-                        <Label className="text-xs mr-auto flex items-center gap-1">الدرجة: <Input type="number" value={q.points} onChange={(e) => { const n = [...formQuestions]; n[qi] = { ...n[qi], points: Number(e.target.value) || 0 }; setFormQuestions(n) }} className="w-14 h-7 text-xs" min={1} /></Label>
-                      </div>
+                      ) : (
+                        <>
+                          {q.options.map((opt, oi) => (
+                            <div key={oi} className="flex items-center gap-2 mr-6">
+                              <button type="button" className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] transition-colors ${q.correct === oi ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/30'}`}
+                                onClick={() => { const n = [...formQuestions]; n[qi] = { ...n[qi], correct: oi }; setFormQuestions(n) }}>{["أ","ب","ت","ث"][oi]}</button>
+                              <Input value={opt} onChange={(e) => { const n = [...formQuestions]; const newOpts = [...n[qi].options]; newOpts[oi] = e.target.value; n[qi] = { ...n[qi], options: newOpts }; setFormQuestions(n) }} placeholder={"الخيار " + ["أ","ب","ت","ث"][oi]} className="h-8 text-sm" />
+                            </div>
+                          ))}
+                          <div className="flex gap-2 mr-6">
+                            {q.options.length < 6 && <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { const n = [...formQuestions]; n[qi] = { ...n[qi], options: [...n[qi].options, ''] }; setFormQuestions(n) }}>+ خيار</Button>}
+                            <Label className="text-xs mr-auto flex items-center gap-1">الدرجة: <Input type="number" value={q.points} onChange={(e) => { const n = [...formQuestions]; n[qi] = { ...n[qi], points: Number(e.target.value) || 0 }; setFormQuestions(n) }} className="w-14 h-7 text-xs" min={1} /></Label>
+                          </div>
+                        </>
+                      )}
                     </div>
-                  ))}
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => setFormQuestions([...formQuestions, { q: '', options: ['', '', '', ''], correct: 0, points: Math.max(1, Math.floor(100 / (formQuestions.length + 1))) }])}><Plus className="h-4 w-4 ml-1" />إضافة سؤال</Button>
+                    )
+                  })}
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => setFormQuestions([...formQuestions, { q: '', options: ['', '', '', ''], correct: 0, points: Math.max(1, Math.floor(100 / (formQuestions.length + 1))) }])}><Plus className="h-4 w-4 ml-1" />إضافة سؤال اختياري</Button>
+                    <Button variant="outline" size="sm" className="flex-1 border-amber-500/50 text-amber-600 hover:bg-amber-500/10" onClick={() => setFormQuestions([...formQuestions, { q: '', options: [], correct: -1, points: 5, type: 'writing', modelAnswer: '' }])}><Plus className="h-4 w-4 ml-1" />إضافة سؤال مقالي</Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1654,7 +1679,7 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
   const [showForm, setShowForm] = useState(false)
   const [formGrade, setFormGrade] = useState('')
   const [formValues, setFormValues] = useState<Record<string, string>>({})
-  const [mcqQuestions, setMcqQuestions] = useState<Array<{ question: string; options: string[]; correct: number }>>([])
+  const [mcqQuestions, setMcqQuestions] = useState<Array<any>>([])
   const [formFile, setFormFile] = useState<File | null>(null)
   const [formFilePath, setFormFilePath] = useState('')
   const [formFileUrl, setFormFileUrl] = useState('')
@@ -1781,10 +1806,20 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
       var res = await fetch('/api/ai/extract-questions', { method: 'POST', body: fd, signal: ctrl.signal })
       clearTimeout(tmr)
       var data = await res.json()
-      if (res.ok && data.questions && data.questions.length > 0) {
-        var extracted = data.questions.map(function(q: any) { return { question: q.question || '', options: (q.options || ['','','','']).slice(0, 4), correct: q.correct || 0 } })
+      var rawQuestions = (data.questions || (data.extracted && data.extracted.questions) || [])
+      if (res.ok && rawQuestions.length > 0) {
+        var extracted = rawQuestions.map(function(q: any) {
+          var isWriting = q.type === 'writing' || q.type === 'essay' || (!q.options || q.options.length === 0)
+          if (isWriting) {
+            return { type: 'writing', question: q.question || '', options: [], correct: -1, points: q.points || 5, modelAnswer: q.modelAnswer || '' }
+          }
+          return { type: 'mcq', question: q.question || '', options: (q.options || ['','','','']).slice(0, 4), correct: q.correct || 0, points: q.points || 1 }
+        })
         setMcqQuestions(extracted)
-        toast.success('تم استخراج ' + extracted.length + ' سؤال بنجاح!')
+        var wCount = extracted.filter(function(q: any) { return q.type === 'writing' }).length
+        var okMsg = 'تم استخراج ' + extracted.length + ' سؤال بنجاح!'
+        if (wCount > 0) okMsg += ' (منهم ' + wCount + ' مقالي)'
+        toast.success(okMsg)
       } else { toast.error(data.error || 'لم يتم استخراج أسئلة') }
     } catch (err: any) {
       if (err && err.name === 'AbortError') { toast.error('انتهت مهلة الاستخراج') }
@@ -1920,11 +1955,14 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
             {supportMCQ && (
               <div className="space-y-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-semibold text-primary">أسئلة اختيار من متعدد (اختياري)</Label>
+                  <Label className="text-sm font-semibold text-primary">أسئلة الواجب/الامتحان (اختياري + مقالي)</Label>
                   <div className="flex gap-1">
                     <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={function() {
-                      setMcqQuestions([...mcqQuestions, { question: '', options: ['', '', '', ''], correct: 0 }])
-                    }}><Plus className="h-3 w-3 ml-1" />إضافة سؤال</Button>
+                      setMcqQuestions([...mcqQuestions, { type: 'mcq', question: '', options: ['', '', '', ''], correct: 0, points: 1 }])
+                    }}><Plus className="h-3 w-3 ml-1" />إضافة سؤال اختياري</Button>
+                    <Button type="button" size="sm" variant="outline" className="h-7 text-xs border-amber-500/50 text-amber-600 hover:bg-amber-500/10" onClick={function() {
+                      setMcqQuestions([...mcqQuestions, { type: 'writing', question: '', options: [], correct: -1, points: 5, modelAnswer: '' }])
+                    }}><Plus className="h-3 w-3 ml-1" />إضافة سؤال مقالي</Button>
                     <Button type="button" size="sm" variant="outline" className="h-7 text-xs border-purple-500/50 text-purple-600 hover:bg-purple-500/10" onClick={handleAIExtract} disabled={aiExtracting || (!formFile && !formFileUrl.trim())}>
                       {aiExtracting ? <Loader2 className="h-3 w-3 ml-1 animate-spin" /> : <Sparkles className="h-3 w-3 ml-1" />}
                       استخراج بالذكاء الاصطناعي
@@ -1933,24 +1971,50 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
                 </div>
                 {mcqQuestions.length === 0 && <p className="text-[11px] text-muted-foreground text-center py-2">اضغط "إضافة سؤال" لإضافة أسئلة متعددة</p>}
                 {mcqQuestions.map(function(q, qi) {
+                  var qType = q.type === 'writing' || (!q.options || q.options.length === 0) ? 'writing' : 'mcq'
                   return (
-                    <div key={qi} className="space-y-2 p-3 rounded-lg border bg-background">
+                    <div key={qi} className={"space-y-2 p-3 rounded-lg border bg-background " + (qType === 'writing' ? 'border-amber-500/30' : '')}>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium">سؤال {qi + 1}</span>
-                        <Button type="button" size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive" onClick={function() { setMcqQuestions(mcqQuestions.filter(function(_, i) { return i !== qi })) }}><X className="h-3 w-3" /></Button>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium">سؤال {qi + 1}</span>
+                          <Badge variant="outline" className={"text-[9px] " + (qType === 'mcq' ? 'border-blue-500/40 text-blue-600' : 'border-amber-500/40 text-amber-600')}>{qType === 'mcq' ? 'اختياري' : 'مقالي'}</Badge>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button type="button" size="sm" variant="ghost" className="h-6 text-[10px] px-1.5" onClick={function() { var updated = [...mcqQuestions]; if (qType === 'writing') { updated[qi] = { ...updated[qi], type: 'mcq', options: ['', '', '', ''], correct: 0, points: 1 } } else { updated[qi] = { ...updated[qi], type: 'writing', options: [], correct: -1, points: 5 } } setMcqQuestions(updated) }}>{qType === 'mcq' ? 'حوّله مقالي' : 'حوّله اختياري'}</Button>
+                          <Button type="button" size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive" onClick={function() { setMcqQuestions(mcqQuestions.filter(function(_, i) { return i !== qi })) }}><X className="h-3 w-3" /></Button>
+                        </div>
                       </div>
                       <Input placeholder="اكتب السؤال هنا..." value={q.question} onChange={function(e) { var updated = [...mcqQuestions]; updated[qi] = { ...updated[qi], question: e.target.value }; setMcqQuestions(updated) }} className="text-sm" />
-                      <div className="grid grid-cols-2 gap-2">
-                        {q.options.map(function(opt, oi) {
-                          return (
-                            <div key={oi} className="flex items-center gap-1.5">
-                              <input type="radio" name={"q" + qi} checked={q.correct === oi} onChange={function() { var updated = [...mcqQuestions]; updated[qi] = { ...updated[qi], correct: oi }; setMcqQuestions(updated) }} className="accent-primary" />
-                              <Input placeholder={"اختيار " + (oi + 1)} value={opt} onChange={function(e) { var updated = [...mcqQuestions]; var newOpts = [...updated[qi].options]; newOpts[oi] = e.target.value; updated[qi] = { ...updated[qi], options: newOpts }; setMcqQuestions(updated) }} className="h-8 text-xs" />
-                            </div>
-                          )
-                        })}
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">اختر الإجابة الصحيحة بجانب الاختيار</p>
+                      {qType === 'writing' ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={q.modelAnswer || ''}
+                            onChange={function(e) { var updated = [...mcqQuestions]; updated[qi] = { ...updated[qi], modelAnswer: e.target.value }; setMcqQuestions(updated) }}
+                            placeholder="الإجابة النموذجية (التصحيح الذكي هيصحح على أساسها ويفهم معنى إجابة الطالب)..."
+                            rows={3}
+                            dir="auto"
+                            className="w-full p-2 rounded-lg border border-input bg-background text-xs min-h-[60px]"
+                          />
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-muted-foreground">درجة السؤال:</span>
+                            <Input type="number" min={1} max={100} value={q.points || 5} onChange={function(e) { var updated = [...mcqQuestions]; updated[qi] = { ...updated[qi], points: parseInt(e.target.value) || 5 }; setMcqQuestions(updated) }} className="h-7 w-20 text-xs" />
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-2 gap-2">
+                            {q.options.map(function(opt: string, oi: number) {
+                              return (
+                                <div key={oi} className="flex items-center gap-1.5">
+                                  <input type="radio" name={"q" + qi} checked={q.correct === oi} onChange={function() { var updated = [...mcqQuestions]; updated[qi] = { ...updated[qi], correct: oi }; setMcqQuestions(updated) }} className="accent-primary" />
+                                  <Input placeholder={"اختيار " + (oi + 1)} value={opt} onChange={function(e) { var updated = [...mcqQuestions]; var newOpts = [...updated[qi].options]; newOpts[oi] = e.target.value; updated[qi] = { ...updated[qi], options: newOpts }; setMcqQuestions(updated) }} className="h-8 text-xs" />
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">اختر الإجابة الصحيحة بجانب الاختيار</p>
+                        </>
+                      )}
                     </div>
                   )
                 })}
@@ -2009,7 +2073,7 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
   const [numQuestions, setNumQuestions] = useState(10)
   const [extracting, setExtracting] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [extractedQuestions, setExtractedQuestions] = useState<Array<{ question: string; options: string[]; correct: number }>>([])
+  const [extractedQuestions, setExtractedQuestions] = useState<Array<any>>([])
   const [statusMsg, setStatusMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -2116,12 +2180,19 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
       var data = await res.json()
       if (res.ok && data.extracted && data.extracted.questions && data.extracted.questions.length > 0) {
         var extracted = data.extracted.questions.map(function(q: any) {
-          return { question: q.question || '', options: (q.options || ['-','-','-','-']).slice(0, 4), correct: q.correct || 0 }
+          var isWriting = q.type === 'writing' || q.type === 'essay' || (!q.options || q.options.length === 0)
+          if (isWriting) {
+            return { type: 'writing', question: q.question || '', options: [], correct: -1, points: q.points || 5, modelAnswer: q.modelAnswer || '' }
+          }
+          return { type: 'mcq', question: q.question || '', options: (q.options || ['-','-','-','-']).slice(0, 4), correct: q.correct || 0, points: q.points || 1 }
         })
+        var wCount = extracted.filter(function(q: any) { return q.type === 'writing' }).length
         setExtractedQuestions(extracted)
         setStatusMsg('')
         setStep(3)
-        toast.success('تم استخراج ' + extracted.length + ' سؤال!')
+        var msg = 'تم استخراج ' + extracted.length + ' سؤال!'
+        if (wCount > 0) msg += ' (منهم ' + wCount + ' مقالي)'
+        toast.success(msg)
       } else {
         toast.error(data.error || 'مفيش أسئلة اتعملت استخراج')
         setStatusMsg('')
@@ -2212,6 +2283,12 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
       if (i !== qi) return q
       if (field === 'question') return Object.assign({}, q, { question: value })
       if (field === 'correct') return Object.assign({}, q, { correct: value })
+      if (field === 'modelAnswer') return Object.assign({}, q, { modelAnswer: value })
+      if (field === 'points') return Object.assign({}, q, { points: value })
+      if (field === 'toggleType') {
+        if (q.type === 'writing') return Object.assign({}, q, { type: 'mcq', options: ['-','-','-','-'], correct: 0, points: 1 })
+        return Object.assign({}, q, { type: 'writing', options: [], correct: -1, points: 5 })
+      }
       if (field.startsWith('option_')) {
         var oi = parseInt(field.split('_')[1])
         var newOpts = q.options.slice(); newOpts[oi] = value
@@ -2223,7 +2300,8 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
   }
 
   var deleteQuestion = function(qi: number) { setExtractedQuestions(extractedQuestions.filter(function(_, i) { return i !== qi })) }
-  var addQuestion = function() { setExtractedQuestions(extractedQuestions.concat([{ question: '', options: ['-','-','-','-'], correct: 0 }])) }
+  var addQuestion = function() { setExtractedQuestions(extractedQuestions.concat([{ type: 'mcq', question: '', options: ['-','-','-','-'], correct: 0, points: 1 }])) }
+  var addWritingQuestion = function() { setExtractedQuestions(extractedQuestions.concat([{ type: 'writing', question: '', options: [], correct: -1, points: 5, modelAnswer: '' }])) }
 
   var handleSave = async function() {
     if (extractedQuestions.length === 0) { toast.error('مفيش أسئلة عشان تحفظ'); return }
@@ -2253,39 +2331,65 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
           </div>
           <Badge className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-0">{extractedQuestions.length} سؤال</Badge>
         </div>
-        <p className="text-xs text-muted-foreground">راجع الأسئلة قبل ما تحفظ. دوس على الدايرة جناب الإجابة الصح.</p>
+        <p className="text-xs text-muted-foreground">راجع الأسئلة قبل ما تحفظ. للاختياري: دوس على الدايرة جناب الإجابة الصح. للمقالي: اكتب الإجابة النموذجية والتصحيح الذكي هيفهم إجابات الطلبة بالمعنى.</p>
         {statusMsg && <div className="flex items-center gap-2 p-3 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400"><Loader2 className="h-4 w-4 animate-spin" /><p className="text-sm">{statusMsg}</p></div>}
 
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={addQuestion} className="gap-1"><Plus className="h-4 w-4" />أضف سؤال</Button>
+          <Button variant="outline" size="sm" onClick={addQuestion} className="gap-1"><Plus className="h-4 w-4" />أضف سؤال اختياري</Button>
+          <Button variant="outline" size="sm" onClick={addWritingQuestion} className="gap-1 border-amber-500/50 text-amber-600 hover:bg-amber-500/10"><Plus className="h-4 w-4" />أضف سؤال مقالي</Button>
         </div>
 
         <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
           {extractedQuestions.map(function(q, qi) {
+            var qType = q.type === 'writing' || (!q.options || q.options.length === 0) ? 'writing' : 'mcq'
             return (
-              <div key={qi} className="p-3 rounded-lg border bg-card space-y-2">
+              <div key={qi} className={"p-3 rounded-lg border bg-card space-y-2 " + (qType === 'writing' ? 'border-amber-500/30' : '')}>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-primary">س{qi + 1}</span>
-                  <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={function() { deleteQuestion(qi) }}><Trash2 className="h-3 w-3" /></Button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-primary">س{qi + 1}</span>
+                    <Badge variant="outline" className={"text-[9px] " + (qType === 'mcq' ? 'border-blue-500/40 text-blue-600' : 'border-amber-500/40 text-amber-600')}>{qType === 'mcq' ? 'اختياري' : 'مقالي'}</Badge>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-1.5" onClick={function() { updateQuestion(qi, 'toggleType', null) }}>{qType === 'mcq' ? 'حوّله مقالي' : 'حوّله اختياري'}</Button>
+                    <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={function() { deleteQuestion(qi) }}><Trash2 className="h-3 w-3" /></Button>
+                  </div>
                 </div>
                 <Input value={q.question} onChange={function(e) { updateQuestion(qi, 'question', e.target.value) }} placeholder="نص السؤال..." className="text-sm" />
-                <div className="grid grid-cols-2 gap-2">
-                  {q.options.map(function(opt, oi) {
-                    return (
-                      <div key={oi} className="flex items-center gap-1.5">
-                        <button type="button" className={"w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] transition-colors " + (q.correct === oi ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/30 hover:border-primary/50')} onClick={function() { updateQuestion(qi, 'correct', oi) }}>{["أ","ب","ت","ث"][oi]}</button>
-                        <Input value={opt} onChange={function(e) { updateQuestion(qi, 'option_' + oi, e.target.value) }} placeholder={"الخيار " + (oi + 1)} className="h-8 text-xs" />
-                      </div>
-                    )
-                  })}
-                </div>
+                {qType === 'writing' ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={q.modelAnswer || ''}
+                      onChange={function(e) { updateQuestion(qi, 'modelAnswer', e.target.value) }}
+                      placeholder="الإجابة النموذجية (التصحيح الذكي هيصحح على أساسها ويفهم معنى الإجابة مش الحرف)..."
+                      rows={3}
+                      dir="auto"
+                      className="w-full p-2 rounded-lg border border-input bg-background text-xs min-h-[60px]"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Label className="text-[10px] text-muted-foreground">درجة السؤال:</Label>
+                      <Input type="number" min={1} max={100} value={q.points || 5} onChange={function(e) { updateQuestion(qi, 'points', parseInt(e.target.value) || 5) }} className="h-7 w-20 text-xs" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {q.options.map(function(opt: string, oi: number) {
+                      return (
+                        <div key={oi} className="flex items-center gap-1.5">
+                          <button type="button" className={"w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] transition-colors " + (q.correct === oi ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/30 hover:border-primary/50')} onClick={function() { updateQuestion(qi, 'correct', oi) }}>{["أ","ب","ت","ث"][oi]}</button>
+                          <Input value={opt} onChange={function(e) { updateQuestion(qi, 'option_' + oi, e.target.value) }} placeholder={"الخيار " + (oi + 1)} className="h-8 text-xs" />
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )
           })}
         </div>
 
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={addQuestion} className="gap-1"><Plus className="h-4 w-4" />أضف سؤال</Button>
+          <Button variant="outline" size="sm" onClick={addQuestion} className="gap-1"><Plus className="h-4 w-4" />أضف سؤال اختياري</Button>
+          <Button variant="outline" size="sm" onClick={addWritingQuestion} className="gap-1 border-amber-500/50 text-amber-600 hover:bg-amber-500/10"><Plus className="h-4 w-4" />أضف سؤال مقالي</Button>
         </div>
 
         <div className="flex gap-2 pt-2">

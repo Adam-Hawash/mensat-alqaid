@@ -3,8 +3,11 @@
 // ROUTE: POST /api/ai-extract-youtube
 // PURPOSE: Extract questions from YouTube video using Gemini native video
 //          Returns questions ONLY (does NOT save to database)
+//          (منصة القائد — الدراسات الاجتماعية والتاريخ: أسئلة بالعربي من
+//           محتوى الفيديو نفسه، عبر مساعد Gemini المركزي مع تداول المفاتيح)
 
 import { NextResponse } from 'next/server'
+import { callGemini as callGeminiCentral, hasGeminiKey } from '@/lib/gemini'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -23,25 +26,23 @@ function extractYouTubeId(url) {
 
 function buildPrompt(numQuestions) {
   var lines = []
-  lines.push('You are an expert studies and history teacher. Watch this video carefully.')
+  lines.push('أنت معلم خبير في الدراسات الاجتماعية والتاريخ للمنهج المصري. شوف الفيديو ده كويس.')
   lines.push('')
-  lines.push('CRITICAL RULES:')
-  lines.push('- ONLY create questions based on what is actually taught/shown in this video')
-  lines.push('- Do NOT add any topic, concept, or question that does not appear in the video')
-  lines.push('- If the video covers exponents, ALL questions must be about exponents')
-  lines.push('- If the video solves specific problems, create questions about those exact same types of problems')
-  lines.push('- Use the same numbers, equations, and methods shown in the video')
+  lines.push('قواعد صارمة:')
+  lines.push('- اعمل أسئلة من اللي اتشرح فعلاً في الفيديو فقط')
+  lines.push('- ممنوع تضيف أي موضوع أو معلومة أو سؤال مش موجود في الفيديو')
+  lines.push('- لو الفيديو بيشرح درس معين، كل الأسئلة لازم تكون عن نفس الدرس')
+  lines.push('- استخدم نفس الأسماء والتواريخ والأماكن والمصطلحات اللي في الفيديو')
   lines.push('')
-  lines.push('Create exactly ' + numQuestions + ' MCQ questions from the video content:')
-  lines.push('- Each question: exactly 4 options')
-  lines.push('- correct = index (0, 1, 2, or 3)')
-  lines.push('- ALL text in English')
-  lines.push('- Write math using proper math symbols. Use Unicode superscripts for powers: x² for squared, x³ for cubed, x⁴ for to the power of 4. Use √ for square root, ∛ for cubic root. Use × for multiplication. Use ÷ for division. Do NOT write "squared", "cubed", "to the power of" as words. Do NOT use ^ or * symbols.')
-  lines.push('- No repeated concepts')
-  lines.push('- If the video shows solved examples, create similar questions with the same concept but different numbers')
+  lines.push('اعمل بالظبط ' + numQuestions + ' سؤال اختياري من محتوى الفيديو:')
+  lines.push('- كل سؤال له 4 اختيارات بالظبط')
+  lines.push('- correct = رقم الإجابة الصحيحة (0, 1, 2, أو 3)')
+  lines.push('- كل الأسئلة والاختيارات بالعربي (نفس لغة الفيديو)')
+  lines.push('- ممنوع تكرار نفس الفكرة في أكتر من سؤال')
+  lines.push('- لو الفيديو فيه أمثلة محلولة، اعمل أسئلة مشابهة بنفس الفكرة')
   lines.push('')
-  lines.push('JSON only:')
-  lines.push('{"questions": [{"question": "...", "options": ["A", "B", "C", "D"], "correct": 0}]}')
+  lines.push('JSON فقط:')
+  lines.push('{"questions": [{"question": "...", "options": ["أ", "ب", "ج", "د"], "correct": 0}]}')
   return lines.join('\n')
 }
 
@@ -62,59 +63,30 @@ export async function POST(request) {
 
     console.log('Video ID:', videoId)
 
-    var apiKey = process.env.GEMINI_API_KEY
-    if (!apiKey) {
+    if (!hasGeminiKey()) {
       return NextResponse.json({ error: 'GEMINI_API_KEY not found' }, { status: 500 })
     }
 
     var prompt = buildPrompt(numQuestions)
     var fullUrl = 'https://www.youtube.com/watch?v=' + videoId
 
-    var requestBody = {
-      contents: [{
-        parts: [
-          { text: prompt },
-          { fileData: { fileUri: fullUrl, mimeType: 'video/mp4' } }
-        ]
-      }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 8192 }
+    var parts = [
+      { text: prompt },
+      { fileData: { fileUri: fullUrl, mimeType: 'video/mp4' } },
+    ]
+
+    console.log('[YouTube Extract] Calling Gemini (studies, central helper)')
+    var result = await callGeminiCentral({
+      parts: parts,
+      generationConfig: { temperature: 0.2, maxOutputTokens: 16384 },
+      timeoutMs: 120000,
+    })
+
+    if (!result.ok) {
+      return NextResponse.json({ error: 'AI error: ' + (result.error || 'unknown') }, { status: 500 })
     }
 
-    var models = ['gemini-3.6-flash', 'gemini-2.5-pro-preview-06-05', 'gemini-2.5-flash-preview-05-20', 'gemini-2.0-flash']
-    var geminiRes = null
-    var lastError = ''
-
-    for (var mi = 0; mi < models.length; mi++) {
-      try {
-        var modelUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + models[mi] + ':generateContent?key=' + apiKey
-        console.log('Trying:', models[mi])
-        geminiRes = await fetch(modelUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody)
-        })
-        if (geminiRes.ok) {
-          console.log('Success:', models[mi])
-          break
-        }
-        var errBody = ''
-        try { errBody = await geminiRes.text() } catch (e) {}
-        lastError = models[mi] + ': ' + geminiRes.status
-        console.error('Failed:', lastError)
-      } catch (e) {
-        lastError = models[mi] + ': ' + (e.message || '')
-        console.error('Error:', lastError)
-        geminiRes = null
-      }
-    }
-
-    if (!geminiRes || !geminiRes.ok) {
-      return NextResponse.json({ error: 'AI error: ' + lastError }, { status: 500 })
-    }
-
-    var geminiData = await geminiRes.json()
-    var text = ''
-    try { text = geminiData.candidates[0].content.parts[0].text || '' } catch (e) {}
+    var text = result.text || ''
 
     if (!text.trim()) {
       return NextResponse.json({ error: 'No response from AI' }, { status: 500 })

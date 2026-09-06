@@ -10,7 +10,7 @@ import {
   Video, ClipboardList, FileText, Megaphone, MessageSquare, Send,
   LogOut, Loader2, FileDown, Bell, PlayCircle, CheckCircle2,
   BookOpen, Target, TrendingUp, GraduationCap, ChevronLeft, ExternalLink,
-  User, Phone, Award, Maximize, Minimize, Lock, X,
+  User, Phone, Award, Maximize, Minimize, Lock, X, ImagePlus, ListTodo,
 } from 'lucide-react'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Image from 'next/image'
@@ -64,15 +64,19 @@ function shuffleQuestionsForStudent(questions: any[], studentId: string, itemId:
   for (var di = 0; di < shuffledIndices.length; di++) {
     var oi = shuffledIndices[di]
     var q = questions[oi]
-    var optIndices = q.options.map(function(_, i) { return i })
+    var qOpts = Array.isArray(q.options) ? q.options : []
+    var optIndices = qOpts.map(function(_, i) { return i })
     var shuffledOptIndices = shuffleArray(optIndices, rng)
     var questionText = cleanQuestionText(q.question || q.q)
     result.push({
       question: questionText,
-      options: shuffledOptIndices.map(function(optIdx) { return q.options[optIdx] }),
+      options: shuffledOptIndices.map(function(optIdx) { return qOpts[optIdx] }),
+      type: q.type,
+      points: q.points,
+      modelAnswer: q.modelAnswer,
       _origIdx: oi,
       _optMap: shuffledOptIndices,
-      _originalOptions: q.options.slice(),
+      _originalOptions: qOpts.slice(),
       _correctOrig: q.correct,
     })
   }
@@ -705,120 +709,243 @@ function CustomVideoPlayer({ videoId, src, poster, studentId, onWatch }: {
 }
 
 /* ========== HOMEWORK TAB ========== */
+/* ========== WRITING ANSWER BOX (نص + صورة) ========== */
+function WritingAnswerBox({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
+  var fileRef = useRef<HTMLInputElement>(null)
+  var [uploading, setUploading] = useState(false)
+
+  var handlePickImage = async function(e: React.ChangeEvent<HTMLInputElement>) {
+    var f = e.target.files && e.target.files[0]
+    if (!f) return
+    if (!f.type || f.type.indexOf('image/') !== 0) { toast.error('مسموح بالصور فقط'); return }
+    if (f.size > 10 * 1024 * 1024) { toast.error('الصورة كبيرة جداً (الحد الأقصى 10MB)'); return }
+    setUploading(true)
+    try {
+      var fd = new FormData()
+      fd.append('file', f)
+      fd.append('fileName', f.name)
+      fd.append('category', 'homework-answer')
+      var res = await fetch('/api/upload/chunk', { method: 'POST', body: fd })
+      var data = await res.json()
+      if (data.filePath) {
+        onChange((value ? value + '\n' : '') + '[📷 صورة مرفقة: ' + data.filePath + ']')
+        toast.success('تم إرفاق الصورة ✅ اكتب إجابتك كمان لو تحب')
+      } else {
+        toast.error(data.error || 'فشل رفع الصورة')
+      }
+    } catch (err) {
+      toast.error('فشل رفع الصورة')
+    }
+    setUploading(false)
+    e.target.value = ''
+  }
+
+  return (
+    <div className="space-y-2">
+      <textarea
+        value={value}
+        onChange={function(e) { onChange(e.target.value) }}
+        disabled={disabled}
+        rows={4}
+        dir="auto"
+        placeholder="اكتب إجابتك هنا..."
+        className="w-full p-3 rounded-lg border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 min-h-[90px] whitespace-pre-wrap"
+      />
+      <div className="flex items-center gap-2 flex-wrap">
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePickImage} />
+        <Button type="button" variant="outline" size="sm" disabled={disabled || uploading} onClick={function() { if (fileRef.current) fileRef.current.click() }}>
+          {uploading ? <Loader2 className="h-3.5 w-3.5 ml-1 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5 ml-1" />}
+          ارفع صورة إجابتك
+        </Button>
+        <span className="text-[10px] text-muted-foreground">اكتب إجابتك أو صوّرها وارفعها — التصحيح الذكي هيفهمها</span>
+      </div>
+    </div>
+  )
+}
+
+/* is this question a writing (مقالي) question? */
+function isWritingQuestion(q: any): boolean {
+  if (q.type === 'writing' || q.type === 'essay') return true
+  if (Array.isArray(q.options) && q.options.length > 0) {
+    return q.options.every(function(o: any) { return !o || o === 'N/A' || o === 'لا يوجد' || String(o).trim() === '' })
+  }
+  return !q.options || q.options.length === 0
+}
+
 function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId: string }) {
-  var store = useAppStore()
-  var logout = store.logout
   var [expandedHw, setExpandedHw] = useState<string | null>(null)
-  var [hwAnswers, setHwAnswers] = useState<Record<string, Record<number, number>>>({})
+  var [hwAnswers, setHwAnswers] = useState<Record<string, Record<number, number | string>>>({})
   var [hwSubmitting, setHwSubmitting] = useState<string | null>(null)
-  var [submittedMsg, setSubmittedMsg] = useState<string | null>(null)
-  var [submittedHwIds, setSubmittedHwIds] = useState<Set<string>>(new Set())
+  var [submittedHwId, setSubmittedHwId] = useState<string | null>(null)
+  var [blockedHwId, setBlockedHwId] = useState<string | null>(null)
+  var [hwResults, setHwResults] = useState<Record<string, { score: number; maxScore: number }>>({})
+  var [hwWrongQuestions, setHwWrongQuestions] = useState<Record<string, { question: string; studentAnswer: string; correctAnswer: string }[]>>({})
+  var [hwAllQuestions, setHwAllQuestions] = useState<Record<string, any[]>>({})
+  var [hwWritingAnswers, setHwWritingAnswers] = useState<Record<string, any[]>>({})
   var [shuffledHwQ, setShuffledHwQ] = useState<Record<string, any[]>>({})
-  var [hwResultLoading, setHwResultLoading] = useState(false)
-  var [hwResultScore, setHwResultScore] = useState<number | null>(null)
-  var [hwResultMaxScore, setHwResultMaxScore] = useState<number | null>(null)
-  var [hwResultDetails, setHwResultDetails] = useState<any[]>([])
+  var hwPollTimers = useRef<Record<string, any>>({})
+
+  /* Poll the background AI grading until it finishes — then update score + verdicts live */
+  var startGradingPoll = function(resultId: string, hwId: string) {
+    if (hwPollTimers.current[hwId]) clearInterval(hwPollTimers.current[hwId])
+    var tries = 0
+    hwPollTimers.current[hwId] = setInterval(async function() {
+      tries++
+      if (tries > 45) { clearInterval(hwPollTimers.current[hwId]); delete hwPollTimers.current[hwId]; return }
+      try {
+        var r = await fetch('/api/homework/result/' + resultId)
+        var d = await r.json()
+        if (d && d.ok && d.result && d.result.gradingDone) {
+          clearInterval(hwPollTimers.current[hwId])
+          delete hwPollTimers.current[hwId]
+          setHwResults(function(prev) { return { ...prev, [hwId]: { score: d.result.score, maxScore: d.result.maxScore } } })
+          if (d.result.writingAnswers && d.result.writingAnswers.length > 0) {
+            setHwWritingAnswers(function(prev) { return { ...prev, [hwId]: d.result.writingAnswers } })
+          }
+          toast.success('خلص تصحيح الأسئلة المقالية بالذكاء الاصطناعي ✅')
+        }
+      } catch (e) {}
+    }, 4000)
+  }
+
+  useEffect(function() {
+    return function cleanup() {
+      Object.keys(hwPollTimers.current).forEach(function(k) {
+        clearInterval(hwPollTimers.current[k])
+        delete hwPollTimers.current[k]
+      })
+    }
+  }, [])
+
+  // Load my past results: which homeworks are submitted + their scores
+  useEffect(function() {
+    if (!studentId) return
+    fetch('/api/homework-results?studentId=' + studentId)
+      .then(function(r) { return r.json() })
+      .then(function(data) {
+        var map: Record<string, { score: number; maxScore: number }> = {}
+        ;(data.results || []).forEach(function(r: any) {
+          map[r.homeworkId] = { score: r.score, maxScore: r.maxScore }
+        })
+        setHwResults(map)
+      })
+      .catch(function() {})
+  }, [studentId])
 
   var handleExpandHw = function(hwId: string) {
-    if (expandedHw === hwId) {
-      setExpandedHw(null)
-      return
-    }
+    if (blockedHwId) { setBlockedHwId(null); return }
+    if (submittedHwId) { setSubmittedHwId(null); setExpandedHw(null); return }
+    if (expandedHw === hwId) { setExpandedHw(null); return }
     var hw = homework.find(function(h) { return h.id === hwId })
     if (!hw) return
+    if (hwResults[hwId]) { setBlockedHwId(hwId); return }
     try {
-      var mcq = (hw as any).questions ? JSON.parse((hw as any).questions) : []
-      if (Array.isArray(mcq) && mcq.length > 0) {
-        var shuffled = shuffleQuestionsForStudent(mcq, studentId, hwId)
+      var qs = (hw as any).questions ? JSON.parse((hw as any).questions) : []
+      if (Array.isArray(qs) && qs.length > 0) {
+        var shuffled = shuffleQuestionsForStudent(qs, studentId, hwId)
         setShuffledHwQ(function(prev) { var a = { ...prev }; a[hwId] = shuffled; return a })
       }
     } catch { /* ignore */ }
     setExpandedHw(hwId)
   }
 
-  var handleHwSubmit = function(hwId: string) {
+  var handleHwSubmit = async function(hwId: string) {
+    var hw = homework.find(function(h) { return h.id === hwId })
+    if (!hw) return
     var myAnswers = hwAnswers[hwId] || {}
     if (Object.keys(myAnswers).length === 0) return
     setHwSubmitting(hwId)
-    var serverAnswers: Record<string, number> = {}
-    var shQ = shuffledHwQ[hwId] || []
-    var keys = Object.keys(myAnswers)
-    for (var ki = 0; ki < keys.length; ki++) {
-      var di = Number(keys[ki])
-      var origIdx = shQ[di]._origIdx
-      var origOpt = shQ[di]._optMap[myAnswers[di]]
-      serverAnswers[String(origIdx)] = origOpt
+    try {
+      // Map display answers back to ORIGINAL question indices
+      var shQ = shuffledHwQ[hwId] || []
+      var allQs: any[] = []
+      try { allQs = JSON.parse((hw as any).questions) } catch (e) {}
+      var mappedAnswers: Record<string, any> = {}
+      var keys = Object.keys(myAnswers)
+      for (var ki = 0; ki < keys.length; ki++) {
+        var di = Number(keys[ki])
+        var dq = shQ[di]
+        if (!dq) continue
+        var val = myAnswers[di]
+        if (typeof val === 'number') {
+          // MCQ: display option index → original option index
+          mappedAnswers[String(dq._origIdx)] = dq._optMap ? dq._optMap[val] : val
+        } else {
+          // Writing: text (or text with attached image markers)
+          mappedAnswers[String(dq._origIdx)] = val
+        }
+      }
+      var res = await fetch('/api/homework/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: studentId, homeworkId: hwId, answers: mappedAnswers }),
+      })
+      var data = await res.json()
+      if (res.ok || data.alreadySubmitted) {
+        if (data.pendingGrading && data.result && data.result.id) {
+          toast.success('تم التسليم في ثانية ✅ التصحيح الذكي بيصحح الأسئلة المقالية دلوقتي والنتيجة هتظهر تلقائياً')
+          startGradingPoll(data.result.id, hwId)
+        } else {
+          toast.success('تم تقديم الواجب بنجاح')
+        }
+        if (data.result) {
+          setHwResults(function(prev) { return { ...prev, [hwId]: { score: data.result.score, maxScore: data.result.maxScore } } })
+          if (data.result.wrongQuestions && data.result.wrongQuestions.length > 0) {
+            setHwWrongQuestions(function(prev) { return { ...prev, [hwId]: data.result.wrongQuestions } })
+          }
+          setHwAllQuestions(function(prev) { return { ...prev, [hwId]: allQs } })
+          if (data.result.writingAnswers && data.result.writingAnswers.length > 0) {
+            setHwWritingAnswers(function(prev) { return { ...prev, [hwId]: data.result.writingAnswers } })
+          }
+        }
+        setSubmittedHwId(hwId)
+        setExpandedHw(null)
+      } else {
+        toast.error(data.error || 'حصل خطأ في التسليم')
+      }
+    } catch (e) {
+      toast.error('خطأ في الاتصال')
     }
-    fetch('/api/homework/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId: studentId, homeworkId: hwId, answers: serverAnswers }),
-    })
-    .then(function(r) { return r.json() })
-    .then(function(data) {
-      setSubmittedHwIds(function(prev) { var s = new Set(prev); s.add(hwId); return s })
-      setSubmittedMsg('تم تقديم هذا الواجب بنجاح')
-      setHwResultLoading(true)
-      setTimeout(function() {
-        setHwResultScore(data.result ? data.result.score : null)
-        setHwResultMaxScore(data.result ? data.result.maxScore : null)
-        setHwResultDetails(data.details || [])
-        setHwResultLoading(false)
-      }, 3000)
-    })
-    .catch(function() {
-      setSubmittedHwIds(function(prev) { var s = new Set(prev); s.add(hwId); return s })
-      setSubmittedMsg('تم تقديم هذا الواجب بنجاح')
-      setHwResultLoading(false)
-    })
-    .finally(function() { setHwSubmitting(null) })
+    setHwSubmitting(null)
   }
 
-  // Post-submission: show score and wrong answers
-  if (submittedMsg) {
-    if (hwResultLoading) {
-      return (
-        <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-          <div className="h-20 w-20 rounded-full bg-emerald-500/10 flex items-center justify-center">
-            <CheckCircle2 className="h-10 w-10 text-emerald-500" />
-          </div>
-          <h2 className="text-2xl font-bold">{submittedMsg}</h2>
-          <div className="flex items-center justify-center gap-2 mt-2">
-            <Loader2 className="h-5 w-5 text-primary animate-spin" />
-            <p className="text-sm text-muted-foreground">جاري تحميل الدرجة...</p>
-          </div>
-        </div>
-      )
-    }
-    var wrongQuestions = (hwResultDetails || []).filter(function(d) { return !d.correct })
+  // BLOCK SCREEN — homework already submitted: show score (+ wrong answers if in this session)
+  if (blockedHwId) {
+    var blockedHw = homework.find(function(h) { return h.id === blockedHwId })
+    var bScore = hwResults[blockedHwId]
+    var bWrong = hwWrongQuestions[blockedHwId] || []
+    var bWriting = hwWritingAnswers[blockedHwId] || []
+    var bPending = bWriting.some(function(wa) { return wa.gradingStatus === 'pending' })
+    var bWritingBad = bWriting.some(function(wa) { return wa.isCorrect === false && wa.answer && String(wa.answer).trim() })
     return (
-      <div className="space-y-4 py-4">
-        <div className="flex flex-col items-center justify-center text-center space-y-3 pb-4">
+      <div className="space-y-4">
+        <div className="flex flex-col items-center justify-center py-10 px-6 space-y-4">
           <div className="h-20 w-20 rounded-full bg-emerald-500/10 flex items-center justify-center">
-            <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+            <CheckCircle2 className="h-12 w-12 text-emerald-500" />
           </div>
-          <h2 className="text-2xl font-bold">{submittedMsg}</h2>
-          {hwResultScore !== null && (
-            <div className="space-y-1">
-              <p className="text-3xl font-bold text-primary">{hwResultScore}/{hwResultMaxScore}</p>
-              <p className="text-sm text-muted-foreground">درجتك</p>
-            </div>
-          )}
+          <div className="text-center space-y-2">
+            <h2 className="text-lg font-bold text-emerald-600">تم تقديم هذا الواجب بالفعل</h2>
+            {blockedHw && <p className="text-sm text-muted-foreground">{blockedHw.title}</p>}
+            {bScore && (
+              <div className="space-y-1 mt-2">
+                <p className="text-3xl font-bold text-primary">{bScore.score}/{bScore.maxScore}</p>
+                <p className="text-sm text-muted-foreground">درجتك</p>
+              </div>
+            )}
+          </div>
+          <Button onClick={function() { setBlockedHwId(null) }} variant="outline">العودة إلى قائمة الواجبات</Button>
         </div>
-        {wrongQuestions.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="font-bold text-red-500 flex items-center gap-2">
-              <X className="h-4 w-4" />
-              الأسئلة الخاطئة ({wrongQuestions.length})
-            </h3>
-            {wrongQuestions.map(function(wq, wi) {
+        {bWrong.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-red-600">الإجابات الخاطئة ({bWrong.length}):</p>
+            {bWrong.map(function(wq, wi) {
               return (
-                <Card key={wi} className="border-red-200 dark:border-red-900/50">
-                  <CardContent className="p-4 space-y-2">
-                    <p className="font-medium text-sm">{wi + 1}. {wq.question}</p>
-                    <div className="text-sm space-y-1">
-                      <p className="text-red-500">إجابتك: {wq.studentAnswer}</p>
-                      <p className="text-emerald-600">الإجابة الصحيحة: {wq.correctAnswer}</p>
+                <Card key={wi} className="border-red-200 dark:border-red-900/40">
+                  <CardContent className="p-3 space-y-2">
+                    <p className="text-sm font-medium whitespace-pre-wrap break-words">{wi + 1}. {wq.question}</p>
+                    <div className="space-y-1">
+                      <p className="text-xs text-red-600">إجابتك: <span dir="auto">{wq.studentAnswer}</span></p>
+                      <p className="text-xs text-emerald-600">الإجابة الصحيحة: <span dir="auto">{wq.correctAnswer}</span></p>
                     </div>
                   </CardContent>
                 </Card>
@@ -826,17 +953,147 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
             })}
           </div>
         )}
-        {wrongQuestions.length === 0 && hwResultScore !== null && (
-          <div className="text-center">
-            <p className="text-emerald-600 font-medium">أحسنت! جميع الإجابات صحيحة</p>
+        {bWriting.some(function(wa) { return wa.aiExtractedAnswer }) && (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-blue-600">🤖 قراءة التصحيح الذكي لإجاباتك:</p>
+            {bWriting.filter(function(wa) { return wa.aiExtractedAnswer }).map(function(wa, wi) {
+              return (
+                <Card key={wi} className="border-blue-200 dark:border-blue-900/40">
+                  <CardContent className="p-3 space-y-1">
+                    <p className="text-xs font-medium whitespace-pre-wrap break-words">{wa.question}</p>
+                    <p className="text-xs text-foreground whitespace-pre-wrap break-words" dir="auto">{wa.aiExtractedAnswer}</p>
+                    {wa.aiFeedback && <p className="text-[10px] text-muted-foreground">{wa.aiFeedback}</p>}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
-        <div className="flex justify-center mt-6">
-          <Button variant="outline" className="gap-2" onClick={function() { setSubmittedMsg(null); setExpandedHw(null); setHwAnswers(function(prev) { var a = { ...prev }; return a }); }}>
-            <ChevronLeft className="h-4 w-4" />
-            العودة إلى صفحتك
-          </Button>
+        {bWrong.length === 0 && !bWritingBad && !bPending && bScore && bScore.score === bScore.maxScore && (
+          <p className="text-sm text-emerald-600 font-medium text-center">أحسنت يا بطل! 🎉 جميع الإجابات صحيحة والدرجة النهائية كاملة</p>
+        )}
+        {bPending && (
+          <p className="text-sm text-amber-600 font-medium flex items-center justify-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" /> لسه في أسئلة مقالية بتتصحح بالذكاء الاصطناعي — النتيجة النهائية هتتحدث تلقائياً</p>
+        )}
+      </div>
+    )
+  }
+
+  // SUCCESS SCREEN — just submitted: score + all questions review
+  if (submittedHwId) {
+    var sHw = homework.find(function(h) { return h.id === submittedHwId })
+    var sScore = hwResults[submittedHwId]
+    var sWrong = hwWrongQuestions[submittedHwId] || []
+    var sAllQs = hwAllQuestions[submittedHwId] || []
+    var sWritingAnswers = hwWritingAnswers[submittedHwId] || []
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-col items-center justify-center py-10 px-6 space-y-3">
+          <div className="h-20 w-20 rounded-full bg-emerald-500/10 flex items-center justify-center">
+            <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+          </div>
+          <h2 className="text-lg font-bold text-emerald-600">تم تقديم الواجب بنجاح</h2>
+          {sHw && <p className="text-sm text-muted-foreground">{sHw.title}</p>}
+          {sScore && (
+            <div className="space-y-1 text-center">
+              <p className="text-3xl font-bold text-primary">{sScore.score}/{sScore.maxScore}</p>
+              <p className="text-sm text-muted-foreground">درجتك</p>
+            </div>
+          )}
+          <Button onClick={function() { setSubmittedHwId(null); setExpandedHw(null) }} variant="outline" className="mt-2">العودة إلى قائمة الواجبات</Button>
         </div>
+
+        {sAllQs.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-sm font-semibold">مراجعة الأسئلة ({sAllQs.length}):</p>
+            {sAllQs.map(function(q: any, qi: number) {
+              var writing = isWritingQuestion(q)
+              var qText = q.question || q.q || ''
+              var writingAns = writing ? (sWritingAnswers.find(function(wa: any) { return wa.question === qText }) || sWritingAnswers[qi - (sAllQs.length - sWritingAnswers.length)] || null) : null
+              var wIsCorrect = writingAns && writingAns.isCorrect === true
+              var wIsWrong = !!(writingAns && writingAns.isCorrect === false && writingAns.answer && String(writingAns.answer).trim() && writingAns.gradingStatus !== 'manual')
+              var wPending = writingAns && writingAns.gradingStatus === 'pending'
+              if (writing) {
+                return (
+                  <Card key={qi} className={wIsWrong ? 'border-red-200 dark:border-red-900/40' : (wIsCorrect ? 'border-emerald-200 dark:border-emerald-900/40' : 'border-amber-200 dark:border-amber-900/40')}>
+                    <CardContent className="p-3 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <Badge variant="outline" className="text-[9px] border-amber-500/40 text-amber-600 shrink-0 mt-0.5">مقالي</Badge>
+                        <p className="font-medium text-sm flex-1 whitespace-pre-wrap break-words">{qi + 1}. {qText}</p>
+                      </div>
+                      {writingAns && (
+                        <div className="space-y-1.5 text-sm">
+                          {writingAns.answer && String(writingAns.answer).indexOf('[📷') < 0 && (
+                            <p className="text-xs text-foreground whitespace-pre-wrap break-words" dir="auto">إجابتك: {writingAns.answer}</p>
+                          )}
+                          {writingAns.answer && String(writingAns.answer).indexOf('[📷 صورة مرفقة:') >= 0 && (function() {
+                            var m = String(writingAns.answer).match(/\[📷\s*صورة\s*مرفقة:\s*([^\]]+?)\]/)
+                            if (!m) return null
+                            return (
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-1">إجابتك (صورة):</p>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={m[1]} alt="إجابة الطالب" className="max-w-[200px] max-h-[150px] rounded-md border border-border/50 object-contain" onError={function(e) { var t = e.currentTarget as HTMLImageElement; if (t.parentElement) t.parentElement.style.display = 'none' }} />
+                              </div>
+                            )
+                          })()}
+                          {writingAns.gradingStatus === 'pending' && (
+                            <div className="p-2 rounded bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40 flex items-center gap-2">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-600 shrink-0" />
+                              <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">جاري التصحيح بالذكاء الاصطناعي... النتيجة هتظهر هنا تلقائياً</p>
+                            </div>
+                          )}
+                          {writingAns.aiExtractedAnswer && (
+                            <div className="p-2 rounded bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-900/40">
+                              <p className="text-[10px] font-bold text-blue-700 dark:text-blue-400 mb-1">🤖 الـ AI قري إجابتك:</p>
+                              <p className="text-xs text-foreground whitespace-pre-wrap break-words" dir="auto">{writingAns.aiExtractedAnswer}</p>
+                              {writingAns.aiFeedback && <p className="text-[10px] text-muted-foreground mt-1">{writingAns.aiFeedback}</p>}
+                            </div>
+                          )}
+                          {writingAns.modelAnswer && (
+                            <p className="text-xs text-emerald-600 whitespace-pre-wrap break-words" dir="auto">الإجابة النموذجية: {writingAns.modelAnswer}</p>
+                          )}
+                          {writingAns.awardedPoints !== undefined && (
+                            <p className="text-[10px] font-semibold text-muted-foreground">الدرجة: {writingAns.awardedPoints}/{writingAns.maxPoints || writingAns.points}</p>
+                          )}
+                        </div>
+                      )}
+                      {!writingAns && (
+                        <p className="text-xs text-muted-foreground">إجابتك: (فارغة — ما الإجبتش)</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              }
+              var opts = Array.isArray(q.options) ? q.options : []
+              var correctIdx = typeof q.correct === 'number' ? q.correct : 0
+              var wrongEntry = sWrong.find(function(w) { return w.question === qText })
+              return (
+                <Card key={qi} className={wrongEntry ? 'border-red-200 dark:border-red-900/40' : 'border-emerald-200 dark:border-emerald-900/40'}>
+                  <CardContent className="p-3 space-y-2">
+                    <p className="font-medium text-sm whitespace-pre-wrap break-words">{qi + 1}. {qText}</p>
+                    <div className="space-y-1 text-xs">
+                      {wrongEntry ? (
+                        <>
+                          <p className="text-red-600">إجابتك: <span dir="auto">{wrongEntry.studentAnswer}</span></p>
+                          <p className="text-emerald-600">الإجابة الصحيحة: <span dir="auto">{wrongEntry.correctAnswer}</span></p>
+                        </>
+                      ) : (
+                        <p className="text-emerald-600">إجابتك صحيحة ✅</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+        {sAllQs.length === 0 && sWrong.length === 0 && sScore && sScore.score === sScore.maxScore && (
+          <p className="text-sm text-emerald-600 font-medium text-center">أحسنت يا بطل! 🎉 جميع الإجابات صحيحة</p>
+        )}
+        {sWritingAnswers.some(function(wa) { return wa.gradingStatus === 'pending' }) && (
+          <p className="text-sm text-amber-600 font-medium flex items-center justify-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" /> لسه في أسئلة مقالية بتتصحح بالذكاء الاصطناعي — النتيجة النهائية هتتحدث تلقائياً</p>
+        )}
       </div>
     )
   }
@@ -845,21 +1102,23 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
   return (
     <div className="space-y-3">
       {homework.map(function(hw) {
-        var mcqCount = 0
-        try { if ((hw as any).questions) { var parsed = JSON.parse((hw as any).questions); mcqCount = parsed.length } } catch {}
-        var hasMCQ = mcqCount > 0
-        var isSubmitted = submittedHwIds.has(hw.id)
+        var allQs: any[] = []
+        try { if ((hw as any).questions) { var parsed = JSON.parse((hw as any).questions); if (Array.isArray(parsed)) allQs = parsed } } catch {}
+        var hasQuestions = allQs.length > 0
+        var mcqCount = allQs.filter(function(q) { return !isWritingQuestion(q) }).length
+        var writingCount = allQs.length - mcqCount
+        var isSubmitted = !!hwResults[hw.id]
         var isExpanded = expandedHw === hw.id && !isSubmitted
         var myAnswers = hwAnswers[hw.id] || {}
         var shQ = shuffledHwQ[hw.id] || []
 
         return (
-          <Card key={hw.id} className={isSubmitted ? 'border-emerald-500/30' : (hasMCQ ? 'cursor-pointer' : '')}>
+          <Card key={hw.id} className={isSubmitted ? 'border-emerald-500/30' : (hasQuestions ? 'cursor-pointer' : '')}>
             <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-3" onClick={hasMCQ && !isSubmitted ? function() { handleExpandHw(hw.id) } : undefined}>
+              <div className="flex items-start justify-between gap-3" onClick={hasQuestions ? function() { handleExpandHw(hw.id) } : undefined}>
                 <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className={"h-9 w-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5 " + (hasMCQ ? 'bg-emerald-500/10' : 'bg-blue-500/10')}>
-                    <ClipboardList className={"h-4 w-4 " + (hasMCQ ? 'text-emerald-500' : 'text-blue-500')} />
+                  <div className={"h-9 w-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5 " + (hasQuestions ? 'bg-emerald-500/10' : 'bg-blue-500/10')}>
+                    <ClipboardList className={"h-4 w-4 " + (hasQuestions ? 'text-emerald-500' : 'text-blue-500')} />
                   </div>
                   <div className="min-w-0 space-y-1">
                     <h3 className="font-semibold text-sm">{hw.title}</h3>
@@ -868,24 +1127,49 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                       <p className="text-[10px] text-muted-foreground">{new Date(hw.createdAt).toLocaleDateString('ar-EG')}</p>
                       {isSubmitted ? (
                         <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">تم تقديم هذا الواجب</Badge>
-                      ) : hasMCQ ? (
-                        <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-600">{mcqCount} سؤال</Badge>
                       ) : null}
+                      {hasQuestions && !isSubmitted && mcqCount > 0 && <Badge variant="outline" className="text-[10px] border-blue-500/40 text-blue-600">{mcqCount} اختياري</Badge>}
+                      {hasQuestions && !isSubmitted && writingCount > 0 && <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-600">{writingCount} مقالي</Badge>}
+                      {isSubmitted && hwResults[hw.id] && <Badge className="text-[10px] bg-emerald-500 text-white">النتيجة: {hwResults[hw.id].score}/{hwResults[hw.id].maxScore}</Badge>}
                     </div>
                   </div>
                 </div>
-                {hw.filePath && !hasMCQ && <FileAttachment filePath={hw.filePath} fileType={hw.fileType} />}
-                {hasMCQ && <ChevronLeft className={"h-4 w-4 text-muted-foreground transition-transform shrink-0 mt-1 " + (isExpanded ? 'rotate-90' : '')} />}
+                {hw.filePath && !hasQuestions && <FileAttachment filePath={hw.filePath} fileType={hw.fileType} />}
+                {hasQuestions && <ChevronLeft className={"h-4 w-4 text-muted-foreground transition-transform shrink-0 mt-1 " + (isExpanded ? 'rotate-90' : '')} />}
               </div>
 
-              {isExpanded && hasMCQ && shQ.length > 0 && (
-                <div className="mt-4 pt-4 border-t space-y-4">
-                  {shQ.map(function(q, qi) {
+              {isExpanded && hasQuestions && shQ.length > 0 && (
+                <div className="mt-4 pt-4 border-t space-y-4" onClick={function(e) { e.stopPropagation() }}>
+                  {shQ.map(function(q: any, qi: number) {
+                    var writing = isWritingQuestion(q)
+                    var pts = (typeof q.points === 'number' && q.points > 0) ? q.points : (writing ? 5 : 1)
+                    if (writing) {
+                      return (
+                        <div key={qi} className="space-y-2 rounded-lg p-2 border border-amber-500/20 bg-amber-50 dark:bg-amber-900/10">
+                          <p className="font-medium text-sm whitespace-pre-wrap break-words">
+                            {qi + 1}. {q.question}
+                            <span className="text-muted-foreground text-xs ml-2">({pts} درجات)</span>
+                            <Badge variant="outline" className="text-[9px] ml-2 border-amber-500/40 text-amber-600">مقالي</Badge>
+                          </p>
+                          <WritingAnswerBox
+                            value={typeof myAnswers[qi] === 'string' ? (myAnswers[qi] as string) : ''}
+                            onChange={function(val: string) {
+                              setHwAnswers(function(prev) {
+                                var a = { ...prev }
+                                a[hw.id] = { ...(a[hw.id] || {}), [qi]: val }
+                                return a
+                              })
+                            }}
+                            disabled={hwSubmitting === hw.id}
+                          />
+                        </div>
+                      )
+                    }
                     return (
                       <div key={qi} className="space-y-2 rounded-lg p-2">
-                        <p className="font-medium text-sm flex-1">{qi + 1}. {q.question}</p>
+                        <p className="font-medium text-sm flex-1 whitespace-pre-wrap break-words">{qi + 1}. {q.question} <span className="text-muted-foreground text-xs">({pts} درجات)</span></p>
                         <div className="space-y-1.5">
-                          {q.options.map(function(opt, oi) {
+                          {q.options.map(function(opt: string, oi: number) {
                             var isSelected = myAnswers[qi] === oi
                             return (
                               <button
@@ -923,7 +1207,7 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
   var store = useAppStore()
   var logout = store.logout
   var [takingExam, setTakingExam] = useState<string | null>(null)
-  var [answers, setAnswers] = useState<Record<number, number>>({})
+  var [answers, setAnswers] = useState<Record<number, number | string>>({})
   var [submitting, setSubmitting] = useState(false)
   var [examQuestions, setExamQuestions] = useState<any[]>([])
   var [submittedMsg, setSubmittedMsg] = useState<string | null>(null)
@@ -987,39 +1271,55 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
           <Button variant="outline" size="sm" onClick={function() { setTakingExam(null); setAnswers({}); setExamQuestions([]); setLockedOut(false) }}>رجوع</Button>
         </div>
         {examQuestions.map(function(q, qi) {
+          var isWriting = isWritingQuestion(q)
           return (
             <Card key={qi}>
               <CardContent className="p-4 space-y-3">
-                <p className="font-medium text-sm">{qi + 1}. {q.question}</p>
-                <div className="space-y-2">
-                  {q.options.map(function(opt, oi) {
-                    return (
-                      <button
-                        key={oi}
-                        onClick={function() { setAnswers(function(prev) { var a = { ...prev }; a[qi] = oi; return a }) }}
-                        className={"w-full text-right p-3 rounded-lg border text-sm transition-colors " + (answers[qi] === oi ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border hover:bg-muted/50')}
-                      >
-                        <span className="ml-2 font-bold">{String.fromCharCode(65 + oi)}.</span> {opt}
-                      </button>
-                    )
-                  })}
-                </div>
+                <p className="font-medium text-sm whitespace-pre-wrap break-words">
+                  {qi + 1}. {q.question}
+                  {isWriting && <Badge variant="outline" className="text-[9px] mr-2 border-amber-500/40 text-amber-600">مقالي</Badge>}
+                </p>
+                {isWriting ? (
+                  <WritingAnswerBox
+                    value={typeof answers[qi] === 'string' ? (answers[qi] as string) : ''}
+                    onChange={function(val: string) { setAnswers(function(prev) { var a = { ...prev }; a[qi] = val; return a }) }}
+                    disabled={submitting}
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {q.options.map(function(opt: string, oi: number) {
+                      return (
+                        <button
+                          key={oi}
+                          onClick={function() { setAnswers(function(prev) { var a = { ...prev }; a[qi] = oi; return a }) }}
+                          className={"w-full text-right p-3 rounded-lg border text-sm transition-colors " + (answers[qi] === oi ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border hover:bg-muted/50')}
+                        >
+                          <span className="ml-2 font-bold">{String.fromCharCode(65 + oi)}.</span> {opt}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )
         })}
         <Button
           className="w-full"
-          disabled={Object.keys(answers).length < examQuestions.length || submitting}
+          disabled={!examQuestions.every(function(q, qi) { return isWritingQuestion(q) || answers[qi] !== undefined }) || submitting}
           onClick={function() {
             setSubmitting(true)
-            var serverAnswers: Record<string, number> = {}
+            var serverAnswers: Record<string, any> = {}
             var keys = Object.keys(answers)
             for (var ki = 0; ki < keys.length; ki++) {
               var di = Number(keys[ki])
-              var origIdx = examQuestions[di]._origIdx
-              var origOpt = examQuestions[di]._optMap[answers[di]]
-              serverAnswers[String(origIdx)] = origOpt
+              var eq = examQuestions[di]
+              var val = answers[di]
+              if (typeof val === 'number') {
+                serverAnswers[String(eq._origIdx)] = eq._optMap ? eq._optMap[val] : val
+              } else {
+                serverAnswers[String(eq._origIdx)] = val
+              }
             }
             fetch('/api/exams/submit', {
               method: 'POST',
@@ -1038,7 +1338,7 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
             .finally(function() { setSubmitting(false) })
           }}
         >
-          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'تقديم الامتحان (' + Object.keys(answers).length + '/' + examQuestions.length + ')'}
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'تقديم الامتحان'}
         </Button>
       </div>
     )

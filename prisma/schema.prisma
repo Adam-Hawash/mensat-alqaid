@@ -80,6 +80,7 @@ model HomeworkResult {
   studentId   String
   score       Float    @default(0)
   maxScore    Float    @default(0)
+  answers     String   @default("")
   submittedAt DateTime @default(now())
   student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   homework    Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
