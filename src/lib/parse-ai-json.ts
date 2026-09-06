@@ -12,6 +12,8 @@ export function parseAiJson(text: string): any | null {
   var arrMatch = text.match(/\[[\s\S]*\]/)
   var raw = objMatch ? objMatch[0] : arrMatch ? arrMatch[0] : null
   if (!raw) return null
+  // repair LaTeX-eating JSON escapes BEFORE parsing (\frac → \\frac …)
+  raw = repairModelJson(raw)
 
   // 1) direct parse
   try {
@@ -60,4 +62,38 @@ export function parseAiJson(text: string): any | null {
   }
 
   return null
+}
+
+/*
+ * repairModelJson — prepare raw model output BEFORE JSON.parse so LaTeX with
+ * single backslashes survives as text instead of being eaten by JSON escapes
+ * (\frac → form-feed + "rac", \times → tab + "imes" …).
+ * Single-pass scanner — see maths-genius src/lib/math-text.ts for docs.
+ */
+export function repairModelJson(raw: string): string {
+  var s = String(raw)
+  if (s.indexOf('\\') === -1) return s
+  var out = ''
+  var i = 0
+  var n = s.length
+  while (i < n) {
+    var c = s.charAt(i)
+    if (c !== '\\') { out += c; i += 1; continue }
+    var next = s.charAt(i + 1)
+    if (next === undefined || next === '') { out += '\\\\'; i += 1; continue }
+    if (next === '\\') { out += '\\\\'; i += 2; continue }
+    if (next === 'u' && /^[0-9a-fA-F]{4}/.test(s.slice(i + 2))) { out += s.slice(i, i + 6); i += 6; continue }
+    var rest = s.slice(i + 2)
+    var isLatexCollide =
+      (next === 'f' && /^rac/.test(rest)) ||
+      (next === 't' && /^(?:imes|ext|heta|herefore|hereis|binom)/.test(rest)) ||
+      (next === 'b' && /^(?:eta|oxed|inom)/.test(rest)) ||
+      (next === 'r' && /^(?:ho|ight|angle|m)/.test(rest)) ||
+      (next === 'n' && /^(?:eq|abla|otin|quad|parallel)/.test(rest))
+    if (isLatexCollide) { out += '\\\\' + next; i += 2; continue }
+    if (/^["\\/bfnrt]/.test(next)) { out += '\\' + next; i += 2; continue }
+    if (/^[{}[\]$%&_^]/.test(next)) { out += '\\\\' + next; i += 2; continue }
+    out += '\\\\' + next; i += 2; continue
+  }
+  return out
 }
