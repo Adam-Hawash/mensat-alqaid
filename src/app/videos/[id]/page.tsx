@@ -2,7 +2,9 @@
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
-import { Lock, CreditCard, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Lock, CreditCard, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
+import { ProtectedYouTubePlayer } from "@/components/student/ProtectedYouTubePlayer";
+import { ProtectedFilePlayer } from "@/components/student/ProtectedFilePlayer";
 
 // صفحة المكتبة القديمة — التشغيل بقى عبر بوابة /api/video-play المحمية:
 // السيرفر مبيرسلش url/filePath خام لأي حد، والـ ytId/التوكن الموقّع بييجوا
@@ -120,28 +122,32 @@ export default function VideoDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         ) : grant?.isYouTube && grant?.ytId ? (
           <div className="aspect-video">
-            <iframe
-              src={`https://www.youtube.com/embed/${grant.ytId}?modestbranding=1&rel=0&playsinline=1&showinfo=0&iv_load_policy=3`}
-              title={video.title}
-              className="w-full h-full border-0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              onContextMenu={(e) => e.preventDefault()}
+            {/* مشغّل يوتيوب محمي — الووترمارك جوه عنصر ملء الشاشة نفسه */}
+            <ProtectedYouTubePlayer
+              ytId={grant.ytId}
+              poster={video.thumbnail || video.thumb || undefined}
+              videoId={video.id}
+              studentId={student?.id}
+              studentName={student?.name}
+              studentPhone={student?.phone}
             />
           </div>
         ) : grant?.fileUrl ? (
           <div className="aspect-video">
-            <video
+            {/* مشغّل ملفات محمي — من غير native controls ولا مشغّل أبل الأصلي */}
+            <ProtectedFilePlayer
+              videoId={video.id}
               src={grant.fileUrl}
-              controls
-              playsInline
-              disablePictureInPicture
-              className="w-full h-full"
-              onContextMenu={(e) => e.preventDefault()}
+              poster={video.thumbnail || video.thumb || undefined}
+              studentId={student?.id}
+              studentName={student?.name}
+              studentPhone={student?.phone}
             />
           </div>
+        ) : grant ? (
+          <div className="aspect-video flex items-center justify-center text-white/60 text-sm">لا يوجد فيديو</div>
         ) : (
-          <div className="aspect-video flex items-center justify-center text-white/60 text-sm">جاري تحميل المشغل...</div>
+          <div className="aspect-video flex items-center justify-center text-white/60 text-sm"><Loader2 className="w-8 h-8 text-slate-600 animate-spin" /></div>
         )}
       </div>
     </div>

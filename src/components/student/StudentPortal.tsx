@@ -10,12 +10,13 @@ import {
   Video, ClipboardList, FileText, Megaphone, MessageSquare, Send,
   LogOut, Loader2, FileDown, Bell, PlayCircle, CheckCircle2,
   BookOpen, Target, TrendingUp, GraduationCap, ChevronLeft,
-  User, Phone, Award, Maximize, Minimize, Lock, X, ImagePlus, ListTodo,
+  User, Phone, Award, Lock, X, ImagePlus, ListTodo,
 } from 'lucide-react'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Image from 'next/image'
 import { toast } from 'sonner'
-import { VideoWatermark } from '@/components/student/VideoWatermark'
+import { ProtectedYouTubePlayer } from '@/components/student/ProtectedYouTubePlayer'
+import { ProtectedFilePlayer } from '@/components/student/ProtectedFilePlayer'
 import type { Video as VideoType, Homework, Exam, Announcement, Discussion, ExamResult } from '@/stores/app-store'
 
 /* ========== SHUFFLE UTILITIES (per-student) ========== */
@@ -548,18 +549,18 @@ function GuardedYouTubeCard({ videoId, title, poster, studentId, studentName, st
       onContextMenu={function (e) { e.preventDefault() }}
     >
       {ytId ? (
-        <>
-          <iframe
-            src={'https://www.youtube.com/embed/' + ytId + '?autoplay=1&modestbranding=1&rel=0&playsinline=1&showinfo=0&iv_load_policy=3'}
-            title={title}
-            className="w-full h-full"
-            allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            style={{ border: 'none' }}
-          />
-          {/* ووترمارك الطالب — أي تسجيل للشاشة يطلع فيه اسمه ورقمه */}
-          <VideoWatermark name={studentName} phone={studentPhone} />
-        </>
+        /* مشغّل يوتيوب محمي — الووترمارك والتحكم جوه عنصر ملء الشاشة نفسه
+           (الـ iframe الخام كان بيسيب الطالب يفتح fullscreen يوتيوب الأصلي
+           والووترمارك تختفي — دي كانت المشكلة) */
+        <ProtectedYouTubePlayer
+          ytId={ytId}
+          poster={poster}
+          videoId={videoId}
+          studentId={studentId}
+          studentName={studentName}
+          studentPhone={studentPhone}
+          autoplay
+        />
       ) : error ? (
         <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-black/70 text-white/80 text-xs p-4 text-center">
           <Lock className="h-7 w-7 text-white/50" />
@@ -641,7 +642,9 @@ function GatedVideoPlayer({ videoId, poster, studentId, studentName, studentPhon
     )
   }
   return (
-    <CustomVideoPlayer
+    /* مشغّل ملفات محمي — الووترمارك جوه عنصر ملء الشاشة نفسه + ممنوع
+       مشغّل أبل الأصلي (webkitEnterFullscreen) لأنه بيلغي أي طبقة فوق الفيديو */
+    <ProtectedFilePlayer
       videoId={videoId}
       src={src}
       poster={poster}
@@ -650,214 +653,6 @@ function GatedVideoPlayer({ videoId, poster, studentId, studentName, studentPhon
       studentPhone={studentPhone}
       onWatch={onWatch}
     />
-  )
-}
-
-/* ========== CUSTOM VIDEO PLAYER (لا يوجد 3-dot menu / لا يوجد تحميل) ========== */
-function CustomVideoPlayer({ videoId, src, poster, studentId, studentName, studentPhone, onWatch }: {
-  videoId: string
-  src: string
-  poster?: string
-  studentId: string
-  studentName?: string
-  studentPhone?: string
-  onWatch: () => void
-}) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const progressRef = useRef<HTMLDivElement>(null)
-  const [playing, setPlaying] = useState(false)
-  const [currentTime, setCurrentTime] = useState(0)
-  const [duration, setDuration] = useState(0)
-  const [buffered, setBuffered] = useState(0)
-  const [showControls, setShowControls] = useState(true)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const hideTimerRef = useRef<any>(null)
-
-  useEffect(() => {
-    var onFsChange = function() {
-      setIsFullscreen(!!document.fullscreenElement)
-    }
-    document.addEventListener('fullscreenchange', onFsChange)
-    document.addEventListener('webkitfullscreenchange', onFsChange)
-    return function() {
-      document.removeEventListener('fullscreenchange', onFsChange)
-      document.removeEventListener('webkitfullscreenchange', onFsChange)
-    }
-  }, [])
-
-  // إخفاء الكنترولات بعد 3 ثواني من التشغيل
-  useEffect(() => {
-    if (playing) {
-      hideTimerRef.current = setTimeout(() => setShowControls(false), 3000)
-    } else {
-      setShowControls(true)
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
-    }
-    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current) }
-  }, [playing, showControls])
-
-  var togglePlay = function(e?: React.MouseEvent | React.TouchEvent) {
-    if (e) { e.preventDefault(); e.stopPropagation() }
-    var v = videoRef.current
-    if (!v) return
-    if (v.paused) { v.play().catch(function(){}) } else { v.pause() }
-  }
-
-  var handleTimeUpdate = function() {
-    var v = videoRef.current
-    if (!v) return
-    setCurrentTime(v.currentTime)
-    if (v.buffered.length > 0 && v.duration > 0) {
-      setBuffered((v.buffered.end(v.buffered.length - 1) / v.duration) * 100)
-    }
-    if (v.duration && studentId && Math.floor(v.currentTime) % 5 === 0 && v.currentTime > 0) {
-      fetch('/api/video-progress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId, videoId, watchedSeconds: v.currentTime, totalSeconds: v.duration }),
-      }).catch(function(){})
-    }
-  }
-
-  var handleEnded = function() {
-    setPlaying(false)
-    setShowControls(true)
-    if (studentId) {
-      fetch('/api/video-progress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId, videoId, watchedSeconds: 999999, totalSeconds: 1 }),
-      }).catch(function(){})
-      onWatch()
-    }
-  }
-
-  var handleSeek = function(e: React.MouseEvent | React.TouchEvent) {
-    var bar = progressRef.current
-    var v = videoRef.current
-    if (!bar || !v || !v.duration) return
-    var rect = bar.getBoundingClientRect()
-    var clientX = 'touches' in e ? e.changedTouches[0].clientX : (e as React.MouseEvent).clientX
-    var ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-    v.currentTime = ratio * v.duration
-  }
-
-  var handleFullscreen = function(e: React.MouseEvent | React.TouchEvent) {
-    if (e) { e.preventDefault(); e.stopPropagation() }
-    // لو Already في fullscreen → خرج
-    if (document.fullscreenElement) { document.exitFullscreen().catch(function(){}) ; return }
-    if ((document as any).webkitFullscreenElement) { (document as any).webkitExitFullscreen() ; return }
-    var v = videoRef.current
-    if (!v) return
-    v.play().then(function() {
-      var vv = v as any
-      if (vv.webkitEnterFullscreen) {
-        vv.webkitEnterFullscreen()
-      } else if (vv.parentElement && vv.parentElement.requestFullscreen) {
-        vv.parentElement.requestFullscreen().catch(function(){})
-      } else if (vv.requestFullscreen) {
-        vv.requestFullscreen().catch(function(){})
-      }
-    }).catch(function(){})
-  }
-
-  var formatTime = function(sec: number) {
-    if (!sec || !isFinite(sec)) return '0:00'
-    var m = Math.floor(sec / 60)
-    var s = Math.floor(sec % 60)
-    return m + ':' + String(s).padStart(2, '0')
-  }
-
-  var progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0
-
-  return (
-    <div
-      className="video-protected w-full h-full relative select-none"
-      onClick={togglePlay}
-      onTouchStart={function() { setShowControls(true) }}
-      onContextMenu={function(e) { e.preventDefault() }}
-    >
-      {/* فيديو بدون controls — مفيش 3-dot menu أصلاً */}
-      <video
-        ref={videoRef}
-        className="w-full h-full object-contain"
-        src={src}
-        poster={poster}
-        preload="metadata"
-        playsInline
-        disablePictureInPicture
-        disableRemotePlayback
-        onPlay={function() { setPlaying(true) }}
-        onPause={function() { setPlaying(false) }}
-        onTimeUpdate={handleTimeUpdate}
-        onEnded={handleEnded}
-        onLoadedMetadata={function() { if (videoRef.current) setDuration(videoRef.current.duration) }}
-      />
-
-      {/* أيقونة Play في النصف */}
-      {!playing && (
-        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-          <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-2xl">
-            <svg className="h-8 w-8 text-gray-800" style={{ marginLeft: '3px' }} fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z"/>
-            </svg>
-          </div>
-        </div>
-      )}
-
-      {/* شريط الكنترولات السفلي */}
-      <div
-        className={
-          'absolute bottom-0 left-0 right-0 z-20 transition-opacity duration-300 ' +
-          (showControls || !playing ? 'opacity-100' : 'opacity-0 pointer-events-none')
-        }
-        onClick={function(e) { e.stopPropagation() }}
-      >
-        {/* Progress bar */}
-        <div
-          ref={progressRef}
-          className="w-full h-1 bg-white/30 cursor-pointer group"
-          onClick={handleSeek}
-          onTouchEnd={function(e) { e.preventDefault(); e.stopPropagation(); handleSeek(e) }}
-        >
-          <div className="absolute top-0 left-0 h-full bg-white/40 pointer-events-none" style={{ width: buffered + '%' }} />
-          <div className="absolute top-0 left-0 h-full bg-primary group-hover:h-1.5 transition-all pointer-events-none" style={{ width: progressPercent + '%' }} />
-        </div>
-
-        {/* أزرار الكنترول */}
-        <div className="flex items-center gap-1 px-3 py-2 bg-gradient-to-t from-black/80 to-transparent">
-          {/* Play / Pause */}
-          <button
-            className="w-9 h-9 flex items-center justify-center text-white hover:text-primary transition-colors shrink-0"
-            onClick={togglePlay}
-            onTouchEnd={function(e) { e.preventDefault(); e.stopPropagation(); togglePlay() }}
-          >
-            {playing ? (
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-            ) : (
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-            )}
-          </button>
-
-          <span className="text-white text-xs tabular-nums" dir="ltr">
-            {formatTime(currentTime)} / {formatTime(duration)}
-          </span>
-
-          {/* زرار التكبير جنب الوقت */}
-          <button
-            className="w-9 h-9 flex items-center justify-center text-white hover:text-primary transition-colors shrink-0"
-            onClick={handleFullscreen}
-            onTouchEnd={function(e) { e.preventDefault(); e.stopPropagation(); handleFullscreen(e) }}
-            aria-label="تكبير"
-          >
-            {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-          </button>
-        </div>
-      </div>
-
-      {/* ووترمارك الطالب — أي تسجيل للشاشة يطلع فيه اسمه ورقمه */}
-      <VideoWatermark name={studentName} phone={studentPhone} />
-    </div>
   )
 }
 

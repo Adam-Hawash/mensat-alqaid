@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { FractionText } from '@/components/FractionText'
 import {
   Users, UserCheck, Clock, Video, ClipboardList, FileText,
   Megaphone, Plus, Check, X, Trash2, LogOut, Loader2,
@@ -823,6 +824,32 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
 }
 
 /* ========== EXAM TRACKING PANEL ========== */
+/* المعاينة الحية — زي ما الطالب هيشوف بالظبط (كسور وأسوس مُنسّقة بـ FractionText) */
+function QuestionPreview({ question, options, correct, modelAnswer }: { question: string; options?: string[]; correct?: number; modelAnswer?: string }) {
+  if (!question || !question.trim()) return null
+  return (
+    <div className="rounded-md border bg-background p-2">
+      <p className="text-[9px] font-bold text-muted-foreground mb-1">👁️ المعاينة (زي ما الطالب هيشوفها):</p>
+      <p className="text-sm" dir="ltr" style={{ textAlign: 'left' }}><FractionText text={question} /></p>
+      {options && options.some((o) => o.trim()) && (
+        <div className="mt-1.5 space-y-0.5">
+          {options.map((o, oi2) => o.trim() ? (
+            <p key={oi2} className={'text-xs ' + (correct === oi2 ? 'text-emerald-600 font-bold' : 'text-foreground/80')} dir="ltr" style={{ textAlign: 'left' }}>
+              {String.fromCharCode(65 + oi2)}. <FractionText text={o} /> {correct === oi2 ? '✓' : ''}
+            </p>
+          ) : null)}
+        </div>
+      )}
+      {modelAnswer !== undefined && modelAnswer.trim() && (
+        <div className="mt-1.5">
+          <p className="text-[9px] font-bold text-muted-foreground mb-0.5">الإجابة النموذجية:</p>
+          <p className="text-xs text-foreground/90" dir="auto" style={{ textAlign: 'right' }}><FractionText text={modelAnswer} /></p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface MCQQuestion {
   q: string
   options: string[]
@@ -1079,6 +1106,10 @@ function ExamTrackingPanel() {
                         <Input value={q.q} onChange={(e) => { const n = [...formQuestions]; n[qi] = { ...n[qi], q: e.target.value }; setFormQuestions(n) }} placeholder="نص السؤال" className="text-sm" />
                         <Button variant="ghost" size="sm" className="h-7 shrink-0 text-[10px] px-1.5" onClick={() => { const n = [...formQuestions]; if (qIsWriting) { n[qi] = { ...n[qi], type: 'mcq', options: ['', '', '', ''], correct: 0 } } else { n[qi] = { ...n[qi], type: 'writing', options: [], modelAnswer: '' } } setFormQuestions(n) }}>{qIsWriting ? 'اختياري' : 'مقالي'}</Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-destructive" onClick={() => setFormQuestions(formQuestions.filter((_, i) => i !== qi))}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      </div>
+                      {/* المعاينة الحية — زي ما الطالب هيشوف بالظبط (كسور وأسوس مُنسّقة) */}
+                      <div className="mr-6">
+                        <QuestionPreview question={q.q} options={qIsWriting ? undefined : q.options} correct={qIsWriting ? undefined : q.correct} modelAnswer={q.modelAnswer} />
                       </div>
                       {qIsWriting ? (
                         <div className="mr-6 space-y-2">
@@ -2017,6 +2048,8 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
                         </div>
                       </div>
                       <Input placeholder="اكتب السؤال هنا..." value={q.question} onChange={function(e) { var updated = [...mcqQuestions]; updated[qi] = { ...updated[qi], question: e.target.value }; setMcqQuestions(updated) }} className="text-sm" />
+                      {/* المعاينة الحية — زي ما الطالب هيشوف بالظبط (كسور وأسوس مُنسّقة) */}
+                      <QuestionPreview question={q.question} options={qType === 'writing' ? undefined : q.options} correct={qType === 'writing' ? undefined : q.correct} modelAnswer={q.modelAnswer} />
                       {qType === 'writing' ? (
                         <div className="space-y-2">
                           <textarea
@@ -2387,6 +2420,8 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
                   </div>
                 </div>
                 <Input value={q.question} onChange={function(e) { updateQuestion(qi, 'question', e.target.value) }} placeholder="نص السؤال..." className="text-sm" />
+                {/* المعاينة الحية — زي ما الطالب هيشوف بالظبط (كسور وأسوس مُنسّقة) */}
+                <QuestionPreview question={q.question} options={qType === 'writing' ? undefined : q.options} correct={qType === 'writing' ? undefined : q.correct} modelAnswer={q.modelAnswer} />
                 {qType === 'writing' ? (
                   <div className="space-y-2">
                     <textarea
