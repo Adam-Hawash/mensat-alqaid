@@ -9,12 +9,13 @@ import { Input } from '@/components/ui/input'
 import {
   Video, ClipboardList, FileText, Megaphone, MessageSquare, Send,
   LogOut, Loader2, FileDown, Bell, PlayCircle, CheckCircle2,
-  BookOpen, Target, TrendingUp, GraduationCap, ChevronLeft, ExternalLink,
+  BookOpen, Target, TrendingUp, GraduationCap, ChevronLeft,
   User, Phone, Award, Maximize, Minimize, Lock, X, ImagePlus, ListTodo,
 } from 'lucide-react'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Image from 'next/image'
 import { toast } from 'sonner'
+import { VideoWatermark } from '@/components/student/VideoWatermark'
 import type { Video as VideoType, Homework, Exam, Announcement, Discussion, ExamResult } from '@/stores/app-store'
 
 /* ========== SHUFFLE UTILITIES (per-student) ========== */
@@ -119,7 +120,7 @@ export function StudentPortal() {
           timeout('/api/homework?grade=' + g + '&pageSize=50', 15000),
           timeout('/api/exams?grade=' + g + '&pageSize=50', 15000),
           timeout('/api/announcements?grade=' + g + '&pageSize=10', 15000),
-          timeout('/api/exam-results?grade=' + g, 15000),
+          timeout('/api/exam-results?studentId=' + encodeURIComponent(studentId), 15000),
           timeout('/api/activities?studentId=' + studentId + '&action=watched_video&pageSize=200', 15000),
         ])
         if (cancelled) return
@@ -209,11 +210,11 @@ export function StudentPortal() {
                 <h2 className="font-bold text-lg">متابعة التعلم</h2>
               </div>
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                {stats.lastVideo.thumbnail ? (
+                {(stats.lastVideo.thumbnail || (stats.lastVideo as any).thumb) ? (
                   <div className="w-full sm:w-40 aspect-video rounded-lg overflow-hidden bg-muted shrink-0 relative">
-                    <Image src={stats.lastVideo.thumbnail} alt="" fill className="object-cover" sizes="300px" unoptimized />
+                    <Image src={stats.lastVideo.thumbnail || (stats.lastVideo as any).thumb} alt="" fill className="object-cover" sizes="300px" unoptimized />
                   </div>
-                ) : stats.lastVideo.filePath ? (
+                ) : (stats.lastVideo as any).kind === 'file' || stats.lastVideo.filePath ? (
                   <div className="w-full sm:w-40 aspect-video rounded-lg overflow-hidden bg-black/80 flex items-center justify-center shrink-0">
                     <Video className="h-10 w-10 text-white/60" />
                   </div>
@@ -382,6 +383,9 @@ function FullPortalContent({ initialData, onBack }: { initialData: PortalData; o
 /* ========== VIDEOS TAB ========== */
 function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType[]; watchedIds: Set<string>; studentId: string; grade: string }) {
   const { setView, setPendingPaymentVideo } = useAppStore()
+  const currentStudent = useAppStore(function (s) { return s.currentStudent })
+  const studentName = currentStudent?.name || ''
+  const studentPhone = currentStudent?.phone || ''
   const [localWatched, setLocalWatched] = useState(watchedIds)
 
   const trackVideoWatch = (videoId: string) => {
@@ -394,14 +398,14 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
     }).catch(() => {})
   }
 
-  const getYouTubeId = (url: string) => {
-    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/))([\w-]{11})/)
-    return match ? match[1] : null
-  }
-
-  const getYouTubeThumbnail = (url: string) => {
-    const id = getYouTubeId(url)
-    return id ? `https://img.youtube.com/vi/${id}/mqdefault.jpg` : null
+  // حماية الفيديو: السيرفر مبيرسلش url/filePath خلاص — بنعرف النوع من kind
+  // والتشغيل بيتم عبر /api/video-play بس (توكن موقّع للملفات المرفوعة)
+  const videoKind = (v: any): 'youtube' | 'file' | 'link' | 'none' => {
+    if (v.kind) return v.kind
+    if (v.url && /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/))([\w-]{11})/.test(v.url)) return 'youtube'
+    if (v.filePath && /\.(mp4|webm|mov|avi)$/i.test(v.filePath)) return 'file'
+    if (v.url) return 'link'
+    return 'none'
   }
 
   if (videos.length === 0) return <EmptyState message="لا توجد دروس حالياً" />
@@ -409,15 +413,14 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {videos.map((video) => {
-        const ytId = getYouTubeId(video.url)
-        const isVideoFile = video.filePath && (video.fileType?.startsWith('video/') || video.filePath.match(/\.(mp4|webm|mov|avi)$/i))
+        const kind = videoKind(video)
         const isWatched = localWatched.has(video.id)
-        const thumbSrc = video.thumbnail || getYouTubeThumbnail(video.url) || null
+        const thumbSrc = video.thumbnail || (video as any).thumb || null
         const needsPay = (video.price || 0) > 0
 
         return (
           <Card key={video.id} className={`overflow-hidden transition-all ${isWatched ? 'border-emerald-500/30' : ''}`}>
-            <div className="relative aspect-video bg-black">
+            <div className="relative aspect-video bg-black" onContextMenu={function (e) { e.preventDefault() }}>
               {needsPay ? (
                 <div className="w-full h-full relative">
                   {thumbSrc ? (
@@ -448,25 +451,29 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
                     </Button>
                   </div>
                 </div>
-              ) : ytId ? (
-                /* YouTube: controls=0 يخفي الـ 3-dot menu بالكامل */
-                <div className="video-protected w-full h-full" onClick={() => trackVideoWatch(video.id)}>
-                  <iframe
-                    src={`https://www.youtube.com/embed/${ytId}?modestbranding=1&rel=0&playsinline=1&controls=0&showinfo=0&iv_load_policy=3`}
-                    title={video.title}
-                    className="w-full h-full"
-                    allow="accelerometer; autoplay; encrypted-media; gyroscope"
-                    allowFullScreen
-                    loading="lazy"
-                  />
-                </div>
-              ) : isVideoFile ? (
-                /* MP4: كنترولات مخصصة — مفيش controls يعني مفيش 3-dot menu */
-                <CustomVideoPlayer
+              ) : kind === 'youtube' ? (
+                /* يوتيوب محمي: الصورة المصغرة بس في الكارت — الـ ytId بيتجاب
+                   لحظة التشغيل من بوابة /api/video-play وبعدها الـ iframe يظهر */
+                <GuardedYouTubeCard
                   videoId={video.id}
-                  src={video.filePath}
+                  title={video.title}
                   poster={thumbSrc || undefined}
                   studentId={studentId}
+                  studentName={studentName}
+                  studentPhone={studentPhone}
+                  onWatch={() => {
+                    trackVideoWatch(video.id)
+                    setLocalWatched(prev => new Set([...prev, video.id]))
+                  }}
+                />
+              ) : kind === 'file' ? (
+                /* MP4 محمي: بيجيب رابط موقّع من /api/video-play — filePath الخام مش بيوصل أصلاً */
+                <GatedVideoPlayer
+                  videoId={video.id}
+                  poster={thumbSrc || undefined}
+                  studentId={studentId}
+                  studentName={studentName}
+                  studentPhone={studentPhone}
                   onWatch={() => {
                     trackVideoWatch(video.id)
                     setLocalWatched(prev => new Set([...prev, video.id]))
@@ -476,11 +483,6 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
                 <div className="w-full h-full relative">
                   <Image src={thumbSrc} alt={video.title} fill className="object-cover" sizes="(max-width: 640px) 100vw, 50vw" unoptimized loading="eager" fetchPriority="high" />
                 </div>
-              ) : video.url ? (
-                <a href={video.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full h-full text-white/70 hover:text-white transition-colors">
-                  <ExternalLink className="h-6 w-6" />
-                  <span className="text-sm">فتح الرابط</span>
-                </a>
               ) : (
                 <div className="flex items-center justify-center w-full h-full">
                   <Video className="h-10 w-10 text-white/30" />
@@ -505,12 +507,160 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
   )
 }
 
+/* ========== GUARDED YOUTUBE CARD — يوتيوب محمي ==========
+ * الكارت بيعرض الصورة المصغرة من البروكسي (من غير أي معرف يوتيوب)،
+ * ولما الطالب يدوس تشغيل بيجيب الـ ytId لحظتها من /api/video-play
+ * (بوابة التشغيل الوحيدة) وبعدها الـ iframe بيظهر + ووترمارك اسمه ورقمه.
+ * ======================================================== */
+function GuardedYouTubeCard({ videoId, title, poster, studentId, studentName, studentPhone, onWatch }: {
+  videoId: string
+  title: string
+  poster?: string
+  studentId: string
+  studentName?: string
+  studentPhone?: string
+  onWatch: () => void
+}) {
+  const [ytId, setYtId] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  var openPlayer = function () {
+    if (ytId || loading) return
+    setLoading(true)
+    fetch('/api/video-play?videoId=' + videoId + '&studentId=' + encodeURIComponent(studentId || ''))
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d } }) })
+      .then(function (res) {
+        if (res.ok && res.d.isYouTube && res.d.ytId) {
+          setYtId(res.d.ytId)
+          onWatch()
+        } else {
+          setError(res.d.error || 'الفيديو مش متاح — لو دفعت تواصل مع الإدارة')
+        }
+        setLoading(false)
+      })
+      .catch(function () { setError('حصل خطأ في تشغيل الفيديو'); setLoading(false) })
+  }
+
+  return (
+    <div
+      className="video-protected w-full h-full relative select-none bg-black"
+      onContextMenu={function (e) { e.preventDefault() }}
+    >
+      {ytId ? (
+        <>
+          <iframe
+            src={'https://www.youtube.com/embed/' + ytId + '?autoplay=1&modestbranding=1&rel=0&playsinline=1&showinfo=0&iv_load_policy=3'}
+            title={title}
+            className="w-full h-full"
+            allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            style={{ border: 'none' }}
+          />
+          {/* ووترمارك الطالب — أي تسجيل للشاشة يطلع فيه اسمه ورقمه */}
+          <VideoWatermark name={studentName} phone={studentPhone} />
+        </>
+      ) : error ? (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-black/70 text-white/80 text-xs p-4 text-center">
+          <Lock className="h-7 w-7 text-white/50" />
+          <span>{error}</span>
+        </div>
+      ) : (
+        <div
+          className="w-full h-full relative cursor-pointer group/vid"
+          onClick={openPlayer}
+          role="button"
+          aria-label={'تشغيل ' + title}
+        >
+          {poster ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={poster} alt={title} className="w-full h-full object-cover" draggable={false} />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-black/80 to-black" />
+          )}
+          <div className="absolute inset-0 bg-black/25 group-hover/vid:bg-black/40 transition-colors" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            {loading ? (
+              <Loader2 className="h-9 w-9 text-white animate-spin" />
+            ) : (
+              <div className="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center shadow-2xl transition-transform group-hover/vid:scale-110">
+                <svg className="h-8 w-8 text-white" style={{ marginLeft: '3px' }} fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ========== GATED VIDEO PLAYER — حماية الملفات المرفوعة ==========
+ * بيجيب رابط التشغيل الموقّع من /api/video-play (توكن HMAC صالح ساعتين
+ * مرتبط بالطالب والملف) — من غير توكن السيرفر مبيتخدمش الملف خالص.
+ * ================================================================ */
+function GatedVideoPlayer({ videoId, poster, studentId, studentName, studentPhone, onWatch }: {
+  videoId: string
+  poster?: string
+  studentId: string
+  studentName?: string
+  studentPhone?: string
+  onWatch: () => void
+}) {
+  const [src, setSrc] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(function () {
+    var alive = true
+    setSrc(''); setError('')
+    fetch('/api/video-play?videoId=' + videoId + '&studentId=' + encodeURIComponent(studentId || ''))
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d } }) })
+      .then(function (res) {
+        if (!alive) return
+        if (res.ok && res.d.isVideoFile && res.d.fileUrl) setSrc(res.d.fileUrl)
+        else setError(res.d.error || 'الفيديو مش متاح')
+      })
+      .catch(function () { if (alive) setError('حصل خطأ في تحميل الفيديو') })
+    return function () { alive = false }
+  }, [videoId, studentId])
+
+  if (error) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-black/70 text-white/80 text-xs p-4 text-center">
+        <Lock className="h-7 w-7 text-white/50" />
+        <span>{error}</span>
+      </div>
+    )
+  }
+  if (!src) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-black/70">
+        <Loader2 className="h-7 w-7 text-white/60 animate-spin" />
+      </div>
+    )
+  }
+  return (
+    <CustomVideoPlayer
+      videoId={videoId}
+      src={src}
+      poster={poster}
+      studentId={studentId}
+      studentName={studentName}
+      studentPhone={studentPhone}
+      onWatch={onWatch}
+    />
+  )
+}
+
 /* ========== CUSTOM VIDEO PLAYER (لا يوجد 3-dot menu / لا يوجد تحميل) ========== */
-function CustomVideoPlayer({ videoId, src, poster, studentId, onWatch }: {
+function CustomVideoPlayer({ videoId, src, poster, studentId, studentName, studentPhone, onWatch }: {
   videoId: string
   src: string
   poster?: string
   studentId: string
+  studentName?: string
+  studentPhone?: string
   onWatch: () => void
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -704,6 +854,9 @@ function CustomVideoPlayer({ videoId, src, poster, studentId, onWatch }: {
           </button>
         </div>
       </div>
+
+      {/* ووترمارك الطالب — أي تسجيل للشاشة يطلع فيه اسمه ورقمه */}
+      <VideoWatermark name={studentName} phone={studentPhone} />
     </div>
   )
 }
@@ -1213,6 +1366,9 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
   var [submittedMsg, setSubmittedMsg] = useState<string | null>(null)
   var [submittedExamIds, setSubmittedExamIds] = useState<Set<string>>(new Set())
   var [lockedOut, setLockedOut] = useState(false)
+  // نتيجة آخر تسليم (الدرجة + تصحيح المقالية بالذكاء الاصطناعي)
+  var [lastResult, setLastResult] = useState<any>(null)
+  var [showGradesFor, setShowGradesFor] = useState<string | null>(null)
 
   // Lockout: detect tab switch during exam
   useEffect(function() {
@@ -1228,15 +1384,52 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
 
   if (exams.length === 0) return <EmptyState message="لا توجد امتحانات حالياً" />
 
-  // Post-submission: exam results are hidden from student
+  // Post-submission: success screen with the AI-graded score + writing feedback
   if (submittedMsg) {
+    var lrGrades: any[] = (lastResult && lastResult.writingGrades) || []
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+      <div className="flex flex-col items-center justify-center py-12 px-6 space-y-5">
         <div className="h-24 w-24 rounded-full bg-emerald-500/10 flex items-center justify-center">
           <CheckCircle2 className="h-14 w-14 text-emerald-500" />
         </div>
-        <h2 className="text-2xl font-bold">تم تقديم الامتحان</h2>
-        <Button variant="outline" className="mt-4 gap-2" onClick={function() { setSubmittedMsg(null); setTakingExam(null); setAnswers({}); setExamQuestions([]); setLockedOut(false) }}>
+        <div className="text-center space-y-2">
+          <h2 className="text-2xl font-bold">تم تقديم الامتحان</h2>
+          {lastResult && typeof lastResult.score === 'number' ? (
+            <div className="mt-2 inline-flex flex-col items-center gap-1.5">
+              <div className="px-6 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+                <p className="text-3xl font-bold text-emerald-600" dir="ltr">{lastResult.score} / {lastResult.maxScore}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">درجتك في الامتحان</p>
+              </div>
+              {lrGrades.length > 0 && <p className="text-xs text-emerald-600 font-medium">✅ الأسئلة المقالية اتصححت بالذكاء الاصطناعي</p>}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">النتيجة هتظهر في قائمة الامتحانات خلال شوية</p>
+          )}
+        </div>
+        {lrGrades.length > 0 && (
+          <div className="w-full max-w-xl space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">تفاصيل تصحيح الأسئلة المقالية:</p>
+            {lrGrades.map(function(g: any, i: number) {
+              var gOk = g.isCorrect === true
+              var gHalf = !gOk && (Number(g.awardedPoints) || 0) > 0
+              return (
+                <Card key={'wg-' + i} className={gOk ? 'border-emerald-200 dark:border-emerald-900/40' : gHalf ? 'border-amber-200 dark:border-amber-900/40' : 'border-red-200 dark:border-red-900/40'}>
+                  <CardContent className="p-3 space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs font-medium min-w-0">{g.question || ''}</p>
+                      <Badge className={'text-[10px] shrink-0 ' + (gOk ? 'bg-emerald-500 text-white' : gHalf ? 'bg-amber-500 text-white' : 'bg-red-500 text-white')} dir="ltr">{g.awardedPoints}/{g.maxPoints}</Badge>
+                    </div>
+                    {g.feedback && <p className="text-[10px] text-muted-foreground">🤖 {g.feedback}</p>}
+                    {g.modelAnswer && (
+                      <p className="text-[10px] text-emerald-600">الإجابة النموذجية: {g.modelAnswer}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+        <Button variant="outline" className="mt-2 gap-2" onClick={function() { setSubmittedMsg(null); setTakingExam(null); setAnswers({}); setExamQuestions([]); setLockedOut(false) }}>
           <ChevronLeft className="h-4 w-4" />
           العودة إلى صفحتك
         </Button>
@@ -1321,17 +1514,27 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
                 serverAnswers[String(eq._origIdx)] = val
               }
             }
+            // Add client-side timeout (120s — AI grades the writing questions during submit)
+            var submitController = new AbortController()
+            var submitTimeout = setTimeout(function() { submitController.abort() }, 120000)
             fetch('/api/exams/submit', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ studentId: studentId, examId: takingExam, answers: serverAnswers }),
+              signal: submitController.signal,
             })
             .then(function(r) { return r.json() })
             .then(function(data) {
+              clearTimeout(submitTimeout)
+              // الدرجة وتصحيح المقالية رجعوا من السيرفر (تصحيح فوري بالذكاء الاصطناعي)
+              if (data && typeof data.score === 'number') {
+                setLastResult({ examId: takingExam, score: data.score, maxScore: data.maxScore, writingGrades: data.writingGrades || [] })
+              }
               setSubmittedExamIds(function(prev) { var s = new Set(prev); s.add(takingExam); return s })
               setSubmittedMsg('تم تقديم هذا الامتحان')
             })
             .catch(function() {
+              clearTimeout(submitTimeout)
               setSubmittedExamIds(function(prev) { var s = new Set(prev); s.add(takingExam); return s })
               setSubmittedMsg('تم تقديم هذا الامتحان')
             })
@@ -1348,8 +1551,11 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
   return (
     <div className="space-y-3">
       {exams.map(function(exam) {
-        var examResult = results.find(function(r) { return r.examId === exam.id })
+        var examResult: any = results.find(function(r) { return r.examId === exam.id })
         var isSubmitted = !!(examResult || submittedExamIds.has(exam.id))
+        // نتيجة لحظية من آخر تسليم (لو لسه متحدثش في اللستة)
+        var liveResult = (lastResult && lastResult.examId === exam.id) ? lastResult : examResult
+        var liveGrades: any[] = (liveResult && liveResult.writingGrades) || []
         var hasMCQ = false
         try { if ((exam as any).questions) { var parsed = JSON.parse((exam as any).questions); hasMCQ = parsed.length > 0 } } catch {}
         return (
@@ -1363,9 +1569,19 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
                   <div className="min-w-0 space-y-1.5">
                     <h3 className="font-semibold text-sm">{exam.title}</h3>
                     {isSubmitted ? (
-                      <Badge className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                        تم تقديم هذا الامتحان
-                      </Badge>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                          تم تقديم هذا الامتحان
+                        </Badge>
+                        {liveResult && typeof liveResult.score === 'number' && (
+                          <Badge className="text-xs bg-primary text-primary-foreground" dir="ltr">{liveResult.score}/{liveResult.maxScore}</Badge>
+                        )}
+                        {liveGrades.length > 0 && (
+                          <button type="button" onClick={function() { setShowGradesFor(showGradesFor === exam.id ? null : exam.id) }} className="text-[11px] font-medium text-primary hover:underline cursor-pointer">
+                            {showGradesFor === exam.id ? 'اقفل التصحيح' : 'شوف تصحيح المقالية 👁'}
+                          </button>
+                        )}
+                      </div>
                     ) : hasMCQ ? (
                       <Button size="sm" onClick={function() {
                         try {
@@ -1385,6 +1601,30 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
                 </div>
                 {exam.filePath && <FileAttachment filePath={exam.filePath} fileType={exam.fileType} />}
               </div>
+              {/* تفاصيل تصحيح المقالية بالذكاء الاصطناعي */}
+              {isSubmitted && showGradesFor === exam.id && liveGrades.length > 0 && (
+                <div className="mt-3 pt-3 border-t space-y-2">
+                  {liveGrades.map(function(g: any, gi: number) {
+                    var gOk = g.isCorrect === true
+                    var gHalf = !gOk && (Number(g.awardedPoints) || 0) > 0
+                    return (
+                      <div key={'g-' + gi} className={'p-2.5 rounded-lg border space-y-1 ' + (gOk ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-900/10' : gHalf ? 'border-amber-200 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-900/10' : 'border-red-200 bg-red-50/50 dark:border-red-900/40 dark:bg-red-900/10')}>
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-xs font-medium min-w-0">{g.question || ''}</p>
+                          <Badge className={'text-[10px] shrink-0 ' + (gOk ? 'bg-emerald-500 text-white' : gHalf ? 'bg-amber-500 text-white' : 'bg-red-500 text-white')} dir="ltr">{g.awardedPoints}/{g.maxPoints}</Badge>
+                        </div>
+                        {g.answer && (
+                          <p className="text-[10px] text-muted-foreground">إجابتك: {g.answer}</p>
+                        )}
+                        {g.modelAnswer && (
+                          <p className="text-[10px] text-emerald-600">الإجابة النموذجية: {g.modelAnswer}</p>
+                        )}
+                        {g.feedback && <p className="text-[10px] text-muted-foreground">🤖 {g.feedback}</p>}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         )

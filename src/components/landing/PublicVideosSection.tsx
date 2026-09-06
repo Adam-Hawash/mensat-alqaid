@@ -99,7 +99,7 @@ export function PublicVideosSection() {
         {/* Video grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map(function (video) {
-            var thumb = video.thumbnail || (video.url && getYouTubeThumbnail(video.url)) || ''
+            var thumb = video.thumbnail || (video as any).thumb || ''
             return (
               <Card
                 key={video.id}

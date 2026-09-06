@@ -4,12 +4,17 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { Lock, CreditCard, ArrowRight, CheckCircle2 } from "lucide-react";
 
+// صفحة المكتبة القديمة — التشغيل بقى عبر بوابة /api/video-play المحمية:
+// السيرفر مبيرسلش url/filePath خام لأي حد، والـ ytId/التوكن الموقّع بييجوا
+// لحظة التشغيل بعد التحقق من الصلاحية.
 export default function VideoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const videoId = resolvedParams.id;
 
   const [video, setVideo] = useState<any>(null);
   const [student, setStudent] = useState<any>(null);
+  const [grant, setGrant] = useState<any>(null);
+  const [playError, setPlayError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,12 +44,25 @@ export default function VideoDetailPage({ params }: { params: Promise<{ id: stri
     load();
   }, [videoId]);
 
+  // جلب رابط التشغيل الموقّع بعد ما نتأكد إن الفيديو مفتوح
+  useEffect(() => {
+    if (!video || video.isLocked) return;
+    const sId = student?.id || "";
+    fetch(`/api/video-play?videoId=${videoId}&studentId=${encodeURIComponent(sId)}`)
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then((res) => {
+        if (res.ok && res.d.ok && (res.d.isYouTube ? res.d.ytId : res.d.fileUrl)) setGrant(res.d);
+        else setPlayError(res.d.error || "الفيديو مش متاح");
+      })
+      .catch(() => setPlayError("حصل خطأ في تشغيل الفيديو"));
+  }, [video, videoId, student]);
+
   if (loading) return <div className="p-12 text-center font-bold text-slate-600">جاري تحميل الدرس...</div>;
   if (!video) return <div className="p-12 text-center text-red-500 font-bold">الفيديو غير موجود</div>;
 
   const isFreeVideo = !video.price || Number(video.price) === 0;
   const hasFreePass = student?.isPaidAccess === true || student?.role === "admin";
-  const isPurchased = video.isPurchased === true;
+  const isPurchased = video.isPurchased === true || video.isUnlocked === true;
   const isLocked = !isFreeVideo && !hasFreePass && !isPurchased;
 
   return (
@@ -95,20 +113,35 @@ export default function VideoDetailPage({ params }: { params: Promise<{ id: stri
               الانتقال لصفحة الدفع لتفعيل الدرس
             </Link>
           </div>
-        ) : (
-          <div className="aspect-video bg-black flex items-center justify-center">
+        ) : playError ? (
+          <div className="aspect-video flex flex-col items-center justify-center gap-2 text-white/80 text-sm p-8 text-center">
+            <Lock className="w-8 h-8 text-white/50" />
+            <span>{playError}</span>
+          </div>
+        ) : grant?.isYouTube && grant?.ytId ? (
+          <div className="aspect-video">
             <iframe
-              src={
-                video.url?.includes("embed")
-                  ? video.url
-                  : `https://www.youtube.com/embed/${video.url?.split("v=")[1]?.split("&")[0] || video.url?.split("/").pop()}`
-              }
+              src={`https://www.youtube.com/embed/${grant.ytId}?modestbranding=1&rel=0&playsinline=1&showinfo=0&iv_load_policy=3`}
               title={video.title}
               className="w-full h-full border-0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
+              onContextMenu={(e) => e.preventDefault()}
             />
           </div>
+        ) : grant?.fileUrl ? (
+          <div className="aspect-video">
+            <video
+              src={grant.fileUrl}
+              controls
+              playsInline
+              disablePictureInPicture
+              className="w-full h-full"
+              onContextMenu={(e) => e.preventDefault()}
+            />
+          </div>
+        ) : (
+          <div className="aspect-video flex items-center justify-center text-white/60 text-sm">جاري تحميل المشغل...</div>
         )}
       </div>
     </div>

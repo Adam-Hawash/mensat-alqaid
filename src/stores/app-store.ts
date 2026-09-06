@@ -34,6 +34,18 @@ export interface ExamResult {
   maxScore: number
   submittedAt: string
   student?: { name: string; phone: string; grade: string; status: string }
+  // تصحيح الأسئلة المقالية بالذكاء الاصطناعي (مخزن وقت التسليم — مرتب بالسؤال الأصلي)
+  writingGrades?: Array<{
+    origIdx?: number
+    question: string
+    answer: string
+    modelAnswer: string
+    awardedPoints: number
+    maxPoints: number
+    isCorrect: boolean
+    feedback: string
+    gradingStatus: string
+  }>
 }
 
 export interface GalleryImage {
@@ -64,6 +76,12 @@ export interface Video {
   grade: string
   price: number
   createdAt: string
+  // حقول الحماية (بتيجي من السيرفر لغير الأدمن):
+  // url/filePath بيرجعوا فاضيين — النوع بيتحدد من kind والصورة من thumb
+  kind?: 'youtube' | 'file' | 'link' | 'none'
+  thumb?: string
+  isUnlocked?: boolean
+  isLocked?: boolean
 }
 
 export interface Homework {

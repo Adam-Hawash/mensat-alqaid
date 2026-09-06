@@ -1,39 +1,52 @@
 // @ts-nocheck
 // Shared AI grading logic — used by /api/ai/grade-image (direct) and
-// /api/homework/submit (in-process) to avoid localhost fetch.
+// /api/homework/submit + /api/exams/submit (in-process) to avoid localhost fetch.
 //
 // ADAPTED FOR منصة القائد (الدراسات الاجتماعية والتاريخ — مستر عمرو رشدي):
 //  - The grader is a STRICT studies & history teacher (not math).
 //  - It must UNDERSTAND the question and the student's answer semantically —
-//    not just literal string matching (user request: "يصحح بالإجابة النهائية
-//    أو يكون يفهم السؤال").
-//  - Final-answer equivalence (dates, numbers, names spelling variants)
+//    grade by MEANING + the FINAL answer against the الإجابة النموذجية,
+//    never by literal string matching (كلام المستر: "يشوف فين الإجابة
+//    النهائية ويصحح بناءً على الإجابة النهائية وخطوات الحل").
+//  - Final-answer equivalence (dates, numbers, name spelling variants)
 //    still applies as a local safety net for AI false-negatives.
 //
-// DESIGN GOALS (same as Maths-Genius):
-//  1. FAST  — thinking:'low', tight output tokens.
+// DESIGN GOALS (same as Maths-Genius — Task 18 fix):
+//  1. FAST  — thinking:'low', tight output tokens, callGrader with TWO
+//             automatic attempts + 35s timeout (a transient failure should
+//             NEVER leave a submission stuck on "needs manual correction").
 //  2. SMART — the model must FIRST verify the photo actually contains the
 //             STUDENT'S OWN answer to THIS question (onTopic check) before
 //             grading. Reading the printed question as "the answer" was the
-//             #1 accuracy bug.
+//             #1 accuracy bug. Then find the FINAL ANSWER and judge it.
 //  3. FAIR  — the AI verdict stands; the only local override is an EXACT
 //             normalized final-answer equivalence.
-//  4. HONEST — when the AI fails or is unsure → needsGrading (admin reviews)
-//             instead of silently marking wrong/right.
+//  4. HONEST/DECISIVE — low-confidence and onTopic=false produce a DEFINITE
+//             verdict (صح/غلط) instead of stalling on "يحتاج تصحيح يدوي".
+//             needsGrading stays ONLY for genuinely gradeable-nothing cases:
+//             no image/answer at all, no API key, or AI failed twice.
 
 import { db } from '@/lib/db'
 import { callGemini as callGeminiCentral, hasGeminiKey } from '@/lib/gemini'
+import { repairModelJson, repairCorruptMath } from '@/lib/parse-ai-json'
 
 // Grading calls: low thinking = much faster, output is small structured JSON.
+// One automatic retry — a transient failure should NEVER leave a submission
+// stuck on "needs manual correction" (teacher request: AI finishes the job).
 async function callGrader(parts: any[]): Promise<{ ok: boolean; text?: string; error?: string }> {
-  var result = await callGeminiCentral({
-    parts: parts,
-    generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
-    timeoutMs: 25000,
-    thinking: 'low',
-  })
-  if (result.ok) return { ok: true, text: result.text }
-  return { ok: false, error: result.error || 'unknown' }
+  var lastErr = ''
+  for (var attempt = 0; attempt < 2; attempt++) {
+    var result = await callGeminiCentral({
+      parts: parts,
+      generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+      timeoutMs: 35000,
+      thinking: 'low',
+    })
+    if (result.ok) return { ok: true, text: result.text }
+    lastErr = result.error || 'unknown'
+    if (attempt === 0) await new Promise(function (r) { setTimeout(r, 1200) })
+  }
+  return { ok: false, error: lastErr }
 }
 
 function parseAIJson(text: string): any | null {
@@ -41,7 +54,7 @@ function parseAIJson(text: string): any | null {
   var jsonMatch = text.match(/\{[\s\S]*\}/)
   if (!jsonMatch) return null
   try {
-    return JSON.parse(jsonMatch[0])
+    return JSON.parse(repairModelJson(jsonMatch[0]))
   } catch (e) {
     return null
   }
@@ -57,6 +70,7 @@ export function normalizeFinalAnswer(s: string): string {
   // Arabic-Indic digits → Western digits
   var arabicDigits = '٠١٢٣٤٥٦٧٨٩'
   out = out.replace(/[٠-٩]/g, function (d) { return String(arabicDigits.indexOf(d)) })
+  out = out.replace(/[۰-۹]/g, function (d) { return String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)) })
   // unicode superscripts → ^digits (kept from math heritage, harmless)
   var supMap: Record<string, string> = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' }
   out = out.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, function (m) {
@@ -74,6 +88,8 @@ export function normalizeFinalAnswer(s: string): string {
   out = out.replace(/[\s{}$]/g, '')
   out = out.replace(/\\left|\\right/g, '')
   out = out.replace(/\\/g, '')
+  // aaaa… (letter run of 3+) → a^n so "aaaaaaa" === "a^7"
+  out = out.replace(/([a-z])\1{2,}/g, function (m, ch) { return ch + '^' + m.length })
   // strip common Arabic era/punctuation decorations after dates
   out = out.replace(/[مًm]+$/g, '')
   out = out.replace(/[.,;:،؛]+$/, '')
@@ -86,6 +102,30 @@ function finalPart(s: string): string {
   return (parts[parts.length - 1] || '').trim()
 }
 
+/* canonicalize a pure monomial so x^6y^4 === y^4*x^6 (order never matters).
+ * Returns '' for anything that is NOT a pure monomial (fractions, sums …). */
+function canonicalMonomial(s: string): string {
+  var t = normalizeFinalAnswer(s)
+  if (!t || !/^[a-z0-9^*]+$/.test(t)) return ''
+  var tokens = t.match(/[a-z](?:\^\d+)?|\d+(?:\^\d+)?/g)
+  if (!tokens || tokens.length === 0) return ''
+  tokens.sort()
+  return tokens.join('*')
+}
+
+/* safe numeric evaluation for pure arithmetic forms: 2^10 = 1024, 1/2 = 0.5.
+ * Returns null for anything with letters (no eval of words). */
+function tryNumeric(s: string): number | null {
+  var t = normalizeFinalAnswer(s).replace(/\^/g, '**')
+  if (!t || !/\d/.test(t) || !/^[\d+\-*/(). ]+$/.test(t)) return null
+  try {
+    var v = Function('"use strict"; return (' + t + ')')()
+    return typeof v === 'number' && isFinite(v) ? v : null
+  } catch (e) {
+    return null
+  }
+}
+
 /* EXACT normalized equivalence (never substring) — exported for tests */
 export function exactEquivalent(a: string, b: string): boolean {
   var na = normalizeFinalAnswer(a)
@@ -94,7 +134,16 @@ export function exactEquivalent(a: string, b: string): boolean {
   if (na === nb) return true
   // tolerate a leading label like "x=" / "ans:" / "الإجابة:" on either side
   var stripLabel = function (t: string) { return t.replace(/^([a-z]{1,4}|الاجابة|الإجابة|الجواب)[:=]/, '') }
-  return stripLabel(na) === stripLabel(nb)
+  if (stripLabel(na) === stripLabel(nb)) return true
+  // order never matters in enumerations of values: x^6y^4 === y^4x^6
+  var ca = canonicalMonomial(a)
+  var cb = canonicalMonomial(b)
+  if (ca !== '' && cb !== '' && ca === cb) return true
+  // pure arithmetic evaluates equal: 2^10 = 1024, 1/2 = 0.5
+  var va = tryNumeric(a)
+  var vb = tryNumeric(b)
+  if (va !== null && vb !== null && Math.abs(va - vb) < 1e-9) return true
+  return false
 }
 
 /* word-overlap similarity (used ONLY to detect "AI read the question text") */
@@ -202,16 +251,16 @@ export async function gradeImageAnswer(params: {
   prompt += acceptedStr + '\n\n'
   prompt += 'The student attached a PHOTO that is supposed to show THEIR OWN handwritten or typed answer to the question above.\n\n'
   prompt += 'Follow these steps EXACTLY:\n'
-  prompt += 'STEP 1 — Look at the photo. Identify the STUDENT\'S OWN work: handwriting/typing produced by the student (the answer, keywords, dates, names).\n'
+  prompt += 'STEP 1 — Look at the photo. Identify the STUDENT\'S OWN work: handwriting/typing produced by the student (the answer, keywords, dates, names, calculations).\n'
   prompt += 'STEP 2 — IGNORE all pre-printed content: the question text itself, choice lists, headers, logos, other questions on the page. The student did not write those, and they are NOT their answer.\n'
-  prompt += 'STEP 3 — TOPIC CHECK (onTopic): does the photo actually contain the student\'s OWN answer attempt to THIS exact question? If it only shows the printed question, or a different question, or nothing readable → onTopic=false.\n'
-  prompt += 'STEP 4 — If onTopic: read the student\'s answer carefully and UNDERSTAND what they mean (they may write keywords, short phrases, dates, or full sentences).\n'
-  prompt += 'STEP 5 — Compare the student\'s answer with the model answer and accepted answers by MEANING, not by exact wording. The student does NOT need to copy the model answer word-for-word; if their answer conveys the same correct fact(s), names, dates or reasons, it is CORRECT. Equivalent forms are CORRECT: ١٩٥٢ = 1952 = 1952م, different Arabic spellings of the same name or term, listing the same points in a different order.\n'
-  prompt += 'STEP 6 — Grade by the KEY FACTS the question asks for: a complete correct key fact earns credit; missing or wrong key facts lose credit proportionally. If the whole answer is correct → full points.\n'
-  prompt += 'STEP 7 — Be fair but strict. If you cannot read a clear answer from the student\'s own work → isCorrect=false and confidence="low". Never guess and never give benefit of the doubt.\n\n'
+  prompt += 'STEP 3 — TOPIC CHECK (onTopic): does the photo actually contain the student\'s OWN answer attempt to THIS exact question? If it only shows the printed question, or a different question, or nothing at all → onTopic=false.\n'
+  prompt += 'STEP 4 — If onTopic: find the student\'s FINAL ANSWER. It is usually the LAST thing they wrote: after the last "=", ":", a boxed/circled/underlined value, or the concluding line/keyword. Read it UNDERSTANDING what they mean — messy handwriting, crossed-out attempts and unreadable middle steps DO NOT matter. Only the final answer + the key facts matter.\n'
+  prompt += 'STEP 5 — Compare the student\'s final answer with the MODEL ANSWER (الإجابة النموذجية) and accepted answers by MEANING and by VALUE, not by exact wording. The student does NOT need to copy the model answer word-for-word; if their answer conveys the same correct fact(s), names, dates, numbers or reasons, it is CORRECT. Equivalent forms are CORRECT: ١٩٥٢ = 1952 = 1952م, different Arabic spellings of the same name or term, listing the same points in a different order, a final value contained inside the model\'s fuller answer.\n'
+  prompt += 'STEP 6 — Grade by the KEY FACTS the question asks for: a complete correct key fact earns credit; missing or wrong key facts lose credit proportionally. A correct final answer with messy/unreadable steps is still CORRECT (full points). A genuinely DIFFERENT final answer is WRONG even if the wording looks nice. Never mark an answer wrong just because the handwriting is hard to read — judge the final answer.\n'
+  prompt += 'STEP 7 — ALWAYS give a definite verdict (isCorrect true or false). Only say onTopic=false when the photo truly contains NO student work at all.\n\n'
   prompt += 'awardedPoints: an integer from 0 to ' + maxPoints + ' (' + maxPoints + ' only when isCorrect=true).\n\n'
   prompt += 'Respond with ONLY this JSON — no markdown, no extra text:\n'
-  prompt += '{"onTopic": true, "extractedAnswer": "إجابة الطالب زي ما كتبها (3 سطور كحد أقصى)", "finalAnswer": "النقطة الأساسية في إجابته", "isCorrect": true, "awardedPoints": ' + maxPoints + ', "confidence": "high", "feedback": "تعليق قصير بالعامية المصرية"}\n'
+  prompt += '{"onTopic": true, "extractedAnswer": "إجابة الطالب زي ما كتبها (3 سطور كحد أقصى)", "finalAnswer": "الإجابة النهائية/النقطة الأساسية في إجابته", "isCorrect": true, "awardedPoints": ' + maxPoints + ', "confidence": "high", "feedback": "تعليق قصير بالعامية المصرية"}\n'
 
   var parts = [
     { text: prompt },
@@ -240,7 +289,9 @@ export async function gradeImageAnswer(params: {
   var feedback = String(parsed.feedback || '').trim()
   var needsGrading = false
 
-  // ---- GUARD 1: photo is not actually the student's answer to THIS question
+  // ---- GUARD 1: photo is not actually the student's answer to THIS question.
+  // Decisive verdict (0 points + clear feedback) instead of stalling on manual
+  // review — the teacher can override from the admin panel if needed.
   if (!onTopic) {
     return {
       extractedAnswer: extractedAnswer,
@@ -248,22 +299,25 @@ export async function gradeImageAnswer(params: {
       isCorrect: false,
       awardedPoints: 0,
       maxPoints: maxPoints,
-      feedback: feedback || 'الصورة مفيهاش إجابة واضحة للسؤال ده — هتتراجع من المستر',
+      feedback: feedback || 'الصورة مفيهاش إجابة واضحة للسؤال ده — لو ده حل الطالب صحّحه من الأدمن',
       onTopic: false,
       confidence: confidence,
-      needsGrading: true,
+      needsGrading: false,
     }
   }
 
   // ---- GUARD 2: the "extracted answer" is basically the QUESTION text
-  if (question && extractedAnswer && wordSimilarity(extractedAnswer, question) >= 0.8) {
+  // (the model read the printed question instead of the student's work).
+  // Only a problem when there is NO final answer to grade — with a real
+  // finalAnswer we grade by it and never stall the submission.
+  if (question && extractedAnswer && !finalAns && wordSimilarity(extractedAnswer, question) >= 0.8) {
     return {
       extractedAnswer: extractedAnswer,
       finalAnswer: finalAns,
       isCorrect: false,
       awardedPoints: 0,
       maxPoints: maxPoints,
-      feedback: 'اللي اتقري من الصورة شبه نص السؤال مش إجابة الطالب — هتتراجع من المستر',
+      feedback: 'مفيش إجابة نهائية واضحة في الصورة — راجعها من الأدمن لو الطالب حصل حل',
       onTopic: true,
       confidence: 'low',
       needsGrading: true,
@@ -292,13 +346,16 @@ export async function gradeImageAnswer(params: {
   // AI said wrong → 0 points, period
   if (!isCorrect) awardedPoints = 0
 
-  // ---- GUARD 4: low confidence → send to admin review instead of a random verdict
-  if (confidence === 'low') needsGrading = true
+  // ---- GUARD 4: low confidence NEVER blocks the result anymore — the AI
+  // verdict stands and the teacher can still flip it from the admin panel.
+  if (confidence === 'low' && !feedback) {
+    feedback = isCorrect ? 'إجابة صحيحة (بثقة منخفضة — راجعها لو شكيت)' : 'إجابة مختلفة عن الصحيحة (بثقة منخفضة)'
+  }
 
   // display text: work + final answer
   var displayExtracted = extractedAnswer
   if (finalAns && finalAns !== extractedAnswer) {
-    displayExtracted = (extractedAnswer ? extractedAnswer + '\n' : '') + 'النقطة الأساسية: ' + finalAns
+    displayExtracted = (extractedAnswer ? extractedAnswer + '\n' : '') + 'الإجابة النهائية: ' + finalAns
   }
 
   return {
@@ -319,20 +376,30 @@ export async function gradeImageAnswer(params: {
 //   1. [📷 صورة مرفقة: MEDIA_ID]
 //   2. [📷 صورة مرفقة: /api/files/MEDIA_ID]
 //   3. [📷 صورة مرفقة: /some/path/MEDIA_ID]
+//   4. CORRUPTED markers — junk glued after the id like "…/cmt…4y(85owp8h/"
+//      → the cuid pattern c[a-z0-9]{14,} is extracted and trailing junk dropped.
 export function extractImageMediaIds(answerText: string): string[] {
   if (!answerText || typeof answerText !== 'string') return []
-  var matches = answerText.match(/\[📷\s*صورة\s*مرفقة:\s*([^\]]+?)\]/g) || []
+  var matches = answerText.match(/\[📷[^\]]*\]?/g) || []
   var ids: string[] = []
   matches.forEach(function (m) {
-    var idMatch = m.match(/\[📷\s*صورة\s*مرفقة:\s*([^\]]+?)\]/)
-    if (idMatch && idMatch[1]) {
-      var raw = idMatch[1].trim()
-      raw = raw.replace(/^["']|["']$/g, '')
-      var lastSlash = raw.lastIndexOf('/')
-      var mediaId = lastSlash >= 0 ? raw.substring(lastSlash + 1) : raw
-      mediaId = mediaId.trim()
-      if (mediaId) ids.push(mediaId)
+    // 1st try: a real /api/files/<id> path (also survives junk right after the id)
+    var pathMatch = m.match(/\/api\/files\/(c[a-z0-9]{8,})/i)
+    var mediaId = pathMatch ? pathMatch[1] : ''
+    if (!mediaId) {
+      var idMatch = m.match(/[:\s]\s*([^\]]+)/)
+      var raw = idMatch && idMatch[1] ? idMatch[1].trim().replace(/^["']+|["']+$/g, '') : ''
+      if (raw) {
+        var cuid = raw.match(/c[a-z0-9]{14,}/i)
+        if (cuid) mediaId = cuid[0]
+        else {
+          var lastSlash = raw.lastIndexOf('/')
+          mediaId = (lastSlash >= 0 ? raw.substring(lastSlash + 1) : raw).trim()
+          mediaId = mediaId.replace(/[^\w\-].*$/, '').trim()
+        }
+      }
     }
+    if (mediaId && ids.indexOf(mediaId) === -1) ids.push(mediaId)
   })
   return ids
 }
@@ -340,7 +407,9 @@ export function extractImageMediaIds(answerText: string): string[] {
 /* ------------------------------------------------------------------
  * TEXT grading — for writing answers typed without an image.
  * Same strict contract as image grading. The grader UNDERSTANDS the
- * question and compares by meaning (not literal string match).
+ * question, finds the FINAL answer and compares by MEANING against the
+ * model answer — and ALWAYS returns a decisive verdict (needsGrading
+ * false): the teacher can flip any verdict from the admin panel.
  * ------------------------------------------------------------------ */
 export async function gradeTextAnswer(params: {
   question: string
@@ -363,24 +432,31 @@ export async function gradeTextAnswer(params: {
   var acceptedAnswers = Array.isArray(params.acceptedAnswers) ? params.acceptedAnswers : []
   var maxPoints = typeof params.maxPoints === 'number' ? params.maxPoints : 5
 
-  if (!studentAnswer || !modelAnswer) return null
+  // modelAnswer is OPTIONAL now: when missing, the AI answers the question
+  // itself and grades against its own solution (nothing left ungraded)
+  if (!studentAnswer || (!modelAnswer && !question)) return null
   if (!hasGeminiKey()) return null
 
   var acceptedStr = acceptedAnswers.length > 0
     ? '\nOther accepted answers: ' + acceptedAnswers.join(' | ')
     : ''
 
-  var prompt = 'You are an expert, STRICT school teacher of Social Studies (الدراسات الاجتماعية) and History. Grade the student\'s typed answer. The student answers in Arabic (Egyptian curriculum).\n\n'
-  prompt += 'THE QUESTION:\n' + question + '\n\n'
-  prompt += 'STUDENT ANSWER:\n' + studentAnswer + '\n\n'
-  prompt += 'MODEL ANSWER:\n' + modelAnswer + '\n'
+  var prompt = 'You are an expert, FAIR school teacher of Social Studies (الدراسات الاجتماعية) and History. Grade the student\'s typed answer against the MODEL ANSWER by MEANING and by the FINAL answer — never by literal wording. The student answers in Arabic (Egyptian curriculum).\n\n'
+  prompt += 'THE QUESTION:\n' + repairCorruptMath(question) + '\n\n'
+  prompt += 'STUDENT ANSWER:\n' + repairCorruptMath(studentAnswer) + '\n\n'
+  prompt += 'MODEL ANSWER (الإجابة النموذجية):\n' + (modelAnswer ? repairCorruptMath(modelAnswer) : '(none - ANSWER the question yourself first: work out the correct complete answer (names, dates, reasons, key facts), then grade the student answer against YOUR own answer. Grade on the key facts AND the reasoning: complete correct facts → full points, correct idea with a small gap → about half, wrong or unrelated → 0)') + '\n'
   prompt += acceptedStr + '\n\n'
+  prompt += 'CORE PRINCIPLE — find the student\'s FINAL answer (usually after the last "=", ":" or the concluding line) and compare it + the key facts with the model answer. The student answer is CORRECT (full points) whenever it conveys the same correct fact(s)/final value, even if written differently:\n'
+  prompt += '- Different wording: the student uses their own words → still CORRECT\n'
+  prompt += '- Equivalent forms: ١٩٥٢ = 1952 = 1952م, different Arabic spellings of the same name/term, same points in a different order\n'
+  prompt += '- The final value may be CONTAINED in the model solution (model shows steps, student wrote only the final result) → still CORRECT\n'
   prompt += 'Rules:\n'
   prompt += '1. UNDERSTAND the question first: what key fact(s), names, dates, reasons or terms does it ask for?\n'
-  prompt += '2. Compare the student answer with the model answer by MEANING, not by exact wording. If the student conveys the same correct fact(s) in their own words, it is CORRECT. Equivalent forms are CORRECT: ١٩٥٢ = 1952 = 1952م, different Arabic spellings of the same name/term, same points in a different order.\n'
-  prompt += '3. Grade by the key facts: complete correct key facts → full credit; partially correct → partial credit; wrong or unrelated → 0.\n'
-  prompt += '4. If the student answer does not actually address the question (e.g. it is just the question text, or unrelated) → isCorrect=false and confidence="low".\n'
-  prompt += '5. Never guess. If unsure → confidence="low".\n\n'
+  prompt += '2. Extract the student\'s FINAL answer (after the last "=" or the last result/conclusion written).\n'
+  prompt += '3. Compare ONLY final values/key facts with the model final answer / accepted answers — accept all equivalent forms above.\n'
+  prompt += '4. Grade by the key facts: complete correct key facts → full credit; partially correct → partial credit; wrong or unrelated → 0.\n'
+  prompt += '5. If the student answer does not actually address the question (e.g. it is just the question text, or unrelated) → isCorrect=false and confidence="low" — but STILL a definite verdict.\n'
+  prompt += '6. Never guess randomly. If unsure → confidence="low" and give your best verdict — the teacher reviews it from the admin panel.\n\n'
   prompt += 'awardedPoints: integer 0 to ' + maxPoints + ' (' + maxPoints + ' only when isCorrect=true).\n\n'
   prompt += 'Respond with ONLY this JSON — no markdown:\n'
   prompt += '{"isCorrect": true, "awardedPoints": ' + maxPoints + ', "confidence": "high", "feedback": "تعليق قصير بالعامية المصرية"}\n'
@@ -418,6 +494,8 @@ export async function gradeTextAnswer(params: {
     maxPoints: maxPoints,
     feedback: String(parsed.feedback || '').trim() || (isCorrect ? 'إجابة صحيحة' : 'إجابة مختلفة عن الإجابة الصحيحة'),
     confidence: confidence,
-    needsGrading: confidence === 'low',
+    // Decisive: low confidence never blocks — the AI verdict stands and the
+    // teacher can flip it from the admin panel. needsGrading=false دايماً
+    needsGrading: false,
   }
 }

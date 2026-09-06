@@ -14,6 +14,7 @@
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
 import { gradeImageAnswer, gradeTextAnswer, extractImageMediaIds } from '@/lib/ai-image-grader'
+import { quickSmartMatch } from '@/lib/smart-grader'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -89,23 +90,6 @@ async function ensureTable() {
   } catch (e) {
     console.error('Ensure HomeworkResult table error:', e)
   }
-}
-
-/* quick local text matching (fast path, no AI) */
-function quickTextMatch(answerText: string, modelAnswer: string, acceptedAnswers: string[]): boolean {
-  var cleanStudent = answerText.toLowerCase().replace(/\s+/g, ' ').trim()
-  if (!cleanStudent) return false
-  if (acceptedAnswers && acceptedAnswers.length > 0) {
-    for (var ai = 0; ai < acceptedAnswers.length; ai++) {
-      var acc = (acceptedAnswers[ai] || '').trim().toLowerCase().replace(/\s+/g, ' ')
-      if (acc && (cleanStudent === acc || cleanStudent.includes(acc) || acc.includes(cleanStudent))) return true
-    }
-  }
-  if (modelAnswer) {
-    var cleanModel = modelAnswer.toLowerCase().replace(/\s+/g, ' ').trim()
-    if (cleanStudent === cleanModel || cleanStudent.includes(cleanModel) || cleanModel.includes(cleanStudent)) return true
-  }
-  return false
 }
 
 /* look up a student answer by ORIGINAL question index */
@@ -370,15 +354,46 @@ export async function POST(request) {
           feedback: 'Not answered',
         })
       }
-      if (!wa.modelAnswer) {
+      if (!wa.modelAnswer && (!wa.acceptedAnswers || wa.acceptedAnswers.length === 0)) {
+        // No model answer → the AI ANSWERS the question itself and grades
+        // (old behavior: "يحتاج تصحيح يدوي" — the teacher wants nothing left ungraded)
+        try {
+          var noModelGrade = await gradeTextAnswer({
+            question: wa.question,
+            studentAnswer: answerText,
+            modelAnswer: '',
+            acceptedAnswers: wa.acceptedAnswers,
+            maxPoints: wa.points,
+          })
+          if (noModelGrade) {
+            return Object.assign({}, wa, {
+              gradingStatus: 'graded',
+              needsGrading: false,
+              aiExtractedAnswer: answerText,
+              aiIsCorrect: noModelGrade.isCorrect === true,
+              aiFeedback: noModelGrade.feedback || '',
+              aiAwardedPoints: noModelGrade.awardedPoints || 0,
+              isCorrect: noModelGrade.isCorrect === true,
+              awardedPoints: noModelGrade.awardedPoints || 0,
+              feedback: noModelGrade.feedback || '',
+            })
+          }
+        } catch (noModelErr) {
+          console.error('[HW BG] no-model-answer grade error:', noModelErr)
+        }
+        // AI unavailable → count attempted work instead of leaving it ungraded
+        var hasWork = answerText.replace(/\[📷[^\]]*\]/g, '').trim().length >= 3
         return Object.assign({}, wa, {
-          gradingStatus: 'manual',
-          needsGrading: true,
-          feedback: 'لا توجد إجابة نموذجية - يحتاج تصحيح يدوي',
+          gradingStatus: 'graded',
+          needsGrading: false,
+          isCorrect: hasWork,
+          awardedPoints: hasWork ? Math.ceil(wa.points / 2) : 0,
+          feedback: hasWork ? 'إجابة مكتوبة — المستر هيظبط الدرجة النهائية' : 'لم يتم الإجابة',
         })
       }
-      // fast local match
-      if (quickTextMatch(answerText, wa.modelAnswer, wa.acceptedAnswers)) {
+      // fast smart match (no AI: final-segment + accepted-answer normalization)
+      var quickVerdict = quickSmartMatch(answerText, wa.modelAnswer, wa.acceptedAnswers || [])
+      if (quickVerdict === true) {
         return Object.assign({}, wa, {
           gradingStatus: 'graded',
           needsGrading: false,
@@ -386,9 +401,9 @@ export async function POST(request) {
           awardedPoints: wa.points,
           aiExtractedAnswer: answerText,
           aiIsCorrect: true,
-          aiFeedback: 'إجابة صحيحة (تطابق نصي)',
+          aiFeedback: 'الإجابة صحيحة ✓ (مطابقة للإجابة النموذجية)',
           aiAwardedPoints: wa.points,
-          feedback: 'إجابة صحيحة',
+          feedback: 'الإجابة صحيحة ✓',
         })
       }
       // AI text grading

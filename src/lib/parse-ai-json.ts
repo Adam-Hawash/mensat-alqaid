@@ -65,6 +65,67 @@ export function parseAiJson(text: string): any | null {
 }
 
 /*
+ * repairCorruptMath — fix ALREADY-CORRUPTED stored text (render time / prompt
+ * building). Ported from maths-genius src/lib/math-text.ts — منصة القائد
+ * مفيش عليها ملف math-text منفصل فالمكان ده هو مركز إصلاح نص الرياضيات.
+ * Safe on any string: only touches control chars sitting exactly where a
+ * LaTeX command would start, plus the bare "rac{" leftover signature.
+ * Also repairs structurally-broken LaTeX the models keep producing:
+ *   \frac{A}^{B}   →  \frac{A}{B}
+ *   a^b^c          →  a^{b^{c}}     (nested exponents stack properly)
+ */
+export function repairCorruptMath(input: string): string {
+  if (!input) return input
+  var s = String(input)
+  // U+FFFD replacement chars are lossy-encoding leftovers — never legitimate
+  s = s.replace(/\uFFFD/g, '')
+  // ---- power heal (multi-digit powers stored broken by the old keyboard bug) ----
+  // "2¹0" → "2¹⁰" , "x²15" → "x²¹⁵" : a superscript run followed by normal-size
+  // digits was ALWAYS meant to be one whole power — join them at render time.
+  // Also upgrades Arabic-Indic digits that got stuck onto a Latin superscript run.
+  s = s.replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹])([0-9٠-٩]+)/g, function (_m, sup: string, digits: string) {
+    var SUP_OF: Record<string, string> = {
+      '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+      '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+      '٠': '⁰', '١': '¹', '٢': '²', '٣': '³', '٤': '⁴',
+      '٥': '⁵', '٦': '⁶', '٧': '⁷', '٨': '⁸', '٩': '⁹',
+    }
+    var out = sup
+    for (var i = 0; i < digits.length; i++) out += SUP_OF[digits[i]] || digits[i]
+    return out
+  })
+  // <FF>rac{…} → \frac{…}  (restore only when letters follow — a real command)
+  s = s.replace(/\f(?=[a-zA-Z])/g, '\\f')
+  // leftover invisible FF junk (not part of a command) → drop
+  s = s.replace(/\f/g, '')
+  // <TAB>imes / <TAB>ext / <TAB>heta … → \times / \text / \theta
+  s = s.replace(/\t(?=(?:imes|ext|heta|herefore|hereis|binom))([a-z]*)/g, '\\t$1')
+  // <BS>eta / <BS>oxed → \beta / \boxed
+  s = s.replace(/[\u0008](?=(?:eta|oxed|inom|ig))/g, '\\b')
+  // <CR>ight / <CR>ho / <CR>angle → \right / \rho / \rangle
+  s = s.replace(/\r(?=(?:ho|ight|angle|m))/g, '\\r')
+  // stray CR without a command after it → plain newline
+  s = s.replace(/\r/g, '\n')
+  // bare "rac{…}" (control char already stripped by an older lossy layer) → \frac{…}
+  s = s.replace(/(^|[^\\a-zA-Z])rac(?=[\s{(])/g, '$1\\frac')
+  // ---- structural repairs (model-authored broken LaTeX) ----
+  // \frac{A}^{B} or \frac(A)^{B}  →  \frac{A}{B}
+  for (var p = 0; p < 2; p++) {
+    s = s.replace(/\\(?:d|t)?frac\s*\{([^{}]*)\}\s*\^\s*\{([^{}]*)\}/g, '\\frac{$1}{$2}')
+    s = s.replace(/\\(?:d|t)?frac\s*\(([^()]*)\)\s*\^\s*\{([^{}]*)\}/g, '\\frac{$1}{$2}')
+  }
+  // chained exponents  a^b^c  →  a^{b^{c}}  (repeat to catch triples; ASCII + Arabic-Indic digits)
+  var SUP_ATOM = '(\\{(?:[^{}]|\\{[^{}]*\\})*\\}|[A-Za-z0-9\\u0660-\\u0669\\u06F0-\\u06F9]+)'
+  for (var q = 0; q < 3; q++) {
+    var chainRe = new RegExp('\\^\\s*' + SUP_ATOM + '\\s*\\^\\s*' + SUP_ATOM, 'g')
+    s = s.replace(chainRe, function (_m, a: string, b: string) {
+      return '^{' + a + '^{' + b + '}}'
+    })
+  }
+  return s
+}
+
+/*
  * repairModelJson — prepare raw model output BEFORE JSON.parse so LaTeX with
  * single backslashes survives as text instead of being eaten by JSON escapes
  * (\frac → form-feed + "rac", \times → tab + "imes" …).

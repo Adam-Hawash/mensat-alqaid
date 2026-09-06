@@ -152,7 +152,7 @@ export default function LessonsSection() {
                   var s = getStyle(offset)
                   var isCenter = offset === 0
                   var ytId = getYouTubeId(video.url)
-                  var thumb = video.thumbnail || (ytId ? 'https://img.youtube.com/vi/' + ytId + '/mqdefault.jpg' : null)
+                  var thumb = video.thumbnail || video.thumb || (ytId ? 'https://img.youtube.com/vi/' + ytId + '/mqdefault.jpg' : null)
 
                   return (
                     <div

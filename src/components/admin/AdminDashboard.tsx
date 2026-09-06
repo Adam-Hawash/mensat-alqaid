@@ -15,7 +15,8 @@ import {
   Megaphone, Plus, Check, X, Trash2, LogOut, Loader2,
   BarChart3, RefreshCw, Settings, Upload, MessageSquare,
   Link2, Activity, Eye, ImagePlus, Trophy, UserX, Camera,
-  PlayCircle, Pause, Film, Search, FileDown, PictureInPicture2, Save, Sparkles, Wallet
+  PlayCircle, Pause, Film, Search, FileDown, PictureInPicture2, Save, Sparkles, Wallet,
+  Smartphone, RotateCcw, ShieldCheck
 } from 'lucide-react'
 import { CMSPanel } from './CMSPanel'
 import { SocialLinksPanel } from './SocialLinksPanel'
@@ -381,6 +382,21 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
     catch { toast.error('خطأ في حذف الطالب') }
   }
 
+  // ===== ربط الجهاز: تحكم المستر =====
+  const handleDeviceAction = async (id: string, action: 'allowAll' | 'bindOnly', currentValue: { allowAllDevices?: boolean; deviceId?: string }) => {
+    try {
+      var body: any = {}
+      if (action === 'allowAll') body.allowAllDevices = !(currentValue.allowAllDevices === true)
+      else body.resetDevice = true
+      const res = await fetch(`/api/students/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (!res.ok) throw new Error()
+      toast.success(action === 'allowAll'
+        ? (body.allowAllDevices ? 'تم السماح بالدخول من كل الأجهزة ✅' : 'تم قفل الحساب على جهازه الأصلي 🔒')
+        : 'تم فك ربط الجهاز — أول جهاز يسجل دخول بعد كده هيبقى هو جهاز الحساب')
+      loadStudents(false)
+    } catch { toast.error('خطأ في تحديث إعدادات الجهاز') }
+  }
+
   const statusColors: Record<string, string> = { pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', approved: 'bg-teal-50 text-teal-700 dark:bg-emerald-900/30 dark:text-emerald-400', rejected: 'bg-rose-50 text-rose-400 dark:bg-red-900/30 dark:text-red-400' }
   const statusLabels: Record<string, string> = { pending: 'قيد المراجعة', approved: 'مقبول', rejected: 'مرفوض' }
 
@@ -495,6 +511,13 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-sm">{s.name}</span>
                     <Badge variant="secondary" className={`text-[10px] ${statusColors[s.status]}`}>{statusLabels[s.status]}</Badge>
+                    {(s as any).allowAllDevices === true ? (
+                      <Badge className="text-[9px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 flex items-center gap-0.5"><ShieldCheck className="h-2.5 w-2.5" />سماح كل الأجهزة</Badge>
+                    ) : (s as any).deviceId ? (
+                      <Badge variant="outline" className="text-[9px] border-primary/40 text-primary flex items-center gap-0.5"><Smartphone className="h-2.5 w-2.5" />مربوط بجهازه</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[9px] text-muted-foreground">هيتربط بأول جهاز يدخل بيه</Badge>
+                    )}
                     {s.loginCount > 0 && <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Eye className="h-3 w-3" />{s.loginCount} دخول</span>}
                     {(s as any).watchedVideoCount > 0 && <span className="text-[10px] text-purple-600 dark:text-purple-400 flex items-center gap-0.5"><Video className="h-3 w-3" />{(s as any).watchedVideoCount} فيديو</span>}
                   </div>
@@ -507,6 +530,10 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20" onClick={() => loadStudentProgress(s.id)} title="تفاصيل"><BarChart3 className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" className={(s as any).allowAllDevices === true ? 'h-8 w-8 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20' : 'h-8 w-8 text-muted-foreground hover:bg-muted'} onClick={() => handleDeviceAction(s.id, 'allowAll', { allowAllDevices: (s as any).allowAllDevices })} title={(s as any).allowAllDevices === true ? 'إلغاء السماح — رجّع الحساب على جهازه الأصلي بس' : 'سماح الطالب يدخل من كل الأجهزة'}><Smartphone className={'h-4 w-4 ' + ((s as any).allowAllDevices === true ? 'text-emerald-600' : '')} /></Button>
+                  {(s as any).deviceId && (s as any).allowAllDevices !== true && (
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20" onClick={() => handleDeviceAction(s.id, 'bindOnly', {})} title="فك ربط الجهاز — الطالب يقدر يسجل من جهاز جديد وهيتربط بيه"><RotateCcw className="h-4 w-4" /></Button>
+                  )}
                   {s.status === 'pending' && (<>
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" onClick={() => handleAction(s.id, 'approved')}><Check className="h-4 w-4" /></Button>
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => handleAction(s.id, 'rejected')}><X className="h-4 w-4" /></Button>
@@ -524,6 +551,8 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
 
 /* ========== VIDEO MANAGER (with REAL XHR upload progress) ========== */
 function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
+  const currentAdmin = useAppStore(function (s) { return s.currentAdmin })
+  const adminId = currentAdmin?.id || ''
   const [videos, setVideos] = useState<VideoType[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -547,6 +576,8 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
     try {
       const params = new URLSearchParams({ pageSize: '100' })
       if (filterGrade) params.set('grade', filterGrade)
+      // adminId → الأدمن بيشوف القايمة كاملة (بما فيها url/filePath للمعاينة)
+      if (adminId) params.set('adminId', adminId)
       const res = await fetch(`/api/videos?${params}`)
       if (!res.ok) {
         try { const errData = await res.json(); toast.error('خطأ في تحميل الفيديوهات: ' + (errData.error || ''), { duration: 8000 }) } catch { toast.error('خطأ في السيرفر', { duration: 8000 }) }
@@ -594,6 +625,7 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
         grade: formGrade,
         url: formUrl.trim(),
         price: formPrice.trim() || '0',
+        adminId: adminId,
       }
       if (videoPath) { body.filePath = videoPath; body.fileType = videoType }
       if (thumbnailPath) { body.thumbnail = thumbnailPath }
@@ -626,7 +658,7 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
 
   const handleDelete = async (id: string) => {
     try {
-      await fetch(`/api/videos/${id}`, { method: 'DELETE' })
+      await fetch(`/api/videos/${id}?adminId=${encodeURIComponent(adminId)}`, { method: 'DELETE' })
       toast.success('تم حذف الفيديو')
       loadVideos(false)
       onStatsRefresh()
@@ -753,7 +785,7 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {videos.map((v) => {
               const ytId = getYouTubeId(v.url)
-              const thumb = v.thumbnail || (ytId ? `https://img.youtube.com/vi/${ytId}/mqdefault.jpg` : null)
+              const thumb = v.thumbnail || (ytId ? `https://img.youtube.com/vi/${ytId}/mqdefault.jpg` : null) || (v as any).thumb || null
               return (
                 <div key={v.id} className="rounded-lg border bg-card overflow-hidden group">
                   <div className="relative aspect-video bg-black">
@@ -771,8 +803,8 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
                     <div className="flex items-center justify-between">
                     <Badge variant="outline" className="text-[10px]">{GRADE_SHORT_NAMES[v.grade] || v.grade}</Badge>
                       <div className="flex items-center gap-1">
-                        {v.filePath && <Badge variant="secondary" className="text-[10px]">📎 ملف</Badge>}
-                        {v.url && !v.filePath && <Badge variant="secondary" className="text-[10px]">▶ YouTube</Badge>}
+                        {(v.filePath || (v as any).kind === 'file') && <Badge variant="secondary" className="text-[10px]">📎 ملف</Badge>}
+                        {((v.url && !v.filePath) || (v as any).kind === 'youtube') && <Badge variant="secondary" className="text-[10px]">▶ YouTube</Badge>}
                       </div>
                     </div>
                     <p className="text-[10px] text-muted-foreground">{new Date(v.createdAt).toLocaleDateString('ar-EG')}</p>
