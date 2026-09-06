@@ -54,7 +54,7 @@ export default function HeroSection() {
   var heroSubtitle = cfg.hero_subtitle || 'هنساعدك تفهم التاريخ والدراسات بأسلوب سهل وبسيط'
   var heroBadge = cfg.hero_badge || 'تاريخ ودراسات ببساطة'
   var heroDevLabel = cfg.hero_developer_label || 'Hero Developer'
-  var heroDevUrl = cfg.hero_developer_url || 'https://hero-developer-portfolio-11.vercel.app'
+  var heroDevUrl = cfg.hero_developer_url || 'https://prime-developer-portfolio-11.vercel.app/'
 
   return (
     <section className="relative overflow-hidden" dir="rtl" style={{ background: 'linear-gradient(135deg, #0a2e2f 0%, #0F3D3E 40%, #1a4d4d 100%)' }}>
