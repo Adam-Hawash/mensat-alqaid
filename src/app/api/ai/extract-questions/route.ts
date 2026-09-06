@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { parseAiJson } from '@/lib/parse-ai-json'
 // FILE: src/app/api/ai/extract-questions/route.ts
 // ROUTE: POST /api/ai/extract-questions
 // PURPOSE: SMART extraction of questions from uploaded file (PDF/image) or URL
@@ -116,7 +117,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Could not parse AI response' }, { status: 500 })
     }
 
-    var parsed = JSON.parse(jsonMatch[0])
+    var parsed = parseAiJson(text)
+    if (!parsed) {
+      return NextResponse.json({ error: 'Could not parse AI response' }, { status: 500 })
+    }
     var questions = (parsed.questions || []).map(function(q) {
       var qText = q.question || q.q || ''
       var isWriting = q.type === 'writing' || q.type === 'essay'

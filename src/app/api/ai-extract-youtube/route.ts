@@ -8,6 +8,7 @@
 
 import { NextResponse } from 'next/server'
 import { callGemini as callGeminiCentral, hasGeminiKey } from '@/lib/gemini'
+import { parseAiJson } from '@/lib/parse-ai-json'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -97,7 +98,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Could not parse AI response' }, { status: 500 })
     }
 
-    var parsed = JSON.parse(jsonMatch[0])
+    var parsed = parseAiJson(text)
+    if (!parsed) {
+      return NextResponse.json({ error: 'Could not parse AI response' }, { status: 500 })
+    }
     var questions = (parsed.questions || []).map(function(q) {
       var opts = Array.isArray(q.options) ? q.options.slice() : ['N/A', 'N/A', 'N/A', 'N/A']
       while (opts.length < 4) { opts.push('N/A') }

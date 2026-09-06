@@ -24,6 +24,7 @@ var DEFAULTS = {
   hero_developer_url: "https://prime-developer-portfolio-11.vercel.app/",
   hero_developer_label: "Prime Developer",
   footer_made_by_label: "Developed by Adam Hawash",
+  prime_developer_url: "https://prime-developer-portfolio-11.vercel.app/",
 
   // === Instructor ===
   instructor_name: "مستر عمرو رشدي",

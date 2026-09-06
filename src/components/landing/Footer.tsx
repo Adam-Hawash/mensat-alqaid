@@ -3,7 +3,7 @@
 import { useAppStore } from '@/stores/app-store'
 import { GraduationCap, Heart } from 'lucide-react'
 
-const FALLBACK_PORTFOLIO_URL = 'https://hero-developer-portfolio-11.vercel.app'
+const FALLBACK_PORTFOLIO_URL = 'https://prime-developer-portfolio-11.vercel.app'
 
 function FacebookIcon({ className }: { className?: string }) {
   return (
@@ -102,9 +102,9 @@ export function Footer() {
         <div className="h-px bg-border mb-6" />
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          {/* Right side (start in RTL) - Hero Developer */}
+          {/* Right side (start in RTL) - Prime Developer link */}
           <a
-            href={portfolioUrl}
+            href={cfg.prime_developer_url || portfolioUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors group"

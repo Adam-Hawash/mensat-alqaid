@@ -8,6 +8,7 @@
 
 import { NextResponse } from 'next/server'
 import { callGemini as callGeminiCentral, hasGeminiKey } from '@/lib/gemini'
+import { parseAiJson } from '@/lib/parse-ai-json'
 
 export const runtime = 'nodejs'
 export const maxDuration = 180
@@ -201,7 +202,7 @@ export async function POST(request) {
     var jsonMatch = text.match(/\[[\s\S]*\]/)
     if (jsonMatch) {
       try {
-        var aiResults = JSON.parse(jsonMatch[0])
+        var aiResults = parseAiJson(jsonMatch[0])
         if (Array.isArray(aiResults)) {
           // Apply AI results back to graded array
           needAI.forEach(function(wa, idx) {

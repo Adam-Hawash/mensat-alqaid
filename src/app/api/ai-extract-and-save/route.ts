@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
+import { parseAiJson } from '@/lib/parse-ai-json'
 
 export async function POST(request: NextRequest) {
   try {
@@ -111,9 +112,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'لم يتم تحليل رد الذكاء الاصطناعي' }, { status: 500 })
       }
 
-      try {
-        var parsed = JSON.parse(jsonMatch[0])
-      } catch (parseErr) {
+      var parsed = parseAiJson(jsonMatch[0])
+      if (!parsed) {
         return NextResponse.json({ error: 'صيغة JSON غير صحيحة من الذكاء الاصطناعي' }, { status: 500 })
       }
 
