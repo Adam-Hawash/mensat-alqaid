@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { useAppStore, GRADES } from '@/stores/app-store'
-import { getDeviceId } from '@/lib/device'
+import { getDeviceId, getDeviceCandidates } from '@/lib/device'
 import { ArrowRight, User, Phone, Lock, GraduationCap, Users, Loader2, AlertCircle, Bell, ShieldAlert, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -107,7 +107,7 @@ export function LoginView() {
       }
 
       // Student login
-      var res = await fetch('/api/students?phone=' + encodeURIComponent(phone.trim()) + '&password=' + encodeURIComponent(password.trim()) + '&deviceId=' + encodeURIComponent(getDeviceId()))
+      var res = await fetch('/api/students?phone=' + encodeURIComponent(phone.trim()) + '&password=' + encodeURIComponent(password.trim()) + '&deviceId=' + encodeURIComponent(getDeviceId()) + '&deviceIds=' + encodeURIComponent(JSON.stringify(getDeviceCandidates())))
       var data = await res.json()
       // ربط الجهاز: الحساب مربوط بجهاز تاني → مرفوض unless المستر سمح
       if (res.status === 403 && data.deviceBlocked) {
@@ -278,7 +278,7 @@ export function RegisterView() {
     var fullParentName = parentName1.trim() + ' ' + parentName2.trim()
     setLoading(true)
     try {
-      var res = await fetch('/api/students', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: fullName, phone: phone.trim(), grade: grade, parentName: fullParentName, parentPhone: parentPhone.trim(), password: password.trim(), deviceId: getDeviceId() }) })
+      var res = await fetch('/api/students', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: fullName, phone: phone.trim(), grade: grade, parentName: fullParentName, parentPhone: parentPhone.trim(), password: password.trim(), deviceId: getDeviceId(), deviceIds: getDeviceCandidates() }) })
       var data = await res.json()
       if (res.ok) { setCurrentStudent(data.student); setView('student-pending'); toast.success('تم تسجيل طلبك بنجاح! انتظر موافقة المسؤول') }
       else { toast.error(data.error || 'حدث خطأ في التسجيل') }

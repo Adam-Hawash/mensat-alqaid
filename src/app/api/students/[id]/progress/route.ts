@@ -12,6 +12,12 @@ export async function GET(
     const student = await db.student.findUnique({ where: { id } })
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
 
+    // تنظيف النتايج اليتيمة: واجب/امتحان/فيديو اتحذف من المنصة ودرجته فضلت ظاهرة
+    // (المستر طلب: حذف أي حاجة = حذف نقطتها وكل حاجة ليها)
+    try { await db.$executeRawUnsafe('DELETE FROM HomeworkResult WHERE homeworkId NOT IN (SELECT id FROM Homework)') } catch (e) {}
+    try { await db.$executeRawUnsafe('DELETE FROM ExamResult WHERE examId NOT IN (SELECT id FROM Exam)') } catch (e) {}
+    try { await db.$executeRawUnsafe('DELETE FROM VideoProgress WHERE videoId NOT IN (SELECT id FROM Video)') } catch (e) {}
+
     // Video progress
     const videoProgress = await db.videoProgress.findMany({
       where: { studentId: id },

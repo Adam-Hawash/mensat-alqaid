@@ -59,6 +59,32 @@ export function AdminDashboard() {
 
   useEffect(() => { fetchStats() }, [])
 
+  // التصحيح التلقائي الشامل: أول ما الأدمن يفتح اللوحة بنضف النتايج اليتيمة
+  // (واجبات/امتحانات اتحذفت ودرجاتها فضلت) وبنصحح أي نتيجة قديمة ناقصة
+  // بالذكاء الاصطناعي — لحد ما مفيش "يحتاج تصحيح يدوي" خالص. المستر يقدر
+  // يعدّل أي درجة بعدها عادي من زرار التعديل.
+  const sweepRanRef = useRef(false)
+  useEffect(() => {
+    if (sweepRanRef.current) return
+    sweepRanRef.current = true
+    ;(async () => {
+      let sweptAny = false
+      try {
+        for (let i = 0; i < 40; i++) {
+          const res = await fetch('/api/grading/sweep', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ limit: 5 }),
+          })
+          const data = await res.json()
+          if (data && (data.fixed > 0 || (data.cleanedOrphans && (data.cleanedOrphans.homework > 0 || data.cleanedOrphans.exam > 0)))) sweptAny = true
+          if (!data || data.done || data.remaining === 0) break
+        }
+      } catch { /* silent — التنضيف بيتعمل كمان من routes تانية */ }
+      if (sweptAny) fetchStats()
+    })()
+  }, [])
+
   const openSettings = async () => {
     setShowSettings(true)
     setSettingsLoading(true)
