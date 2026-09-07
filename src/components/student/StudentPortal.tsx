@@ -15,8 +15,7 @@ import {
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Image from 'next/image'
 import { toast } from 'sonner'
-import { ProtectedYouTubePlayer } from '@/components/student/ProtectedYouTubePlayer'
-import { ProtectedFilePlayer } from '@/components/student/ProtectedFilePlayer'
+import { SecurePlayerModal } from '@/components/student/SecurePlayerModal'
 import type { Video as VideoType, Homework, Exam, Announcement, Discussion, ExamResult } from '@/stores/app-store'
 
 /* ========== SHUFFLE UTILITIES (per-student) ========== */
@@ -388,6 +387,24 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
   const studentName = currentStudent?.name || ''
   const studentPhone = currentStudent?.phone || ''
   const [localWatched, setLocalWatched] = useState(watchedIds)
+  const [activeLessonVideo, setActiveLessonVideo] = useState<VideoType | null>(null)
+
+  // فتح أي درس (يوتيوب أو ملف مرفوع): بنطلب تذكرة تشغيل واحدة الاستخدام
+  // من /api/video-ticket — مفيش أي YouTube ID أو رابط ملف بيرجع للصفحة.
+  const openPlayModal = (video: VideoType) => {
+    fetch('/api/video-ticket?videoId=' + video.id + '&studentId=' + encodeURIComponent(studentId || ''))
+      .then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, d: d } })
+      })
+      .then(function (res) {
+        if (res.ok && res.d.ok && res.d.ticket) {
+          setActiveLessonVideo({ ...video, playTicket: res.d.ticket } as any)
+        } else {
+          toast.error(res.d.error || 'الفيديو مش متاح — لو دفعت تواصل مع الإدارة', { duration: 6000 })
+        }
+      })
+      .catch(function () { toast.error('حصل خطأ في تشغيل الفيديو') })
+  }
 
   const trackVideoWatch = (videoId: string) => {
     if (!studentId || localWatched.has(videoId)) return
@@ -412,6 +429,7 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
   if (videos.length === 0) return <EmptyState message="لا توجد دروس حالياً" />
 
   return (
+    <>
     <div className="grid gap-4 md:grid-cols-2">
       {videos.map((video) => {
         const kind = videoKind(video)
@@ -452,34 +470,28 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
                     </Button>
                   </div>
                 </div>
-              ) : kind === 'youtube' ? (
-                /* يوتيوب محمي: الصورة المصغرة بس في الكارت — الـ ytId بيتجاب
-                   لحظة التشغيل من بوابة /api/video-play وبعدها الـ iframe يظهر */
-                <GuardedYouTubeCard
-                  videoId={video.id}
-                  title={video.title}
-                  poster={thumbSrc || undefined}
-                  studentId={studentId}
-                  studentName={studentName}
-                  studentPhone={studentPhone}
-                  onWatch={() => {
-                    trackVideoWatch(video.id)
-                    setLocalWatched(prev => new Set([...prev, video.id]))
-                  }}
-                />
-              ) : kind === 'file' ? (
-                /* MP4 محمي: بيجيب رابط موقّع من /api/video-play — filePath الخام مش بيوصل أصلاً */
-                <GatedVideoPlayer
-                  videoId={video.id}
-                  poster={thumbSrc || undefined}
-                  studentId={studentId}
-                  studentName={studentName}
-                  studentPhone={studentPhone}
-                  onWatch={() => {
-                    trackVideoWatch(video.id)
-                    setLocalWatched(prev => new Set([...prev, video.id]))
-                  }}
-                />
+              ) : kind === 'youtube' || kind === 'file' ? (
+                /* كارت الدرس المحمي — صورة مصغرة بس. الفيديو بيتفتح في المشغل
+                   الآمن عن طريق تذكرة واحدة الاستخدام من /api/video-ticket */
+                <div
+                  className="w-full h-full relative cursor-pointer group/vid"
+                  onClick={function () { openPlayModal(video) }}
+                  role="button"
+                  aria-label={'تشغيل ' + video.title}
+                >
+                  {thumbSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={thumbSrc} alt={video.title} className="w-full h-full object-cover transition-transform duration-500 group-hover/vid:scale-105" draggable={false} />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-black/80 to-black" />
+                  )}
+                  <div className="absolute inset-0 bg-black/25 group-hover/vid:bg-black/40 transition-colors" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-2xl transition-transform group-hover/vid:scale-110">
+                      <PlayCircle className="h-8 w-8 text-primary ml-0.5" />
+                    </div>
+                  </div>
+                </div>
               ) : thumbSrc ? (
                 <div className="w-full h-full relative">
                   <Image src={thumbSrc} alt={video.title} fill className="object-cover" sizes="(max-width: 640px) 100vw, 50vw" unoptimized loading="eager" fetchPriority="high" />
@@ -505,158 +517,25 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
         )
       })}
     </div>
+    {/* المشغل الآمن — تذكرة واحدة الاستخدام، مفيش أي لينك في الصفحة */}
+    {activeLessonVideo && (activeLessonVideo as any).playTicket && (
+      <SecurePlayerModal
+        ticket={(activeLessonVideo as any).playTicket}
+        title={activeLessonVideo.title}
+        poster={activeLessonVideo.thumbnail || (activeLessonVideo as any).thumb || undefined}
+        videoId={activeLessonVideo.id}
+        studentId={studentId}
+        onWatch={function () {
+          trackVideoWatch(activeLessonVideo.id)
+          setLocalWatched(function (prev) { return new Set([...prev, activeLessonVideo.id]) })
+        }}
+        onClose={function () { setActiveLessonVideo(null) }}
+      />
+    )}
+    </>
   )
 }
 
-/* ========== GUARDED YOUTUBE CARD — يوتيوب محمي ==========
- * الكارت بيعرض الصورة المصغرة من البروكسي (من غير أي معرف يوتيوب)،
- * ولما الطالب يدوس تشغيل بيجيب الـ ytId لحظتها من /api/video-play
- * (بوابة التشغيل الوحيدة) وبعدها الـ iframe بيظهر + ووترمارك اسمه ورقمه.
- * ======================================================== */
-function GuardedYouTubeCard({ videoId, title, poster, studentId, studentName, studentPhone, onWatch }: {
-  videoId: string
-  title: string
-  poster?: string
-  studentId: string
-  studentName?: string
-  studentPhone?: string
-  onWatch: () => void
-}) {
-  const [ytId, setYtId] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  var openPlayer = function () {
-    if (ytId || loading) return
-    setLoading(true)
-    fetch('/api/video-play?videoId=' + videoId + '&studentId=' + encodeURIComponent(studentId || ''))
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d } }) })
-      .then(function (res) {
-        if (res.ok && res.d.isYouTube && res.d.ytId) {
-          setYtId(res.d.ytId)
-          onWatch()
-        } else {
-          setError(res.d.error || 'الفيديو مش متاح — لو دفعت تواصل مع الإدارة')
-        }
-        setLoading(false)
-      })
-      .catch(function () { setError('حصل خطأ في تشغيل الفيديو'); setLoading(false) })
-  }
-
-  return (
-    <div
-      className="video-protected w-full h-full relative select-none bg-black"
-      onContextMenu={function (e) { e.preventDefault() }}
-    >
-      {ytId ? (
-        /* مشغّل يوتيوب محمي — الووترمارك والتحكم جوه عنصر ملء الشاشة نفسه
-           (الـ iframe الخام كان بيسيب الطالب يفتح fullscreen يوتيوب الأصلي
-           والووترمارك تختفي — دي كانت المشكلة) */
-        <ProtectedYouTubePlayer
-          ytId={ytId}
-          poster={poster}
-          videoId={videoId}
-          studentId={studentId}
-          studentName={studentName}
-          studentPhone={studentPhone}
-          autoplay
-        />
-      ) : error ? (
-        <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-black/70 text-white/80 text-xs p-4 text-center">
-          <Lock className="h-7 w-7 text-white/50" />
-          <span>{error}</span>
-        </div>
-      ) : (
-        <div
-          className="w-full h-full relative cursor-pointer group/vid"
-          onClick={openPlayer}
-          role="button"
-          aria-label={'تشغيل ' + title}
-        >
-          {poster ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={poster} alt={title} className="w-full h-full object-cover" draggable={false} />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-black/80 to-black" />
-          )}
-          <div className="absolute inset-0 bg-black/25 group-hover/vid:bg-black/40 transition-colors" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            {loading ? (
-              <Loader2 className="h-9 w-9 text-white animate-spin" />
-            ) : (
-              <div className="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center shadow-2xl transition-transform group-hover/vid:scale-110">
-                <svg className="h-8 w-8 text-white" style={{ marginLeft: '3px' }} fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z"/>
-                </svg>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* ========== GATED VIDEO PLAYER — حماية الملفات المرفوعة ==========
- * بيجيب رابط التشغيل الموقّع من /api/video-play (توكن HMAC صالح ساعتين
- * مرتبط بالطالب والملف) — من غير توكن السيرفر مبيتخدمش الملف خالص.
- * ================================================================ */
-function GatedVideoPlayer({ videoId, poster, studentId, studentName, studentPhone, onWatch }: {
-  videoId: string
-  poster?: string
-  studentId: string
-  studentName?: string
-  studentPhone?: string
-  onWatch: () => void
-}) {
-  const [src, setSrc] = useState('')
-  const [error, setError] = useState('')
-
-  useEffect(function () {
-    var alive = true
-    setSrc(''); setError('')
-    fetch('/api/video-play?videoId=' + videoId + '&studentId=' + encodeURIComponent(studentId || ''))
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d } }) })
-      .then(function (res) {
-        if (!alive) return
-        if (res.ok && res.d.isVideoFile && res.d.fileUrl) setSrc(res.d.fileUrl)
-        else setError(res.d.error || 'الفيديو مش متاح')
-      })
-      .catch(function () { if (alive) setError('حصل خطأ في تحميل الفيديو') })
-    return function () { alive = false }
-  }, [videoId, studentId])
-
-  if (error) {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-black/70 text-white/80 text-xs p-4 text-center">
-        <Lock className="h-7 w-7 text-white/50" />
-        <span>{error}</span>
-      </div>
-    )
-  }
-  if (!src) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-black/70">
-        <Loader2 className="h-7 w-7 text-white/60 animate-spin" />
-      </div>
-    )
-  }
-  return (
-    /* مشغّل ملفات محمي — الووترمارك جوه عنصر ملء الشاشة نفسه + ممنوع
-       مشغّل أبل الأصلي (webkitEnterFullscreen) لأنه بيلغي أي طبقة فوق الفيديو */
-    <ProtectedFilePlayer
-      videoId={videoId}
-      src={src}
-      poster={poster}
-      studentId={studentId}
-      studentName={studentName}
-      studentPhone={studentPhone}
-      onWatch={onWatch}
-    />
-  )
-}
-
-/* ========== HOMEWORK TAB ========== */
 /* ========== WRITING ANSWER BOX (نص + صورة) ========== */
 function WritingAnswerBox({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
   var fileRef = useRef<HTMLInputElement>(null)
