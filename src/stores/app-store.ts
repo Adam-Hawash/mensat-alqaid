@@ -7,7 +7,6 @@ export type AppView =
   | 'student-pending'
   | 'student-portal'
   | 'admin-dashboard'
-  | 'admin-login'
   | 'student-payment'
 
 export interface Student {
@@ -34,18 +33,6 @@ export interface ExamResult {
   maxScore: number
   submittedAt: string
   student?: { name: string; phone: string; grade: string; status: string }
-  // تصحيح الأسئلة المقالية بالذكاء الاصطناعي (مخزن وقت التسليم — مرتب بالسؤال الأصلي)
-  writingGrades?: Array<{
-    origIdx?: number
-    question: string
-    answer: string
-    modelAnswer: string
-    awardedPoints: number
-    maxPoints: number
-    isCorrect: boolean
-    feedback: string
-    gradingStatus: string
-  }>
 }
 
 export interface GalleryImage {
@@ -76,12 +63,6 @@ export interface Video {
   grade: string
   price: number
   createdAt: string
-  // حقول الحماية (بتيجي من السيرفر لغير الأدمن):
-  // url/filePath بيرجعوا فاضيين — النوع بيتحدد من kind والصورة من thumb
-  kind?: 'youtube' | 'file' | 'link' | 'none'
-  thumb?: string
-  isUnlocked?: boolean
-  isLocked?: boolean
 }
 
 export interface Homework {
@@ -134,27 +115,27 @@ export interface StudentActivity {
 }
 
 export const GRADES = [
+  'الصف السادس الابتدائي',
   'أولى إعدادي',
   'تانية إعدادي',
   'تالتة إعدادي',
   'أولى بكالوريا',
-  'تانية بكالوريا',
 ] as const
 
 export const GRADE_SHORT_NAMES: Record<string, string> = {
-  'أولى إعدادي': '1ع',
-  'تانية إعدادي': '2ع',
-  'تالتة إعدادي': '3ع',
-  'أولى بكالوريا': '1ب',
-  'تانية بكالوريا': '2ب',
+  'الصف السادس الابتدائي': 'G6',
+  'أولى إعدادي': '1',
+  'تانية إعدادي': '2',
+  'تالتة إعدادي': '3',
+  'أولى بكالوريا': '1B',
 }
 
 export const GRADES_EN = [
-  { ar: 'أولى إعدادي', en: '1ع' },
-  { ar: 'تانية إعدادي', en: '2ع' },
-  { ar: 'تالتة إعدادي', en: '3ع' },
-  { ar: 'أولى بكالوريا', en: '1ب' },
-  { ar: 'تانية بكالوريا', en: '2ب' },
+  { ar: 'الصف السادس الابتدائي', en: 'Grade 6', icon: 'G6' },
+  { ar: 'أولى إعدادي', en: 'Prep 1', icon: '1' },
+  { ar: 'تانية إعدادي', en: 'Prep 2', icon: '2' },
+  { ar: 'تالتة إعدادي', en: 'Prep 3', icon: '3' },
+  { ar: 'أولى بكالوريا', en: '1 Bac', icon: '1B' },
 ] as const
 
 export interface Stats {
@@ -229,7 +210,19 @@ export const useAppStore = create<AppState>((set) => ({
   setView: (view) => set({ currentView: view }),
 
   currentStudent: null,
-  setCurrentStudent: (student) => set({ currentStudent: student }),
+  // ربط الجلسة بين الصفحات: /videos/[id] وصفحة الدفع بيبوا على localStorage
+  // (mg_student) لأنهم routes منفصلة والـ store بيتصفّر مع كل تحميل صفحة.
+  // من غير الحفظ ده: صفحة الفيديو بتفتح من غير هوية الطالب → مفيش ووترمارك
+  // باسمه + التقدم مش بيتحفظ + الفيديوهات المدفوعة بتبان مقفولة (مش بيفتح).
+  setCurrentStudent: (student) => {
+    try {
+      if (typeof window !== 'undefined') {
+        if (student) localStorage.setItem('mg_student', JSON.stringify(student))
+        else localStorage.removeItem('mg_student')
+      }
+    } catch (e) {}
+    set({ currentStudent: student })
+  },
   currentAdmin: null,
   setCurrentAdmin: (admin) => set({ currentAdmin: admin }),
   isAdminLoggedIn: false,
