@@ -136,10 +136,16 @@ export function LoginView() {
       var data = await res.json()
       // ربط الجهاز: الحساب مربوط بجهاز تاني → رسالة حمراء واضحة جوه الكارت
       if (res.status === 403 && data.deviceBlocked) {
-        var msg = data.error || '🚫 لازم تدخل من الجهاز اللي انت عملت بيه الحساب — الحساب مربوط بجهاز واحد بس.'
+        var msg = data.error || '🚫 لازم تدخل بالجهاز اللي انت عملت من عليه الحساب — الحساب مربوط بجهاز واحد بس.'
         setDeviceBlockMsg(msg)
         toast.error(msg, { duration: 12000 })
         setPassword('')
+        setLoading(false)
+        return
+      }
+      // خطأ سيرفر (مش بيانات غلط) → رسالة صريحة مش "الباسورد غلط"
+      if (!res.ok && data.error) {
+        toast.error(data.error, { duration: 8000 })
         setLoading(false)
         return
       }
