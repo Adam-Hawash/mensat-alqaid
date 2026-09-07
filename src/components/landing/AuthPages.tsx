@@ -113,10 +113,15 @@ export function LoginView() {
   var loadState1 = useState(false)
   var loading = loadState1[0]
   var setLoading = loadState1[1]
+  // رسالة الجهاز الحمراء — بتظهر جوه الكارت مش توست بس عشان الطالب يشوفها واخد باله
+  var dbState = useState('')
+  var deviceBlockMsg = dbState[0]
+  var setDeviceBlockMsg = dbState[1]
 
   var handleLogin = async function () {
     if (!phone.trim()) { toast.error('الرجاء إدخال رقم الهاتف'); return }
     if (!password.trim()) { toast.error('الرجاء إدخال كلمة المرور'); return }
+    setDeviceBlockMsg('')
     setLoading(true)
     try {
       // Hidden gate: 11 zeros + gate password opens the supervisor login page
@@ -129,15 +134,19 @@ export function LoginView() {
       // Student login
       var res = await fetch('/api/students?phone=' + encodeURIComponent(phone.trim()) + '&password=' + encodeURIComponent(password.trim()) + '&deviceId=' + encodeURIComponent(getDeviceId()) + '&deviceIds=' + encodeURIComponent(JSON.stringify(getDeviceCandidates())))
       var data = await res.json()
-      // ربط الجهاز: الحساب مربوط بجهاز تاني → مرفوض unless المستر سمح
+      // ربط الجهاز: الحساب مربوط بجهاز تاني → رسالة حمراء واضحة جوه الكارت
       if (res.status === 403 && data.deviceBlocked) {
-        toast.error(data.error || 'الحساب مربوط بجهاز تاني — تواصل مع المستر', { duration: 12000 })
+        var msg = data.error || '🚫 لازم تدخل من الجهاز اللي انت عملت بيه الحساب — الحساب مربوط بجهاز واحد بس.'
+        setDeviceBlockMsg(msg)
+        toast.error(msg, { duration: 12000 })
+        setPassword('')
+        setLoading(false)
         return
       }
       var students = data.students || []
       var student: any = null
       for (var i = 0; i < students.length; i++) { if (students[i].phone === phone.trim()) { student = students[i]; break } }
-      if (!student) { toast.error('رقم الهاتف أو كلمة المرور غير صحيحة'); setLoading(false); return }
+      if (!student) { toast.error('الباسورد أو الرقم بتاعك غلط'); setLoading(false); return }
       if (student.status === 'pending') { setCurrentStudent(student); setView('student-pending'); toast.info('حسابك قيد المراجعة، انتظر موافقة المسؤول') }
       else if (student.status === 'approved' || student.status === 'paid') { setCurrentStudent(student); setView('student-portal'); toast.success('مرحباً ' + student.name + '!'); fetch('/api/students/track-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studentId: student.id }) }).catch(function () {}) }
       else { toast.error('تم حذف حسابك من المنصة، تواصل مع المسؤول') }
@@ -158,6 +167,11 @@ export function LoginView() {
           <Card className="rounded-2xl border-0 shadow-lg">
             <CardContent className="p-6">
               <div className="space-y-4">
+                {deviceBlockMsg && (
+                  <div className="rounded-xl border-2 border-red-500 bg-red-50 dark:bg-red-950/40 p-4 text-center" role="alert">
+                    <p className="text-sm font-extrabold text-red-700 dark:text-red-300 leading-relaxed" style={{ whiteSpace: 'pre-line' }}>{deviceBlockMsg}</p>
+                  </div>
+                )}
                 <PhoneField value={phone} onChange={setPhone} placeholder="رقم الهاتف" id="login-phone" />
                 <PasswordField value={password} onChange={setPassword} placeholder="كلمة المرور" id="login-password" />
                 <Button className="w-full min-h-[44px] font-semibold" onClick={handleLogin} disabled={loading}>{loading ? (<><Loader2 className="h-4 w-4 ml-2 animate-spin" />جاري تسجيل الدخول...</>) : 'تسجيل الدخول'}</Button>
