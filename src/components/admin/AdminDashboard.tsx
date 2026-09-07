@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import { FractionText } from '@/components/FractionText'
 import {
   Users, UserCheck, Clock, Video, ClipboardList, FileText,
@@ -382,30 +381,9 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
 
   useEffect(() => { loadStudents() }, [filter, filterGrade])
 
-  // ===== مفتاح قفل الأجهزة العام (المستر يتحكم فيه) =====
-  const [deviceLock, setDeviceLock] = useState(false)
-  useEffect(function () {
-    fetch('/api/site-config').then(function (r) { return r.json() }).then(function (cfgs) {
-      var arr = Array.isArray(cfgs) ? cfgs : []
-      for (var i = 0; i < arr.length; i++) {
-        if (arr[i] && arr[i].key === 'device_lock') setDeviceLock(arr[i].value === '1')
-      }
-    }).catch(function () {})
-  }, [])
-  const toggleDeviceLock = async function (on: boolean) {
-    var prev = deviceLock
-    setDeviceLock(on)
-    try {
-      var res = await fetch('/api/site-config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'device_lock', value: on ? '1' : '0' }) })
-      if (!res.ok) throw new Error()
-      toast.success(on
-        ? 'قفل الأجهزة شغال 🔒 — الحساب بيشتغل على جهازه بس (وبصمة ناتج الجهاز فنفس الجهاز بيدخل دايمًا)'
-        : 'قفل الأجهزة مطفي — الدخول حر من أي جهاز ومفيش حاجة بتتقفل')
-    } catch {
-      setDeviceLock(prev)
-      toast.error('خطأ في تحديث إعدادات القفل')
-    }
-  }
+  // ملاحظة: قفل الأجهزة بقى صارم ودايمًا (شغال على السيرفر من غير مفتاح) —
+  // الحساب بيتقفل على الجهاز اللي اتعمل بيه بس، والتحكم بيبقى لكل طالب
+  // من زرار "سماح" في إدارة الطلاب.
 
   const loadStudentProgress = async (studentId: string) => {
     setSelectedStudentId(studentId)
@@ -550,11 +528,6 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
                   {f === 'pending' ? 'بانتظار' : f === 'approved' ? 'مقبول' : f === 'rejected' ? 'مرفوض' : 'الكل'}
                 </Button>
               ))}
-            </div>
-            <div className="flex items-center gap-1.5 rounded-lg border px-2 py-1" title="لما يشتغل: الحساب بيتقفل على جهاز الطالب بس (بصمة ناتج الجهاز — نفس الجهاز بيدخل حتى لو مسح بيانات المتصفح). لما يتطفي: الدخول حر من أي جهاز">
-              <Smartphone className={'h-3.5 w-3.5 ' + (deviceLock ? 'text-emerald-600' : 'text-muted-foreground')} />
-              <span className="text-[10px] font-medium text-muted-foreground">قفل الأجهزة</span>
-              <Switch checked={deviceLock} onCheckedChange={toggleDeviceLock} className="scale-90" />
             </div>
           </div>
         </div>

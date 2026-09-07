@@ -18,6 +18,7 @@
 // لو أي واحدة فيهم مطابقة للحساب، الدخول بيمشي.
 
 const DEVICE_KEY = 'mg_device_id'
+const FP_KEY = 'mg_device_fp'
 const COOKIE_KEY = 'mg_device'
 const ONE_YEAR = 365 * 24 * 60 * 60 * 1000
 
@@ -82,17 +83,16 @@ function traitsFingerprint(): string {
   return 'dv2_' + h1.toString(36) + h2.toString(36)
 }
 
-/** الـ ID الأساسي: المتخزن الأول، ولو مش موجود بنرسم البصمة الثابتة ونتخزنها */
+/**
+ * الـ ID الأساسي: بصمة "ناتج الجهاز" الثابتة (dv2).
+ * المستر طلب صراحة: "خليها مرتبطة بناتج الجهاز بس" — فالربط بقى على
+ * البصمة المحسوبة من خصائص الجهاز نفسه: نفس الجهاز = نفس القيمة دايمًا
+ * حتى لو بيانات المتصفح اتمسحت بالكامل.
+ */
 export function getDeviceId(): string {
   if (typeof window === 'undefined') return ''
-  var id = ''
-  try { id = window.localStorage.getItem(DEVICE_KEY) || '' } catch (e) {}
-  if (!id) id = fromCookie()
-  if (!id) {
-    id = traitsFingerprint()
-    // لو البصمة الثابتة هي المصدر، بنعدها عشان تبقى شكل ثابت مستقر
-    try { window.localStorage.setItem(DEVICE_KEY, id) } catch (e) {}
-  }
+  var id = traitsFingerprint()
+  try { window.localStorage.setItem(FP_KEY, id) } catch (e) {}
   saveCookie(id)
   return id
 }
@@ -105,6 +105,7 @@ export function getDeviceId(): string {
 export function getDeviceCandidates(): string[] {
   if (typeof window === 'undefined') return []
   var ids: string[] = []
+  try { var f = window.localStorage.getItem(FP_KEY); if (f) ids.push(f) } catch (e) {}
   try { var a = window.localStorage.getItem(DEVICE_KEY); if (a) ids.push(a) } catch (e) {}
   var c = fromCookie()
   if (c) ids.push(c)
