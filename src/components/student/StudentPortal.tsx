@@ -10,12 +10,13 @@ import {
   Video, ClipboardList, FileText, Megaphone, MessageSquare, Send,
   LogOut, Loader2, FileDown, Bell, PlayCircle, CheckCircle2,
   BookOpen, Target, TrendingUp, GraduationCap, ChevronLeft,
-  User, Phone, Award, Lock, X, ImagePlus, ListTodo,
+  User, Phone, Award, Lock, X, ImagePlus, ListTodo, Flag,
 } from 'lucide-react'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Image from 'next/image'
 import { toast } from 'sonner'
 import { SecurePlayerModal } from '@/components/student/SecurePlayerModal'
+import { StudentComplaints } from '@/components/student/StudentComplaints'
 import type { Video as VideoType, Homework, Exam, Announcement, Discussion, ExamResult } from '@/stores/app-store'
 
 /* ========== SHUFFLE UTILITIES (per-student) ========== */
@@ -356,6 +357,7 @@ function FullPortalContent({ initialData, onBack }: { initialData: PortalData; o
             { key: 'exams', icon: FileText, label: 'الامتحانات' },
             { key: 'announcements', icon: Megaphone, label: 'الإعلانات' },
             { key: 'discussions', icon: MessageSquare, label: 'النقاشات' },
+            { key: 'complaints', icon: Flag, label: 'الشكاوي' },
           ].map(tab => (
             <button
               key={tab.key}
@@ -375,6 +377,7 @@ function FullPortalContent({ initialData, onBack }: { initialData: PortalData; o
         {activeTab === 'exams' && <ExamsTab exams={initialData.exams} results={initialData.examResults} studentId={studentId} />}
         {activeTab === 'announcements' && <AnnouncementsTab announcements={initialData.announcements} />}
         {activeTab === 'discussions' && <DiscussionsTab grade={grade} studentId={studentId} studentName={currentStudent?.name || ''} />}
+        {activeTab === 'complaints' && <StudentComplaints studentId={studentId} studentName={currentStudent?.name || ''} studentPhone={currentStudent?.phone || ''} grade={grade} />}
       </div>
     </div>
   )
