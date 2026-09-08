@@ -30,7 +30,7 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { title, content, grade } = body
+    const { title, content, grade, models } = body
 
     const existing = await db.exam.findUnique({ where: { id } })
     if (!existing) {
@@ -43,6 +43,8 @@ export async function PUT(
         ...(title && { title }),
         ...(content && { content }),
         ...(grade && { grade }),
+        // نماذج الامتحان العشوائية (اختياري)
+        ...(models !== undefined && { models: typeof models === 'string' ? models : JSON.stringify(models) }),
       },
     })
 

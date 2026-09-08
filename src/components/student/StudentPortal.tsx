@@ -121,7 +121,7 @@ export function StudentPortal() {
         var results = await Promise.all([
           timeout('/api/videos?grade=' + g + '&pageSize=100', 15000),
           timeout('/api/homework?grade=' + g + '&pageSize=50', 15000),
-          timeout('/api/exams?grade=' + g + '&pageSize=50', 15000),
+          timeout('/api/exams?grade=' + g + '&pageSize=50&studentId=' + encodeURIComponent(studentId), 15000),
           timeout('/api/announcements?grade=' + g + '&pageSize=10', 15000),
           timeout('/api/exam-results?studentId=' + encodeURIComponent(studentId), 15000),
           timeout('/api/activities?studentId=' + studentId + '&action=watched_video&pageSize=200', 15000),
@@ -1391,6 +1391,12 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
                   </div>
                   <div className="min-w-0 space-y-1.5">
                     <h3 className="font-semibold text-sm">{exam.title}</h3>
+                    {/* النموذج المخصص للطالب عشوائيًا (لو الامتحان فيه نماذج) */}
+                    {(exam as any).modelName && (
+                      <Badge className="text-[10px] bg-purple-500 text-white">
+                        📄 {(exam as any).modelName}
+                      </Badge>
+                    )}
                     {isSubmitted ? (
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
