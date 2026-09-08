@@ -6,6 +6,7 @@ export type AppView =
   | 'auth-register'
   | 'student-pending'
   | 'student-portal'
+  | 'admin-login'
   | 'admin-dashboard'
   | 'student-payment'
 
