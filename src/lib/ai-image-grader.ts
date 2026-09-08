@@ -71,6 +71,9 @@ export function normalizeFinalAnswer(s: string): string {
   var arabicDigits = '٠١٢٣٤٥٦٧٨٩'
   out = out.replace(/[٠-٩]/g, function (d) { return String(arabicDigits.indexOf(d)) })
   out = out.replace(/[۰-۹]/g, function (d) { return String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)) })
+  // Arabic decimal separator ٫ → .  , and "3,5" → "3.5" (decimal comma)
+  out = out.replace(/٫/g, '.')
+  out = out.replace(/(\d)\s*,\s*(\d)/g, '$1.$2')
   // unicode superscripts → ^digits (kept from math heritage, harmless)
   var supMap: Record<string, string> = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' }
   out = out.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, function (m) {
@@ -113,11 +116,28 @@ function canonicalMonomial(s: string): string {
   return tokens.join('*')
 }
 
-/* safe numeric evaluation for pure arithmetic forms: 2^10 = 1024, 1/2 = 0.5.
+/* safe numeric evaluation for pure arithmetic/number forms: dates/years,
+ * 2^10 = 1024, 1/2 = 0.5, 50% = 0.5, √50, π, 3:4 ratio, ½ …
  * Returns null for anything with letters (no eval of words). */
 function tryNumeric(s: string): number | null {
-  var t = normalizeFinalAnswer(s).replace(/\^/g, '**')
-  if (!t || !/\d/.test(t) || !/^[\d+\-*/(). ]+$/.test(t)) return null
+  var t = normalizeFinalAnswer(s)
+  if (!t) return null
+  // unicode fractions → explicit division
+  t = t.replace(/½/g, '(1/2)').replace(/¼/g, '(1/4)').replace(/¾/g, '(3/4)')
+  t = t.replace(/⅓/g, '(1/3)').replace(/⅔/g, '(2/3)')
+  // percent: 50% → 50/100 (= 0.5)
+  t = t.replace(/%/g, '/100')
+  // square roots: √50 → Math.sqrt(50), √(50) → Math.sqrt(50)
+  t = t.replace(/√\s*\(?\s*([\d.]+)\s*\)?/g, 'Math.sqrt($1)')
+  // pi
+  t = t.replace(/π/g, 'Math.PI')
+  // ratio "3:4" (as a WHOLE value) = 3/4
+  if (/^[\d.]+\s*:\s*[\d.]+$/.test(t.trim())) t = t.trim().replace(/:/, '/')
+  t = t.replace(/\^/g, '**')
+  if (!/\d/.test(t) && t.indexOf('Math.PI') === -1) return null
+  // allow only arithmetic + the Math.sqrt / Math.PI tokens we just built
+  var check = t.replace(/Math\.sqrt/g, '').replace(/Math\.PI/g, '')
+  if (!/^[\d+\-*/().\s]*$/.test(check)) return null
   try {
     var v = Function('"use strict"; return (' + t + ')')()
     return typeof v === 'number' && isFinite(v) ? v : null
@@ -139,10 +159,15 @@ export function exactEquivalent(a: string, b: string): boolean {
   var ca = canonicalMonomial(a)
   var cb = canonicalMonomial(b)
   if (ca !== '' && cb !== '' && ca === cb) return true
-  // pure arithmetic evaluates equal: 2^10 = 1024, 1/2 = 0.5
+  // pure arithmetic evaluates equal: 2^10 = 1024, 1/2 = 0.5, 50% = 0.5, 3:4 = 3/4
   var va = tryNumeric(a)
   var vb = tryNumeric(b)
   if (va !== null && vb !== null && Math.abs(va - vb) < 1e-9) return true
+  // percent-symmetric pass: "50%" ≡ "50" (same value, one wrote the sign and one didn't)
+  var stripPct = function (t: string) { return String(t || '').replace(/%/g, '') }
+  var va2 = tryNumeric(stripPct(a))
+  var vb2 = tryNumeric(stripPct(b))
+  if (va2 !== null && vb2 !== null && Math.abs(va2 - vb2) < 1e-9) return true
   return false
 }
 
@@ -258,7 +283,7 @@ export async function gradeImageAnswer(params: {
   prompt += '   (a) If ANY value/statement is written inside a BOX / frame / مربع / circled at the end → THAT is the final answer. Students are taught to box their final answer — the box is the answer, ALWAYS.\n'
   prompt += '   (b) If there is no box → the final answer is the LAST thing they wrote: after the last "=" or ":", or the concluding line/keyword.\n'
   prompt += '   CRITICAL: every intermediate step, every middle fact, every scratched-out attempt is NOT the answer. Do NOT judge an intermediate note. Many students write messy middle work and still end with the CORRECT boxed final answer — that is CORRECT, full marks. If you compare a middle step against the model answer instead of the boxed/last value, you FAIL. Read it UNDERSTANDING what they mean — messy handwriting DOES NOT matter.\n'
-  prompt += 'STEP 5 — Compare the student\'s final answer with the MODEL ANSWER (الإجابة النموذجية) and accepted answers by MEANING and by VALUE, not by exact wording. The student does NOT need to copy the model answer word-for-word; if their answer conveys the same correct fact(s), names, dates, numbers or reasons, it is CORRECT. Equivalent forms are CORRECT: ١٩٥٢ = 1952 = 1952م, different Arabic spellings of the same name or term, listing the same points in a different order, a final value contained inside the model\'s fuller answer.\n'
+  prompt += 'STEP 5 — Compare the student\'s final answer with the MODEL ANSWER (الإجابة النموذجية) and accepted answers by MEANING and by VALUE, not by exact wording. The student does NOT need to copy the model answer word-for-word; if their answer conveys the same correct fact(s), names, dates, numbers or reasons, it is CORRECT. Equivalent forms are CORRECT: ١٩٥٢ = 1952 = 1952م, different Arabic spellings of the same name or term, listing the same points in a different order, numeric forms ٥٠٪ = 50% = 0.5, 3:4 = 3/4, 3,5 = 3.5, and units/labels are IGNORED (12 سم = 12 cm = 12), a final value contained inside the model\'s fuller answer.\n'
   prompt += 'STEP 6 — Grade by the KEY FACTS the question asks for: a complete correct key fact earns credit; missing or wrong key facts lose credit proportionally. A correct final answer with messy/unreadable steps is still CORRECT (full points). A genuinely DIFFERENT final answer is WRONG even if the wording looks nice. Never mark an answer wrong just because the handwriting is hard to read — judge the final answer.\n'
   prompt += 'STEP 7 — ALWAYS give a definite verdict (isCorrect true or false). Only say onTopic=false when the photo truly contains NO student work at all.\n\n'
   prompt += 'awardedPoints: an integer from 0 to ' + maxPoints + ' (' + maxPoints + ' only when isCorrect=true).\n\n'
@@ -471,7 +496,7 @@ export async function gradeTextAnswer(params: {
   prompt += acceptedStr + '\n\n'
   prompt += 'CORE PRINCIPLE — find the student\'s FINAL answer (usually after the last "=", ":" or the concluding line) and compare it + the key facts with the model answer. The student answer is CORRECT (full points) whenever it conveys the same correct fact(s)/final value, even if written differently:\n'
   prompt += '- Different wording: the student uses their own words → still CORRECT\n'
-  prompt += '- Equivalent forms: ١٩٥٢ = 1952 = 1952م, different Arabic spellings of the same name/term, same points in a different order\n'
+  prompt += '- Equivalent forms: ١٩٥٢ = 1952 = 1952م, different Arabic spellings of the same name/term, same points in a different order, numeric forms ٥٠٪ = 50% = 0.5, 3:4 = 3/4, 3,5 = 3.5; units and labels are IGNORED (12 سم = 12 cm = 12)\n'
   prompt += '- The final value may be CONTAINED in the model solution (model shows steps, student wrote only the final result) → still CORRECT\n'
   prompt += 'Rules:\n'
   prompt += '1. UNDERSTAND the question first: what key fact(s), names, dates, reasons or terms does it ask for?\n'
