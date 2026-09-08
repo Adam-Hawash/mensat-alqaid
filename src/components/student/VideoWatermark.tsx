@@ -2,24 +2,35 @@
 // ============================================================
 // VideoWatermark — ووترمارك الطالب فوق الفيديو (اسمه + رقمه)
 // ============================================================
-// مواصفات المستر النهائية (تحديث 2026-د):
+// مواصفات المستر النهائية (تحديث 2026-و):
 //  1) **مفيش أي شِپات على الحواف** — اتشالت كلها بطلب المستر،
 //     مفيش حاجة غير الووترمارك الكبير في النص + الكارت في الزاوية.
-//  2) ووترمارك كبير واحد في نص الخلفية: **اسم ثنائي (أول كلمتين من
-//     اسم الطالب) + الرقم جنب الاسم في نفس السطر** — الاسم والرقم
-//     مع بعض في سطر واحد بس (الرقم أصغر وجنب الاسم زي ما المستر
-//     طلب: "الاسم الثنائي وجنبيه الرقم") — مش بيياكل كلام الفيديو.
-//     **ثابت تمامًا** (من غير أي حركة خالص).
-//  3) الكارت (الاسم الكامل + الرقم) **ثابت في الزاوية تحت على اليمين**
-//     — مفيش أي حركة خالص.
-//  4) الاسم من غير قص أي حرف:
+//  2) ووترمارك كبير واحد في نص الخلفية على **سطرين** (زي ما المستر طلب
+//     حرفيًا: "الاسم الثنائي وتحتيه الرقم — لازم الرقم يظهر"):
+//     • السطر الأول:  الاسم الثنائي (أول كلمتين من اسم الطالب)
+//     • السطر التاني: **رقم الطالب تحته** (أصغر شوية — باين ومقروء)
+//  3) **الشفافية قلّت + نبض** (طلب المستر 2026-و حرفيًا: "تقللي الشفافية
+//     عشان بتاخد من الكلام... تظهر ٥/٦ ثواني وتختفي عشر ثواني وهكذا"):
+//     الووترمارك الكبير بيظهر ٦ ثواني → يختفي ١٠ ثواني → يرجع يظهر (نبض
+//     16 ثانية) وبشفافية أخف عشان مش يغطي الكلام المكتوب في الفيديو.
+//  4) الكارت (الاسم الكامل + الرقم) **ثابت في الزاوية تحت على اليمين**
+//     — مفيش أي حركة خالص (ده اللي بيغطي ركن يوتيوب كمان).
+//  5) الاسم من غير قص أي حرف:
 //     • ممنوع letter-spacing نهائيًا (بيقطع اتصال الحروف العربية)
 //     • paintOrder: 'stroke' عشان الحواف السودة متاكلش الحروف
-//  5) pointer-events-none → مش بيمنع أي تفاعل مع الفيديو.
-//  6) بيفضل ظاهر في ملء الشاشة (جوه عنصر الـ fullscreen نفسه).
-//  7) لو حد شال الطبقة من الـ DOM بـ devtools → بترجع لوحده كل 6 ثواني.
+//  6) pointer-events-none → مش بيمنع أي تفاعل مع الفيديو.
+//  7) بيفضل ظاهر في ملء الشاشة (جوه عنصر الـ fullscreen نفسه).
+//  8) لو حد شال الطبقة من الـ DOM بـ devtools → بترجع لوحده كل 6 ثواني.
 // ============================================================
 import { useEffect, useRef, useState } from 'react'
+
+/* النبض: ظهور 6 ثواني (37.5% من دورة 16 ثانية) ثم خفوت ثانية،
+   اختفاء ~9 ثواني ثم رجوع تدريجي — زي ما المستر وصف بالظبط:
+   "تظهر ٥/٦ ثواني وتختفي عشر ثواني وهكذا" */
+const WM_PULSE_CSS = `
+@keyframes mgWmPulse{0%,37.5%{opacity:var(--wmo,.5)}43.75%,93.75%{opacity:0}100%{opacity:var(--wmo,.5)}}
+.mg-wm-pulse{animation:mgWmPulse 16s linear infinite}
+`
 
 export function VideoWatermark({ name, phone }: { name?: string; phone?: string }) {
   const layerRef = useRef<HTMLDivElement>(null)
@@ -47,40 +58,56 @@ export function VideoWatermark({ name, phone }: { name?: string; phone?: string 
       className="absolute inset-0 z-[60] pointer-events-none select-none overflow-hidden"
       aria-hidden="true"
     >
-      {/* الووترمارك الكبير في نص الخلفية — اسم ثنائي + الرقم جنب الاسم في
-          سطر واحد — ثابت تمامًا */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+      <style dangerouslySetInnerHTML={{ __html: WM_PULSE_CSS }} />
+      {/* الووترمارك الكبير في نص الخلفية — سطرين: الاسم الثنائي فوق
+          والرقم تحته — شفافية أخف + نبض (يظهر 6 ثواني ويختفي ~10 ثواني)
+          (طلب المستر: "تقللي الشفافية عشان بتاخد من الكلام") */}
+      <div
+        className="mg-wm-pulse absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+        style={{ ['--wmo' as any]: '0.5' }}
+      >
         <div
-          className="text-center font-black leading-tight"
+          className="text-center font-black"
           style={{
             direction: 'rtl',
-            whiteSpace: 'nowrap',
             maxWidth: '94%',
             fontSize: 'clamp(20px, 5.6vw, 72px)',
-            color: 'rgba(0,0,0,0.13)',
-            WebkitTextStroke: '1.8px rgba(0,0,0,0.50)',
-            paintOrder: 'stroke',
-            unicodeBidi: 'plaintext',
-            // هالة بيضاء خفيفة جدًا عشان الحواف السودة تبان حتى على مشهد غامق
-            textShadow: '0 0 18px rgba(255,255,255,0.22)',
             letterSpacing: 0,
           }}
         >
-          {shortName}
-          {/* الرقم جنب الاسم في نفس السطر — أصغر من الاسم عشان مياكلش مساحة */}
+          {/* السطر الأول: الاسم الثنائي — شفافية أخف (حواف أرفع وتعبئة أخف) */}
+          <div
+            className="leading-tight"
+            style={{
+              whiteSpace: 'nowrap',
+              color: 'rgba(0,0,0,0.10)',
+              WebkitTextStroke: '1.3px rgba(0,0,0,0.42)',
+              paintOrder: 'stroke',
+              unicodeBidi: 'plaintext',
+              // هالة بيضاء خفيفة جدًا عشان الحواف السودة تبان حتى على مشهد غامق
+              textShadow: '0 0 16px rgba(255,255,255,0.16)',
+            }}
+          >
+            {shortName}
+          </div>
+          {/* السطر التاني: رقم الطالب تحته — أصغر لكن واضح ومقروء */}
           {num && shortName !== num && (
-            <span
+            <div
               style={{
                 fontSize: '0.5em',
                 direction: 'ltr',
                 unicodeBidi: 'plaintext',
-                verticalAlign: 'middle',
-                marginInlineStart: '0.35em',
-                WebkitTextStroke: '1.2px rgba(0,0,0,0.45)',
+                marginTop: '0.12em',
+                lineHeight: 1.15,
+                whiteSpace: 'nowrap',
+                color: 'rgba(0,0,0,0.10)',
+                WebkitTextStroke: '1px rgba(0,0,0,0.40)',
+                paintOrder: 'stroke',
+                textShadow: '0 0 12px rgba(255,255,255,0.16)',
               }}
             >
               {num}
-            </span>
+            </div>
           )}
         </div>
       </div>

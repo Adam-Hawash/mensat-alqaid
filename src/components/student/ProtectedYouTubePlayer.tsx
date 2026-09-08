@@ -88,12 +88,11 @@ function highestAvailable(p: any): string {
   } catch (e) {}
   return 'hd720'
 }
-/* مقاس الـ iframe الحقيقي المطلوب للمستوى — يوتيوب بيختار التيار من مقاس
-   المشغل بالبكسل: 720p → 1280×720 و 1080p+ → 1920×1080 */
-function hostSizeForQuality(q: string): { w: number; h: number } {
-  if (q === 'hd1080' || q === 'hd1440' || q === 'hd2160' || q === 'highres') return { w: 1920, h: 1080 }
-  return { w: 1280, h: 720 }
-}
+/* الجودة (أهم حاجة للمستر — 2026-و): الـ iframe بيرندر **بمقاس الصندوق
+   الحقيقي 100%** من غير أي transform scale خالص. الخدعة القديمة (مقاس ثابت
+   1280×720/1920×1080 + CSS scale) كانت بتمدد البكسلات على الشاشات الكبيرة
+   فالفيديو بيبان ناعم حتى لو التيار 1080p — دلوقتي الرندر 1:1 مع الشاشة
+   والجودة نفسها بيتفرض عليها بالـ API (حارس + loadVideoById). */
 
 /* ============================================================
  * ProtectedYouTubePlayer — the player box (aspect-video parent)
@@ -145,22 +144,41 @@ export function ProtectedYouTubePlayer({
   const mutedFallbackRef = useRef(false)
   const [needsUnmute, setNeedsUnmute] = useState(false)
 
-  /* فرض الجودة بمقاس المشغل: يوتيوب بيختار الجودة من مقاس الـ iframe بالبكسل —
-     فبنرندر الـ iframe بمقاس حقيقي (1280×720 للـ HD و 1920×1080 للـ Full HD)
-     وبنعمله scale بالـ CSS ليملّي الصندوق — النتيجة تيار HD فعلًا بدل ما يقف
-     على 360p (مشكلة الجودة الضعيفة اللي المستر وصفها) */
-  const cropRef = useRef<HTMLDivElement>(null)
-  const hostDimRef = useRef({ w: 1280, h: 720 })
-  const [hostDim, setHostDim] = useState({ w: 1280, h: 720 })
-  const [hostScale, setHostScale] = useState(1)
-  const effectiveRef = useRef('')
+  /* حماية الجودة: عداد إعادات التحميل القسرية (سقف 4 لكل فيديو عشان مفيش لوب) */
+  const hardReloadCountRef = useRef(0)
 
-  function setEffectiveQuality(q: string) {
-    var dim = hostSizeForQuality(q)
-    effectiveRef.current = q
-    hostDimRef.current = dim
-    setHostDim(dim)
-  }
+  /* الجودة + الحدة (أهم حاجة للمستر — 2026-و): يوتيوب بيحدد **سقف الجودة بمقاس
+     المشغل** — مشغل 1280×720 بيرفض 1080p+ حتى مع setPlaybackQuality/loadVideoById
+     (اتختبر فعليًا). عشان كده الـ iframe بيرندر بمقاس **1920×1080 كحد أدنى**
+     وبيتصغّر بالـ CSS بـ **min (contain)** — تصغير مش تكبير:
+     • يوتيوب بيسمح بتيار 1080p فعلًا (المقاس الكبير)
+     • مفيش أي تمديد بكسلات (التصغير بيحافظ على الحدة 100%)
+     • مفيش أي قص (contain — الفيديو كامل دايمًا) */
+  const cropRef = useRef<HTMLDivElement>(null)
+  const [hostDim, setHostDim] = useState({ w: 1920, h: 1080 })
+  const [hostScale, setHostScale] = useState(1)
+
+  useEffect(function () {
+    function measure() {
+      var el = cropRef.current
+      if (!el) return
+      var w = el.clientWidth || 0
+      var h = el.clientHeight || 0
+      if (w <= 0 || h <= 0) return
+      var dim = w < 640 ? { w: 1280, h: 720 } : { w: 1920, h: 1080 }
+      if (w > dim.w || h > dim.h) dim = { w: w, h: h } /* شاشة أكبر من 1080p → بمقاسها (scale=1 بلا تمديد) */
+      setHostDim(dim)
+      setHostScale(Math.min(w / dim.w, h / dim.h))
+    }
+    measure()
+    var ro: any = null
+    try { ro = new (window as any).ResizeObserver(measure); if (cropRef.current) ro.observe(cropRef.current) } catch (e) {}
+    window.addEventListener('resize', measure)
+    return function () {
+      try { if (ro) ro.disconnect() } catch (e) {}
+      window.removeEventListener('resize', measure)
+    }
+  }, [])
 
   /* resume + cumulative progress state */
   const savedSecondsRef = useRef(0)
@@ -179,35 +197,6 @@ export function ProtectedYouTubePlayer({
 
   useEffect(function () { selectedQualityRef.current = selectedQuality }, [selectedQuality])
   useEffect(function () { onWatchRef.current = onWatch }, [onWatch])
-
-  /* قياس منطقة العرض (المقصوصة) وتحديث scale الـ iframe بمقاسه الحقيقي —
-     بيتحدث مع أي تغيير مقاس (ملء الشاشة / دوران / تكبير نافذة) */
-  useEffect(function () {
-    function measure() {
-      var el = cropRef.current
-      if (!el) return
-      var w = el.clientWidth || 0
-      var h = el.clientHeight || 0
-      if (w > 0 && h > 0) setHostScale(Math.max(w / hostDimRef.current.w, h / hostDimRef.current.h))
-    }
-    measure()
-    var ro: any = null
-    try { ro = new (window as any).ResizeObserver(measure); if (cropRef.current) ro.observe(cropRef.current) } catch (e) {}
-    window.addEventListener('resize', measure)
-    return function () {
-      try { if (ro) ro.disconnect() } catch (e) {}
-      window.removeEventListener('resize', measure)
-    }
-  }, [])
-
-  /* إعادة حساب scale لما مقاس الـ iframe يتغير (مثلاً 1080p → 1920×1080) */
-  useEffect(function () {
-    var el = cropRef.current
-    if (!el) return
-    var w = el.clientWidth || 0
-    var h = el.clientHeight || 0
-    if (w > 0 && h > 0) setHostScale(Math.max(w / hostDimRef.current.w, h / hostDimRef.current.h))
-  }, [hostDim])
 
   /* orientation helpers — rotate the phone to landscape while fullscreen so
      the 16:9 video FILLS the screen instead of a tiny letterboxed strip in
@@ -290,16 +279,13 @@ export function ProtectedYouTubePlayer({
         /* أعلى جودة متاحة فعلًا في المصدر — لو الملف الأصلي مرفوع بجودة
            ضعيفة يوتيوب هيرجّع أعلى حاجة عنده بس (حدود المصدر) */
         var best = highestAvailable(p)
-        setEffectiveQuality(best)
         if (p.setPlaybackQualityRange) p.setPlaybackQualityRange(best, best)
         if (p.setPlaybackQuality) p.setPlaybackQuality(best)
       } else if (q === 'auto') {
         /* full automatic — YouTube adapts freely */
-        effectiveRef.current = ''
         if (p.setPlaybackQualityRange) p.setPlaybackQualityRange('auto', 'auto')
         if (p.setPlaybackQuality) p.setPlaybackQuality('auto')
       } else {
-        setEffectiveQuality(q)
         if (p.setPlaybackQualityRange) p.setPlaybackQualityRange(q, q)
         if (p.setPlaybackQuality) p.setPlaybackQuality(q)
       }
@@ -377,12 +363,30 @@ export function ProtectedYouTubePlayer({
                 if (onWatchRef.current) onWatchRef.current()
               }
             },
+            onPlaybackQualityChange: function (e: any) {
+              /* لو يوتيوب نزّل الجودة لوحده بعد ما فرضناها → نعيد الأمر فورًا
+                 (soft) — الحارس الدوري في الأسفل بيتولّي إعادة التحميل القسرية،
+                 وبيتدخل بس لو الجودة نزلت **تحت** المطلوب (الترقية بس) */
+              if (cancelled) return
+              var wanted = selectedQualityRef.current
+              if (wanted === 'auto') return
+              try {
+                var qRank: any = { highres: 10, hd2160: 10, hd1440: 9, hd1080: 8, hd720: 7, large: 6, medium: 5, small: 4, tiny: 3 }
+                var effQ = wanted === 'top' ? highestAvailable(e.target) : wanted
+                var curQ = e.target.getPlaybackQuality ? e.target.getPlaybackQuality() : ''
+                if (effQ && curQ && curQ !== 'unknown' && (qRank[curQ] || 0) < (qRank[effQ] || 0) && Date.now() - lastQualityApplyRef.current > 3000) {
+                  applyQuality(wanted)
+                }
+              } catch (err) {}
+            },
             onStateChange: function (e: any) {
               if (cancelled) return
               // -1 unstarted | 0 ended | 1 playing | 2 paused | 3 buffering | 5 cued
               if (e.data === 1) {
                 setStarted(true); setPlaying(true); setShowControls(true)
-                /* keep captions OFF + re-assert quality every time playback starts */
+                /* keep captions OFF + re-assert quality every time playback starts
+                   (مستويات الجودة بتبقى متاحة كاملة بعد أول تشغيل — فبنعيد
+                   فرض الأعلى هنا تاني عشان الفيديو يفتح أعلى جودة من أول لحظة) */
                 try { e.target.unloadModule && e.target.unloadModule('captions') } catch (err) {}
                 applyQuality(selectedQualityRef.current)
               }
@@ -434,13 +438,20 @@ export function ProtectedYouTubePlayer({
         if (wanted !== 'auto' && p.getPlaybackQuality) {
           var eff = wanted === 'top' ? highestAvailable(p) : wanted
           var cur = p.getPlaybackQuality()
-          if (eff && cur && cur !== 'unknown' && cur !== eff) {
-            /* HARD enforcement: if YouTube keeps ignoring the soft hints for
-               8s, reload the stream at the chosen quality (cooldown 20s) */
+          /* الحارس بيفرض **الترقية بس**: لو الجودة الحالية أقل من المطلوب → فرض؛
+             ولو أعلى من اختيار الطالب → تقبل من غير إعادات تحميل بلا لزوم */
+          var qRank: any = { highres: 10, hd2160: 10, hd1440: 9, hd1080: 8, hd720: 7, large: 6, medium: 5, small: 4, tiny: 3 }
+          var curRank = qRank[cur] || 0
+          var effRank = qRank[eff] || 0
+          if (eff && cur && cur !== 'unknown' && curRank < effRank) {
+            /* HARD enforcement: لو يوتيوب استمر في تجاهل الأوامر 4 ثواني →
+               نعيد تحميل التيار بالمستوى المطلوب (سقف 4 مرات للفيديو + كولداون
+               15 ثانية عشان مفيش لوب إعادات تحميل) */
             if (mismatchSinceRef.current === 0) mismatchSinceRef.current = Date.now()
-            if (Date.now() - mismatchSinceRef.current > 8000 && Date.now() - lastHardReloadRef.current > 20000) {
+            if (Date.now() - mismatchSinceRef.current > 4000 && Date.now() - lastHardReloadRef.current > 15000 && hardReloadCountRef.current < 4) {
               lastHardReloadRef.current = Date.now()
               mismatchSinceRef.current = 0
+              hardReloadCountRef.current++
               try {
                 var posNow = p.getCurrentTime ? p.getCurrentTime() : 0
                 p.loadVideoById(ytId, Math.max(0, Math.floor(posNow)), eff)
@@ -585,6 +596,7 @@ export function ProtectedYouTubePlayer({
     selectedQualityRef.current = q
     applyQuality(q)
     mismatchSinceRef.current = 0
+    hardReloadCountRef.current = 0 /* اختيار جديد من الطالب = ميزانية إعادة تحميل جديدة */
     var target = q === 'top' ? highestAvailable(playerRef.current) : q
     if (target && target !== 'auto') {
       /* HARD enforcement: reload the same video at the same position with the
@@ -635,30 +647,19 @@ export function ProtectedYouTubePlayer({
         className={rotated ? 'absolute overflow-hidden' : 'absolute inset-0 overflow-hidden'}
         style={stageStyle || undefined}
       >
-      {/* YouTube player — SCALED & CROPPED so NO native YouTube UI can ever
-          be seen. The iframe is oversized and shifted so the crops are
-          SYMMETRIC top/bottom — that keeps the iframe's center exactly on
-          the container's center (±52% in fullscreen), which is where we pin
-          our big play button to cover YouTube's own big play button.
-          • Normal:  10% cropped top + bottom (title bar & pause watermark
-            zones), 5% each side.
-          • Fullscreen: 14% top + 18% bottom (kills YouTube's native
-            fullscreen share/save/quality bar, ~48-56px on any phone),
-            6% each side (mostly eats the pillarbox black bars).
-          • QUALITY FORCING: the iframe itself renders at REAL pixels
-            (1280×720 for HD, 1920×1080 when 1080p+ is selected) and gets
-            scaled with CSS transform to fill the crop box — YouTube picks
-            the stream from the player's pixel size, so the chosen quality
-            actually plays instead of being stuck at 360p on small boxes. */}
+      {/* YouTube player — الفيديو **كامل 100% من غير أي قص** (طلب المستر
+          الصريح 2026: "الفيديو مش كامل إنت قاصص منه الأطراف — لازم يبان كله").
+          الجودة (أهم حاجة): الـ iframe بيرندر **بمقاس الصندوق الحقيقي 100%**
+          (مفيش transform scale خالص — مفيش تمديد بكسلات) والجودة بيتفرض عليها
+          بالـ API (الحارس + loadVideoById).
+          الحماية (طلب المستر: "اسم القناة والشير واللينك محدش يشوفهم ولا يدوس
+          عليهم — غطّيهم بأي حاجة بس ما تقصش الفيديو"):
+          • درع علوي دايمًا شغال (مش بس وقت الوقف) بيغطي عنوان الفيديو واسم
+            قناة يوتيوب وزرار الشير — مستحيل يبانوا ولا حد يقدر يدوس عليهم.
+          • باتش تحت يمين بيغطي لوجو/لينك "Watch on YouTube".
+          • طبقة التقاط النقرات بتمنع أي ضغطة توصل لليوتيوب أصلًا. */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div
-          ref={cropRef}
-          className={
-            fsActive
-              ? 'absolute w-[112%] h-[132%] top-[-14%] left-[-6%]'
-              : 'absolute w-[110%] h-[120%] top-[-10%] left-[-5%]'
-          }
-        >
+        <div ref={cropRef} className="absolute inset-0">
           <div
             ref={playerHostRef}
             style={{
@@ -672,6 +673,16 @@ export function ProtectedYouTubePlayer({
             }}
           />
         </div>
+        {/* درع علوي دايمًا — عنوان يوتيوب/اسم القناة/زرار الشير عمرهم ما يظهروا */}
+        <div
+          className="absolute top-0 left-0 right-0 pointer-events-none"
+          style={{ height: '56px', background: 'linear-gradient(to bottom, rgba(0,0,0,.92), rgba(0,0,0,.55) 55%, rgba(0,0,0,0))' }}
+        />
+        {/* باتش لوجو يوتيوب (تحت يمين) — بلور خفيف + تعتيم مش ملحوظ */}
+        <div
+          className="absolute pointer-events-none"
+          style={{ bottom: '8px', right: '8px', width: '120px', height: '42px', borderRadius: '10px', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)' }}
+        />
       </div>
 
       {/* ملاحظة: شيلنا علامة "YouTube" المكتوبة خالص — طلب المستر الصريح:
@@ -723,15 +734,33 @@ export function ProtectedYouTubePlayer({
           IMPORTANT: this layer must be FULLY OPAQUE — before playback starts
           (and after it ends) YouTube paints its own chrome on the iframe
           (title bar, "Watch on YouTube", quality badge, control strip) and a
-          translucent layer lets it bleed through. When a poster image exists
-          we keep a 30% dim on top of it for play-button contrast. */}
+          translucent layer lets it bleed through.
+          لو الفيديو ملهوش بوستر من الأدمن → **صورة الفيديو الحقيقية من يوتيوب**
+          (طلب المستر 2026-و: صورة البرواز الدهبي ملهاش علاقة بالمنصة — اتشالت
+          خالص وبقت favicon لمنصة مستر شريف). */}
       {!started && (
         <div className="absolute inset-0 z-30 pointer-events-none">
-          {poster && (
+          {poster ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={poster} alt="فيديو الدرس" className="w-full h-full object-cover bg-black" draggable={false} />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={'https://i.ytimg.com/vi/' + ytId + '/maxresdefault.jpg'}
+              alt="فيديو الدرس"
+              className="w-full h-full object-cover bg-black"
+              draggable={false}
+              onError={function (e) {
+                var el = e.currentTarget
+                if (el.src.indexOf('maxresdefault') >= 0) {
+                  el.src = 'https://i.ytimg.com/vi/' + ytId + '/hqdefault.jpg'
+                } else {
+                  el.style.visibility = 'hidden'
+                }
+              }}
+            />
           )}
-          <div className={'absolute inset-0 ' + (poster ? 'bg-black/30' : 'bg-black')}>
+          <div className="absolute inset-0 bg-black/30">
             <div
               className="absolute left-0 right-0 flex justify-center -translate-y-1/2"
               style={{ top: fsActive ? '52%' : '50%' }}
