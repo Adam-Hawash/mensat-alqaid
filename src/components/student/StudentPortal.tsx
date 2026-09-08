@@ -97,6 +97,8 @@ export function StudentPortal() {
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [showFullPortal, setShowFullPortal] = useState(false)
+  /* الواجبات اللي الطالب سلّمها — عشان قايمة "اللي ناقصك" ميعرضهالوش تاني (طلب المستر) */
+  const [completedHwIds, setCompletedHwIds] = useState<Set<string>>(new Set())
 
   const grade = currentStudent?.grade || ''
   const studentId = currentStudent?.id || ''
@@ -123,6 +125,7 @@ export function StudentPortal() {
           timeout('/api/announcements?grade=' + g + '&pageSize=10', 15000),
           timeout('/api/exam-results?studentId=' + encodeURIComponent(studentId), 15000),
           timeout('/api/activities?studentId=' + studentId + '&action=watched_video&pageSize=200', 15000),
+          fetch('/api/homework-results?studentId=' + encodeURIComponent(studentId)).then(function(r) { return r.json() }).catch(function() { return { results: [] } }),
         ])
         if (cancelled) return
         setDashboardData({
@@ -133,6 +136,14 @@ export function StudentPortal() {
           examResults: (results[4] && results[4].results) || [],
           watchedIds: new Set<string>((results[5] && results[5].activities || []).map(function(a) { return (a.details || '').replace('Watched: ', '') })),
         })
+        /* الواجبات المسلّمة → تختفي من قايمة المطلوب فورًا */
+        var doneHw: string[] = []
+        ;((results[6] && results[6].results) || []).forEach(function(r: any) {
+          if (r && r.homeworkId) doneHw.push(r.homeworkId)
+        })
+        if (doneHw.length > 0) {
+          setCompletedHwIds(function(prev) { var n = new Set(prev); doneHw.forEach(function(id) { n.add(id) }); return n })
+        }
       } catch { /* silent */ }
       if (!cancelled) setLoading(false)
     })()
@@ -143,17 +154,22 @@ export function StudentPortal() {
     if (!dashboardData) return { completedLessons: 0, pendingHomework: 0, lastScore: null, progress: 0, lastVideo: null, upcomingTasks: [] as any[] }
     const { videos, homework, exams, examResults, watchedIds, announcements } = dashboardData
     const completedLessons = watchedIds.size
-    const pendingHomework = homework.length
+    /* المطلوب دلوقتي = اللي **ماعملهوش** بس — اللي خلص واجب أو امتحان مش بيتكرر له (طلب المستر) */
+    const pendingHwList = homework.filter(function(h) { return !completedHwIds.has(h.id) })
+    const pendingExamList = exams.filter(function(e) {
+      return !examResults.find(function(r) { return r.examId === e.id })
+    })
+    const pendingHomework = pendingHwList.length
     const lastScore = examResults.length > 0 ? examResults[0] : null
     const progress = videos.length > 0 ? Math.round((watchedIds.size / videos.length) * 100) : 0
     const lastVideo = videos.find(v => !watchedIds.has(v.id)) || videos[0] || null
     const upcomingTasks: any[] = []
-    homework.slice(0, 2).forEach(hw => upcomingTasks.push({ type: 'homework', title: hw.title, icon: ClipboardList, color: 'text-blue-500' }))
-    exams.slice(0, 2).forEach(ex => upcomingTasks.push({ type: 'exam', title: ex.title, icon: FileText, color: 'text-orange-500' }))
+    pendingHwList.slice(0, 2).forEach(hw => upcomingTasks.push({ type: 'homework', title: hw.title, icon: ClipboardList, color: 'text-blue-500' }))
+    pendingExamList.slice(0, 2).forEach(ex => upcomingTasks.push({ type: 'exam', title: ex.title, icon: FileText, color: 'text-orange-500' }))
     if (lastVideo && !watchedIds.has(lastVideo.id)) upcomingTasks.push({ type: 'lesson', title: lastVideo.title, icon: Video, color: 'text-purple-500' })
     if (announcements.length > 0) upcomingTasks.push({ type: 'important', title: announcements[0].title, icon: Bell, color: 'text-red-500' })
     return { completedLessons, pendingHomework, lastScore, progress, lastVideo, upcomingTasks: upcomingTasks.slice(0, 4) }
-  }, [dashboardData])
+  }, [dashboardData, completedHwIds])
 
   if (loading) return (
     <div className="flex-1 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
