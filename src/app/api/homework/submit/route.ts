@@ -369,7 +369,9 @@ export async function POST(request) {
             acceptedAnswers: wa.acceptedAnswers,
             maxPoints: wa.points,
           })
-          if (noModelGrade) {
+          /* 2026-و18: الـ AI مش متأكد (needsGrading) ≠ حكم نهائي —
+             بنسيبه يقع في الحسم المحلي تحت (درجة محاولة عادلة) بدل صفر ظالم */
+          if (noModelGrade && !noModelGrade.needsGrading) {
             return Object.assign({}, wa, {
               gradingStatus: 'graded',
               needsGrading: false,

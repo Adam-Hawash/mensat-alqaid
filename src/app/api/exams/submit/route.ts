@@ -129,8 +129,12 @@ export async function POST(request) {
       var pts = (typeof q.points === 'number' && q.points > 0) ? q.points : 1
       maxScore += pts
       var opts = Array.isArray(q.options) ? q.options : []
-      var correctIdx = typeof q.correct === 'number' ? q.correct : 0
-      if (correctIdx < 0 || correctIdx >= opts.length) { correctIdx = 0 }
+      /* أسئلة اختيارية من غير مفتاح مؤكد ← صفر درجة صادق — مش (A) بالحر
+         (نفس قرار maths-genius: التصحيح على الإجابة الرسمية بس) */
+      var correctIdx = typeof q.correct === 'number' ? q.correct : -1
+      if (correctIdx < 0 || correctIdx >= opts.length) {
+        return
+      }
       var studentAnswer = lookupAnswer(answers, item.origIdx)
       if (studentAnswer !== undefined && studentAnswer !== null && Number(studentAnswer) === correctIdx) {
         score += pts
@@ -206,7 +210,8 @@ export async function POST(request) {
       } catch (imErr) {
         console.error('Writing image grade error:', imErr)
       }
-      if (gradeData) {
+      if (gradeData && gradeData.needsGrading !== true) {
+        /* حكم الـ AI الواثق على الإجابة النهائية — نهائي: صح/غلط */
         var imAwarded = Math.min(Math.max(Math.round(Number(gradeData.awardedPoints) || (gradeData.isCorrect ? iw.points : 0)), 0), iw.points)
         imageGraded.push({
           question: iw.question,
@@ -220,7 +225,9 @@ export async function POST(request) {
           aiExtractedAnswer: gradeData.extractedAnswer || '',
         })
       } else {
-        // VLM failed → count attempted work instead of leaving it empty
+        /* الحسم الحاسم (نفس decisiveImageFallback بتاع الواجب):
+           الـ VLM فشل أو مش متأكد ← مفيش needsGrading معلقة خالص —
+           درجة مؤقتة عادلة (نص درجة المحاولة) والمستر يعدّلها من لوحته */
         var hasRealWork = iw.studentText.replace(/\[📷[^\]]*\]/g, '').trim().length > 0
         imageGraded.push({
           question: iw.question,
@@ -228,8 +235,8 @@ export async function POST(request) {
           modelAnswer: iw.modelAnswer,
           awardedPoints: hasRealWork ? Math.ceil(iw.points / 2) : 0,
           maxPoints: iw.points,
-          isCorrect: hasRealWork,
-          feedback: hasRealWork ? 'صورة الحل اترفعت — المستر هيراجعها ويعادلها' : 'لم يتم الإجابة',
+          isCorrect: false,
+          feedback: hasRealWork ? 'صورة الحل اترفعت — درجة مؤقتة والمستر هيراجعها ويعادلها' : 'لم يتم الإجابة',
           gradingStatus: 'graded',
         })
       }

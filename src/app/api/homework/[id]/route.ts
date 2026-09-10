@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, safeWrite } from '@/lib/db'
 
 // GET /api/homework/[id] - 获取单个作业
 export async function GET(
@@ -66,17 +66,29 @@ export async function DELETE(
       return NextResponse.json({ error: '作业不存在' }, { status: 404 })
     }
 
-    // المستر طلب: حذف الواجب من المنصة = حذف كل حاجة تخصه
-    // (تسليمات الطالب + درجاته + تصحيحات الـ AI — عشان مفيش "واجب محذوف" يفضل ظاهر بدرجة)
-    // الفورين كي مش مفروض على داتابيز الإنتاج (اتعملت بـ raw SQL) فبنمسح يدوي.
+    // المستر (2026-و18/18-d): حذف الواجب من المنصة = حذف كل حاجة تخصه في نفس الطلب
+    // (تسليمات الطالب + درجاته + تصحيحات الـ AI) جوه ترانزاكشن واحدة
+    // يا الاتنين يتمّوا يا مفيش حاجة بتتحذف — مفيش "واجب محذوف" يفضل ظاهر بدرجة
+    // ولا صفوف يتيمة في صفحة الأدمن.
+    // الفورين كي مش مفروض على داتابيز الإنتاج (اتعملت بـ raw SQL) فبنمسح يدوي جوه الترانزاكشن،
+    // وsafeWrite بيحمينا من database is locked زي باقي كتابات المنصة.
     try {
-      await db.$executeRawUnsafe('DELETE FROM HomeworkResult WHERE homeworkId = ?', id)
-    } catch (e) {
-      console.error('حذف تسليمات الواجب فشل:', e)
-      try { await db.homeworkResult.deleteMany({ where: { homeworkId: id } }) } catch (e2) {}
+      await safeWrite(async function () {
+        return db.$transaction([
+          db.$executeRawUnsafe('DELETE FROM HomeworkResult WHERE homeworkId = ?', id),
+          db.homework.delete({ where: { id } }),
+        ])
+      })
+    } catch (txError) {
+      // محاولة احتياطية بنفس الترانزاكشن عبر Prisma لو الـ raw SQL فشل
+      console.error('حذف الواجب بترانزاكشن raw فشل — محاولة احتياطية:', txError)
+      await safeWrite(async function () {
+        return db.$transaction([
+          db.homeworkResult.deleteMany({ where: { homeworkId: id } }),
+          db.homework.delete({ where: { id } }),
+        ])
+      })
     }
-
-    await db.homework.delete({ where: { id } })
 
     return NextResponse.json({ message: '作业删除成功' })
   } catch (error) {

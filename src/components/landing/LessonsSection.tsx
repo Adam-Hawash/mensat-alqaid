@@ -26,7 +26,7 @@ export default function LessonsSection() {
   var [loading, setLoading] = useState(true)
   var [selectedGrade, setSelectedGrade] = useState('')
   var [centerIndex, setCenterIndex] = useState(0)
-  var timerRef = useRef(null)
+  var timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   var isPausedRef = useRef(false)
   var lenRef = useRef(0)
 

@@ -128,17 +128,37 @@ export async function GET(request: NextRequest) {
     // Map student info
     var studentMap: any = {}
     var studentIds = rawResults.map((r: any) => r.studentId).filter(Boolean)
+    var studentLookupOk = studentIds.length === 0
     if (studentIds.length > 0) {
       try {
         var ph = studentIds.map(function() { return '?' }).join(',')
         var studs = await db.$queryRawUnsafe('SELECT id, name, phone, grade, status FROM Student WHERE id IN (' + ph + ')', ...studentIds) || []
         studs.forEach(function(s: any) { studentMap[s.id] = s })
+        studentLookupOk = true
       } catch (e) {}
+    }
+
+    // (2026-و18/18-d) فلترة الصفوف اليتيمة: نتيجة طالب حسابه اتحذف متتعرضش
+    // في الأدمن خالص — والفلترة بس لو جلب الطلاب نجح عشان خطأ مؤقت مايفضيش كل القايمة
+    if (studentLookupOk && studentIds.length > 0) {
+      rawResults = rawResults.filter(function(r: any) { return !!studentMap[r.studentId] })
     }
 
     // Parse exam questions — writing questions keyed by ORIGINAL index (for live fallback)
     var examRow: any = null
-    try { examRow = await db.exam.findUnique({ where: { id: examId }, select: { id: true, grade: true, questions: true, passScore: true } }) } catch (e) {}
+    try { examRow = await db.exam.findUnique({ where: { id: examId }, select: { id: true, grade: true, questions: true, passScore: true } }) } catch (e) {
+      // fallback: raw SQL لو Prisma وقع مؤقتًا
+      try {
+        var examRows0: any[] = (await db.$queryRawUnsafe('SELECT id, grade, questions, passScore FROM Exam WHERE id = ? LIMIT 1', examId)) as any[]
+        examRow = examRows0 && examRows0.length > 0 ? examRows0[0] : null
+      } catch (e2) {}
+    }
+
+    // (2026-و18/18-d) وجود الامتحان شرط: لو الامتحان نفسه اتحذف — نتايجه القديمة
+    // (صفوف يتيمة) متتعرضش خالص، نفس حماية باقي صفحات نتايج الأدمن
+    if (!examRow) {
+      return NextResponse.json({ error: 'Exam not found' }, { status: 404 })
+    }
     var examWritingQs: any[] = []
     try {
       var examQsRaw: any[] = []

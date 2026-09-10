@@ -1353,12 +1353,12 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
               if (data && typeof data.score === 'number') {
                 setLastResult({ examId: takingExam, score: data.score, maxScore: data.maxScore, writingGrades: data.writingGrades || [] })
               }
-              setSubmittedExamIds(function(prev) { var s = new Set(prev); s.add(takingExam); return s })
+              setSubmittedExamIds(function(prev) { var s = new Set(prev); if (takingExam) s.add(takingExam); return s })
               setSubmittedMsg('تم تقديم هذا الامتحان')
             })
             .catch(function() {
               clearTimeout(submitTimeout)
-              setSubmittedExamIds(function(prev) { var s = new Set(prev); s.add(takingExam); return s })
+              setSubmittedExamIds(function(prev) { var s = new Set(prev); if (takingExam) s.add(takingExam); return s })
               setSubmittedMsg('تم تقديم هذا الامتحان')
             })
             .finally(function() { setSubmitting(false) })

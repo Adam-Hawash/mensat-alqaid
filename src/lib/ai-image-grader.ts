@@ -456,8 +456,10 @@ export function extractImageMediaIds(answerText: string): string[] {
  * TEXT grading — for writing answers typed without an image.
  * Same strict contract as image grading. The grader UNDERSTANDS the
  * question, finds the FINAL answer and compares by MEANING against the
- * model answer — and ALWAYS returns a decisive verdict (needsGrading
- * false): the teacher can flip any verdict from the admin panel.
+ * model answer. Verdicts are decisive (gradingStatus stays 'graded' in
+ * every caller); needsGrading=true means ONLY "غلط + ثقة واطية" so the
+ * decisive submit path gives a fair attempt score instead of a harsh 0 —
+ * the teacher can flip any verdict from the admin panel.
  * ------------------------------------------------------------------ */
 export async function gradeTextAnswer(params: {
   question: string
@@ -542,8 +544,9 @@ export async function gradeTextAnswer(params: {
     maxPoints: maxPoints,
     feedback: String(parsed.feedback || '').trim() || (isCorrect ? 'إجابة صحيحة' : 'إجابة مختلفة عن الإجابة الصحيحة'),
     confidence: confidence,
-    // Decisive: low confidence never blocks — the AI verdict stands and the
-    // teacher can flip it from the admin panel. needsGrading=false دايماً
-    needsGrading: false,
+    // غلط + ثقة واطية → نعلّمها "مش متأكد" عشان المسار الحاسم في التسليم
+    // يدي درجة محاولة عادلة بدل صفر ظالم — ومفيش needsGrading معلقة خالص:
+    // المستر يقدر يعدّل أي حكم من لوحته (نفس قرار maths-genius وشيماء)
+    needsGrading: !isCorrect && confidence === 'low',
   }
 }

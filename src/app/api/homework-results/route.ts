@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
       // Get student info for each result
       var studentIds = rawResults.map((r: any) => r.studentId).filter(Boolean)
       var studentMap: any = {}
+      var studentLookupOk = studentIds.length === 0
       if (studentIds.length > 0) {
         try {
           var placeholders = studentIds.map(function() { return '?' }).join(',')
@@ -76,9 +77,16 @@ export async function GET(request: NextRequest) {
             ...studentIds
           ) || []
           students.forEach(function(s: any) { studentMap[s.id] = s })
+          studentLookupOk = true
         } catch (e) {
           console.error('Student lookup error:', e)
         }
+      }
+
+      // (2026-و18/18-d) فلترة الصفوف اليتيمة: نتيجة طالب حسابه اتحذف متتعرضش
+      // في الأدمن خالص — والفلترة بس لو جلب الطلاب نجح عشان خطأ مؤقت مايفضيش كل القايمة
+      if (studentLookupOk && studentIds.length > 0) {
+        rawResults = rawResults.filter(function(r: any) { return !!studentMap[r.studentId] })
       }
 
       // Parse homework questions — keep ORIGINAL index

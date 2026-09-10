@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, safeWrite } from '@/lib/db'
 
 // GET /api/exams/[id] - 获取单个考试
 export async function GET(
@@ -72,16 +72,28 @@ export async function DELETE(
       return NextResponse.json({ error: '考试不存在' }, { status: 404 })
     }
 
-    // حذف الامتحان من المنصة = حذف كل حاجة تخصه (نتايج الطلاب + تصحيحات الـ AI)
-    // عشان مفيش نتيجة تفضل ظاهرة لامتحان اتحذف — نفس منطق حذف الواجب
+    // المستر (2026-و18/18-d): أي امتحان أمسحه — نقاطه وإجاباته تختفي في نفس اللحظة
+    // من صفحة الأدمن. بنمسح النتايج + الامتحان جوه ترانزاكشن واحدة
+    // (يا الاتنين يتمّوا يا مفيش حاجة بتتحذف) — مفيش صفوف يتيمة تفضل ورا.
+    // الفورين كي مش مفروض على داتابيز الإنتاج (اتعملت بـ raw SQL) فبنمسح يدوي جوه الترانزاكشن،
+    // وsafeWrite بيحمينا من database is locked زي باقي كتابات المنصة.
     try {
-      await db.$executeRawUnsafe('DELETE FROM ExamResult WHERE examId = ?', id)
-    } catch (e) {
-      console.error('حذف نتايج الامتحان فشل:', e)
-      try { await db.examResult.deleteMany({ where: { examId: id } }) } catch (e2) {}
+      await safeWrite(async function () {
+        return db.$transaction([
+          db.$executeRawUnsafe('DELETE FROM ExamResult WHERE examId = ?', id),
+          db.exam.delete({ where: { id } }),
+        ])
+      })
+    } catch (txError) {
+      // محاولة احتياطية بنفس الترانزاكشن عبر Prisma لو الـ raw SQL فشل
+      console.error('حذف الامتحان بترانزاكشن raw فشل — محاولة احتياطية:', txError)
+      await safeWrite(async function () {
+        return db.$transaction([
+          db.examResult.deleteMany({ where: { examId: id } }),
+          db.exam.delete({ where: { id } }),
+        ])
+      })
     }
-
-    await db.exam.delete({ where: { id } })
 
     return NextResponse.json({ message: '考试删除成功' })
   } catch (error) {
