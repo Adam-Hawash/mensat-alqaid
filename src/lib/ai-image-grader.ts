@@ -286,7 +286,7 @@ export async function gradeImageAnswer(params: {
   prompt += 'STEP 5 — Compare the student\'s final answer with the MODEL ANSWER (الإجابة النموذجية) and accepted answers by MEANING and by VALUE, not by exact wording. The student does NOT need to copy the model answer word-for-word; if their answer conveys the same correct fact(s), names, dates, numbers or reasons, it is CORRECT. Equivalent forms are CORRECT: ١٩٥٢ = 1952 = 1952م, different Arabic spellings of the same name or term, listing the same points in a different order, numeric forms ٥٠٪ = 50% = 0.5, 3:4 = 3/4, 3,5 = 3.5, and units/labels are IGNORED (12 سم = 12 cm = 12), a final value contained inside the model\'s fuller answer.\n'
   prompt += 'STEP 6 — Grade by the KEY FACTS the question asks for: a complete correct key fact earns credit; missing or wrong key facts lose credit proportionally. A correct final answer with messy/unreadable steps is still CORRECT (full points). A genuinely DIFFERENT final answer is WRONG even if the wording looks nice. Never mark an answer wrong just because the handwriting is hard to read — judge the final answer.\n'
   prompt += 'STEP 7 — ALWAYS give a definite verdict (isCorrect true or false). Only say onTopic=false when the photo truly contains NO student work at all.\n\n'
-  prompt += 'awardedPoints: an integer from 0 to ' + maxPoints + ' (' + maxPoints + ' only when isCorrect=true).\n\n'
+  prompt += 'awardedPoints: an integer from 0 to ' + maxPoints + '. HARD RULE — no partial credit: if isCorrect=true then awardedPoints MUST be exactly ' + maxPoints + ' (NEVER deduct for messy/hard-to-read/unfinished-looking steps when the final answer is right); if isCorrect=false then awardedPoints MUST be 0.\n\n'
   prompt += 'Respond with ONLY this JSON — no markdown, no extra text:\n'
   prompt += '{"onTopic": true, "extractedAnswer": "إجابة الطالب زي ما كتبها (3 سطور كحد أقصى)", "finalAnswer": "الإجابة النهائية/النقطة الأساسية في إجابته", "isCorrect": true, "awardedPoints": ' + maxPoints + ', "confidence": "high", "feedback": "تعليق قصير بالعامية المصرية"}\n'
 
@@ -405,7 +405,8 @@ export async function gradeImageAnswer(params: {
     }
   }
   // AI said correct but gave 0 points → give full
-  if (isCorrect && awardedPoints === 0) awardedPoints = maxPoints
+  // 2026-و19 — الصح = الدرجة كاملة دايمًا (الموديل كان بيفهم صح ويخصم نقطة ببلاش 4/5)
+  if (isCorrect) awardedPoints = maxPoints
   // AI said wrong → 0 points, period
   if (!isCorrect) awardedPoints = 0
 
@@ -530,7 +531,7 @@ export async function gradeTextAnswer(params: {
   prompt += '4. Grade by the key facts: complete correct key facts → full credit; partially correct → partial credit; wrong or unrelated → 0.\n'
   prompt += '5. If the student answer does not actually address the question (e.g. it is just the question text, or unrelated) → isCorrect=false and confidence="low" — but STILL a definite verdict.\n'
   prompt += '6. Never guess randomly. If unsure → confidence="low" and give your best verdict — the teacher reviews it from the admin panel.\n\n'
-  prompt += 'awardedPoints: integer 0 to ' + maxPoints + ' (' + maxPoints + ' only when isCorrect=true).\n\n'
+  prompt += 'awardedPoints: integer 0 to ' + maxPoints + '. HARD RULE — no partial credit: isCorrect=true ⇒ awardedPoints exactly ' + maxPoints + '; isCorrect=false ⇒ 0.\n\n'
   prompt += 'Respond with ONLY this JSON — no markdown:\n'
   prompt += '{"isCorrect": true, "awardedPoints": ' + maxPoints + ', "confidence": "high", "feedback": "تعليق قصير بالعامية المصرية"}\n'
 
@@ -557,7 +558,8 @@ export async function gradeTextAnswer(params: {
       }
     }
   }
-  if (isCorrect && awardedPoints === 0) awardedPoints = maxPoints
+  // 2026-و19 — الصح = الدرجة كاملة دايمًا (الموديل كان بيفهم صح ويخصم نقطة ببلاش 4/5)
+  if (isCorrect) awardedPoints = maxPoints
   if (!isCorrect) awardedPoints = 0
 
   return {
