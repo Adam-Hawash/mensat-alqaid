@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     /* (2026-و26) الشكوى العامة: مش محتاجة حساب — الاسم + التليفون كفاية.
        لو مفيش الاتنين يبقى لازم تسجيل دخول. */
     if (!studentId && (!studentName || !phone)) {
-      return NextResponse.json({ error: 'اكتب اسمك ورقم تليفونك عشان المستر يقدر يواصل معاك' }, { status: 400 })
+      return NextResponse.json({ error: 'اكتب اسمك ورقم تليفونك عشان نقدر نتواصل معاك' }, { status: 400 })
     }
     if (!studentName && !phone) {
       return NextResponse.json({ error: 'لازم تكون مسجل دخول عشان تبعت شكوى' }, { status: 401 })
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
           studentId
         )
         if (cnt && cnt[0] && Number(cnt[0].c) >= 8) {
-          return NextResponse.json({ error: 'بعت شكاوى كتير النهاردة — المستر هشوفها كلها بإذن الله 🙏' }, { status: 429 })
+          return NextResponse.json({ error: 'بعت رسايل كتير النهاردة — جرب تاني بكرة بإذن الله 🙏' }, { status: 429 })
         }
       } catch (e) {}
     }
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
           phone
         )
         if (pcnt && pcnt[0] && Number(pcnt[0].c) >= 5) {
-          return NextResponse.json({ error: 'بعت شكاوى كتير النهاردة من الرقم ده — المستر هشوفها كلها بإذن الله 🙏' }, { status: 429 })
+          return NextResponse.json({ error: 'بعت رسايل كتير النهاردة من الرقم ده — جرب تاني بكرة بإذن الله 🙏' }, { status: 429 })
         }
       } catch (e) {}
     }
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
     })
 
     var created = (await db.$queryRawUnsafe('SELECT * FROM Complaint WHERE id = ? LIMIT 1', id)) || []
-    return NextResponse.json({ message: 'وصلت شكواك للمستر ✅', complaint: created[0] || null }, { status: 201 })
+    return NextResponse.json({ message: 'تم إرسال رسالتك ✅', complaint: created[0] || null }, { status: 201 })
   } catch (error) {
     console.error('[Complaints] POST error:', error)
     return NextResponse.json({ error: 'حصلت مشكلة في السيرفر — جرب تاني' }, { status: 500 })
