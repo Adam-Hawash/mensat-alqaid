@@ -1730,6 +1730,14 @@ function MyStudentsPanel() {
   const [selectedStudent, setSelectedStudent] = useState<StudentAnalytics | null>(null)
   const [detail, setDetail] = useState<any>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  /* 2026-و23 — خانة بحث الطلاب بالاسم أو الرقم — فلترة فورية من غير شبكة */
+  const [search, setSearch] = useState('')
+  const filteredStudents = search.trim()
+    ? students.filter(function (s) {
+        var q = search.trim().toLowerCase()
+        return (s.name || '').toLowerCase().indexOf(q) !== -1 || (s.phone || '').indexOf(q) !== -1
+      })
+    : students
 
   const loadData = async () => {
     if (!grade) { setStudents([]); setSummary(null); return }
@@ -1774,10 +1782,23 @@ function MyStudentsPanel() {
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <CardTitle className="text-lg flex items-center gap-2"><BarChart3 className="h-5 w-5 text-primary" />طلابي | My Students</CardTitle>
-            <select value={grade} onChange={(e) => setGrade(e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-3 text-sm min-w-[200px]">
-              <option value="">اختر الصف لعرض التحليلات</option>
-              {GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar} {g.en}</option>)}
-            </select>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="🔍 ابحث باسم الطالب أو رقمه..."
+                  className="h-9 rounded-md border border-input bg-transparent pl-3 pr-9 text-sm min-w-[220px]"
+                  aria-label="ابحث عن طالب بالاسم أو رقم الهاتف"
+                />
+              </div>
+              <select value={grade} onChange={(e) => setGrade(e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-3 text-sm min-w-[200px]">
+                <option value="">اختر الصف لعرض التحليلات</option>
+                {GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar} {g.en}</option>)}
+              </select>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -1792,6 +1813,12 @@ function MyStudentsPanel() {
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Users className="h-10 w-10 text-muted-foreground/30 mb-3" />
               <p className="text-sm text-muted-foreground">لا يوجد طلاب مفعلون في هذا الصف</p>
+            </div>
+          ) : filteredStudents.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Search className="h-10 w-10 text-muted-foreground/30 mb-3" />
+              <p className="text-sm font-medium">مفيش طالب بالاسم أو الرقم «{search}»</p>
+              <p className="text-xs text-muted-foreground mt-1">جرب جزء من الاسم أو الرقم</p>
             </div>
           ) : (
             <>
@@ -1819,7 +1846,7 @@ function MyStudentsPanel() {
                     <th className="text-center py-2 px-1 font-medium">تفاصيل</th>
                   </tr></thead>
                   <tbody>
-                    {students.map((s) => (
+                    {filteredStudents.map((s) => (
                       <tr key={s.id} className="border-b hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => loadDetail(s.id)}>
                         <td className="py-2.5 px-2">
                           <p className="font-medium text-xs truncate max-w-[150px]">{s.name}</p>

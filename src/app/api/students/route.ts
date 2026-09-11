@@ -156,16 +156,10 @@ export async function GET(request: NextRequest) {
       try {
         var student = null as any
         try {
-          student = await db.student.findFirst({
-            where: { phone },
-            include: { _count: { select: { activities: true } } },
-          })
+          student = await db.student.findFirst({ where: { phone } })
         } catch (qErr: any) {
           await ensureStudentSchema()
-          student = await db.student.findFirst({
-            where: { phone },
-            include: { _count: { select: { activities: true } } },
-          })
+          student = await db.student.findFirst({ where: { phone } })
         }
         if (!student) {
           return NextResponse.json({ students: [], total: 0, page: 1, pageSize: 1, totalPages: 0 })

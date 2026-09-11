@@ -286,10 +286,12 @@ export async function gradeImageAnswer(params: {
   prompt += 'STEP 5 — Compare the student\'s final answer with the MODEL ANSWER (الإجابة النموذجية) and accepted answers by MEANING and by VALUE, not by exact wording. The student does NOT need to copy the model answer word-for-word; if their answer conveys the same correct fact(s), names, dates, numbers or reasons, it is CORRECT. Equivalent forms are CORRECT: ١٩٥٢ = 1952 = 1952م, different Arabic spellings of the same name or term, listing the same points in a different order, numeric forms ٥٠٪ = 50% = 0.5, 3:4 = 3/4, 3,5 = 3.5, and units/labels are IGNORED (12 سم = 12 cm = 12), a final value contained inside the model\'s fuller answer.\n'
   prompt += 'STEP 6 — Grade by the KEY FACTS the question asks for: a complete correct key fact earns credit; missing or wrong key facts lose credit proportionally. A correct final answer with messy/unreadable steps is still CORRECT (full points). A genuinely DIFFERENT final answer is WRONG even if the wording looks nice. Never mark an answer wrong just because the handwriting is hard to read — judge the final answer.\n'
   prompt += 'STEP 6.5 — UNDERSTAND the solution like a human teacher (as if the student is explaining it to you), NEVER literal matching: a small SLIP in a MIDDLE step (a naming slip, a small factual slip the student self-corrected right after, a crossed-out attempt) does NOT make the work wrong when the student ENDED at the correct final answer with the right key facts. Judge where they ENDED.\n'
+  prompt += 'STEP 6.6 — READ THE HANDWRITING CAREFULLY (the worst failure is grading a CORRECT answer as wrong because you misread it): read every handwritten digit/word with FULL attention (4 vs 9, 1 vs 7, 5 vs 3, 0 vs 6). Re-read the final answer TWICE before deciding. If what you read matches the model answer → it is CORRECT, full stop.\n'
   prompt += 'STEP 7 — ALWAYS give a definite verdict (isCorrect true or false). Only say onTopic=false when the photo truly contains NO student work at all.\n\n'
   prompt += 'awardedPoints: an integer from 0 to ' + maxPoints + '. HARD RULE — no partial credit: if isCorrect=true then awardedPoints MUST be exactly ' + maxPoints + ' (NEVER deduct for messy/hard-to-read/unfinished-looking steps when the final answer is right); if isCorrect=false then awardedPoints MUST be 0.\n\n'
+  prompt += 'FEEDBACK STYLE (2026-و23 — the teacher wants notes like a real teacher chatting with the student): write the feedback in Egyptian Arabic talking DIRECTLY to the student (استخدم «انت») — explain WHY the answer is correct or wrong (the reason), 1-2 short sentences. Correct → brief praise + what made it right. Wrong → kindly say what went wrong and what the correct answer is. NEVER generic (ممنوع «إجابة غلط» لوحدها).\n\n'
   prompt += 'Respond with ONLY this JSON — no markdown, no extra text:\n'
-  prompt += '{"onTopic": true, "extractedAnswer": "إجابة الطالب زي ما كتبها (3 سطور كحد أقصى)", "finalAnswer": "الإجابة النهائية/النقطة الأساسية في إجابته", "isCorrect": true, "awardedPoints": ' + maxPoints + ', "confidence": "high", "feedback": "تعليق قصير بالعامية المصرية"}\n'
+  prompt += '{"onTopic": true, "extractedAnswer": "إجابة الطالب زي ما كتبها (3 سطور كحد أقصى)", "finalAnswer": "الإجابة النهائية/النقطة الأساسية في إجابته", "isCorrect": true, "awardedPoints": ' + maxPoints + ', "confidence": "high", "feedback": "ملاحظة بالمصري للطالب: ليه صح أو ليه غلط — كأنك بتكلمه بجد (جملتين كحد أقصى)"}\n'
 
   var parts = [
     { text: prompt },
@@ -532,10 +534,13 @@ export async function gradeTextAnswer(params: {
   prompt += '3b. UNDERSTAND the answer like you are talking with the student — interpret what they MEANT (never literal string matching). A small slip in a MIDDLE step that the student self-corrected does NOT make the work wrong when the FINAL answer is right — judge where they ENDED.\n'
   prompt += '4. Grade by the key facts: complete correct key facts → full credit; partially correct → partial credit; wrong or unrelated → 0.\n'
   prompt += '5. If the student answer does not actually address the question (e.g. it is just the question text, or unrelated) → isCorrect=false and confidence="low" — but STILL a definite verdict.\n'
-  prompt += '6. Never guess randomly. If unsure → confidence="low" and give your best verdict — the teacher reviews it from the admin panel.\n\n'
+  prompt += '6. Never guess randomly. If unsure → confidence="low" and give your best verdict — the teacher reviews it from the admin panel.\n'
+  prompt += '7. READ CAREFULLY (worst failure = a correct answer graded wrong): re-read the student final answer TWICE — read every digit/word carefully. If what you read matches the model answer → CORRECT, full stop.\n\n'
+  prompt += 'FEEDBACK STYLE (2026-و23): the feedback must sound like a real teacher chatting with the student in Egyptian Arabic — talk to him directly (انت), explain WHY the answer is correct or wrong (the reason), 1-2 short sentences. Correct → brief praise + what made it right. Wrong → kindly say what went wrong and what the correct answer is. NEVER generic.\n\n'
+
   prompt += 'awardedPoints: integer 0 to ' + maxPoints + '. HARD RULE — no partial credit: isCorrect=true ⇒ awardedPoints exactly ' + maxPoints + '; isCorrect=false ⇒ 0.\n\n'
   prompt += 'Respond with ONLY this JSON — no markdown:\n'
-  prompt += '{"isCorrect": true, "awardedPoints": ' + maxPoints + ', "confidence": "high", "feedback": "تعليق قصير بالعامية المصرية"}\n'
+  prompt += '{"isCorrect": true, "awardedPoints": ' + maxPoints + ', "confidence": "high", "feedback": "ملاحظة بالمصري للطالب: ليه صح أو ليه غلط — كأنك بتكلمه بجد (جملتين كحد أقصى)"}\n'
 
   var result = await callGrader([{ text: prompt }])
   if (!result.ok || !result.text) return null

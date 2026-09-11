@@ -1023,7 +1023,6 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                             <div className="p-2 rounded bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-900/40">
                               <p className="text-[10px] font-bold text-blue-700 dark:text-blue-400 mb-1">🤖 الـ AI قري إجابتك:</p>
                               <p className="text-xs text-foreground whitespace-pre-wrap break-words" dir="auto">{writingAns.aiExtractedAnswer}</p>
-                              {writingAns.aiFeedback && <p className="text-[10px] text-muted-foreground mt-1">{writingAns.aiFeedback}</p>}
                             </div>
                           )}
                           {writingAns.modelAnswer && (
@@ -1031,6 +1030,15 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                           )}
                           {writingAns.awardedPoints !== undefined && (
                             <p className="text-[10px] font-semibold text-muted-foreground">الدرجة: {writingAns.awardedPoints}/{writingAns.maxPoints || writingAns.points}</p>
+                          )}
+                          {/* 2026-و23 — ملاحظة المصحح الذكي في آخر السؤال — صندوق واضح بلون الحكم */}
+                          {(writingAns.aiFeedback || writingAns.feedback) && writingAns.gradingStatus !== 'pending' && (
+                            <div className={'mt-2.5 p-3 rounded-xl border-2 ' + (writingAns.isCorrect === true ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-400 dark:border-emerald-700' : writingAns.isCorrect === false ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-muted/40 border-border')}>
+                              <p className={'text-xs font-bold mb-1 flex items-center gap-1.5 ' + (writingAns.isCorrect === true ? 'text-emerald-700 dark:text-emerald-400' : writingAns.isCorrect === false ? 'text-red-700 dark:text-red-400' : 'text-foreground')}>
+                                <span>📝</span> ملاحظة المصحح الذكي:
+                              </p>
+                              <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words" style={{ textAlign: 'right' }}>{writingAns.aiFeedback || writingAns.feedback}</p>
+                            </div>
                           )}
                         </div>
                       )}

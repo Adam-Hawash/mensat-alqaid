@@ -274,7 +274,7 @@ export function ProtectedFilePlayer({
       >
         <div
           ref={progressRef}
-          className="w-full h-1.5 bg-white/30 cursor-pointer relative"
+          className="w-full h-1 bg-white/30 cursor-pointer relative"
           onClick={handleSeek}
           onTouchEnd={function (e) { e.preventDefault(); e.stopPropagation(); handleSeek(e) }}
         >
@@ -282,7 +282,8 @@ export function ProtectedFilePlayer({
           <div className="absolute top-0 left-0 h-full bg-primary pointer-events-none" style={{ width: progressPercent + '%' }} />
         </div>
 
-        <div className="flex items-center gap-1 px-3 py-2.5 bg-gradient-to-t from-black/85 to-transparent">
+        {/* 2026-و23 — الشريط بقى 60px والووترمارك السفلية واقفة على حدّه بالظبط */}
+        <div className="flex items-center gap-1 px-3 py-2 bg-gradient-to-t from-black/85 to-transparent">
           <button
             type="button"
             aria-label={playing ? 'إيقاف مؤقت' : 'تشغيل'}

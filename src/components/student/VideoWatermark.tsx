@@ -218,7 +218,7 @@ export function VideoWatermark({ name, phone }: { name?: string; phone?: string 
 
       {/* كارت أصغر تحت على **الشمال** (طلب المستر 2026-ح) — مكان علامة الشير
           وعلامة يوتيوب، بمقاس أصغر، وفوق شريط الكنترولز مش على جزء منه */}
-      <div className="absolute z-[61]" style={{ bottom: 64, left: 10 }}>
+      <div className="absolute z-[61]" style={{ bottom: 60, left: 10 }}>
         <WmCardSmall nm={nm} num={num} />
       </div>
     </div>
