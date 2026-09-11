@@ -4,7 +4,7 @@ import { db, safeWrite } from '@/lib/db'
 import { isAdmin } from '@/lib/video-guard'
 import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
 
-// GET /api/homework/[id] - 获取单个作业
+// GET /api/homework/[id] - جلب واجب بالمعرف
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,17 +14,17 @@ export async function GET(
     const homework = await db.homework.findUnique({ where: { id } })
 
     if (!homework) {
-      return NextResponse.json({ error: '作业不存在' }, { status: 404 })
+      return NextResponse.json({ error: 'الواجب غير موجود' }, { status: 404 })
     }
 
     return NextResponse.json({ homework })
   } catch (error) {
-    console.error('获取作业详情失败:', error)
-    return NextResponse.json({ error: '服务器内部错误' }, { status: 500 })
+    console.error('فشل جلب الواجب:', error)
+    return NextResponse.json({ error: 'حدث خطأ في السيرفر' }, { status: 500 })
   }
 }
 
-// PUT /api/homework/[id] - 更新作业
+// PUT /api/homework/[id] - تحديث الواجب
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -36,7 +36,7 @@ export async function PUT(
 
     const existing = await db.homework.findUnique({ where: { id } })
     if (!existing) {
-      return NextResponse.json({ error: '作业不存在' }, { status: 404 })
+      return NextResponse.json({ error: 'الواجب غير موجود' }, { status: 404 })
     }
 
     const homework = await db.homework.update({
@@ -48,10 +48,10 @@ export async function PUT(
       },
     })
 
-    return NextResponse.json({ message: '作业更新成功', homework })
+    return NextResponse.json({ message: 'تم تحديث الواجب بنجاح', homework })
   } catch (error) {
-    console.error('更新作业失败:', error)
-    return NextResponse.json({ error: '服务器内部错误' }, { status: 500 })
+    console.error('تحديث الواجبفشل:', error)
+    return NextResponse.json({ error: 'حدث خطأ في السيرفر' }, { status: 500 })
   }
 }
 
@@ -121,7 +121,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/homework/[id] - 删除作业
+// DELETE /api/homework/[id] - حذف الواجب
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -131,7 +131,7 @@ export async function DELETE(
 
     const existing = await db.homework.findUnique({ where: { id } })
     if (!existing) {
-      return NextResponse.json({ error: '作业不存在' }, { status: 404 })
+      return NextResponse.json({ error: 'الواجب غير موجود' }, { status: 404 })
     }
 
     // المستر (2026-و18/18-d): حذف الواجب من المنصة = حذف كل حاجة تخصه في نفس الطلب
@@ -158,9 +158,9 @@ export async function DELETE(
       })
     }
 
-    return NextResponse.json({ message: '作业删除成功' })
+    return NextResponse.json({ message: 'تم حذف الواجب بنجاح' })
   } catch (error) {
-    console.error('删除作业失败:', error)
-    return NextResponse.json({ error: '服务器内部错误' }, { status: 500 })
+    console.error('حذف الواجبفشل:', error)
+    return NextResponse.json({ error: 'حدث خطأ في السيرفر' }, { status: 500 })
   }
 }
