@@ -403,6 +403,11 @@ export async function POST(request) {
       // fast smart match (no AI: final-segment + accepted-answer normalization)
       var quickVerdict = quickSmartMatch(answerText, wa.modelAnswer, wa.acceptedAnswers || [])
       if (quickVerdict === true) {
+        /* 2026-و24-c — الملاحظة السريعة بقت شخصية زي معلم بيتكلم مع الطالب
+           (مرادف finalAnswerCandidates هنا: آخر جزء بعد آخر = أو :) */
+        var fcParts = String(answerText || '').split(/[=:]/)
+        var fc = (fcParts[fcParts.length - 1] || '').trim() || answerText.trim().slice(0, 40)
+        var quickFb = 'برافو عليك ✓ إجابتك صح — الإجابة النهائية (' + String(fc).trim().slice(0, 40) + ') مطابقة للصحيحة'
         return Object.assign({}, wa, {
           gradingStatus: 'graded',
           needsGrading: false,
@@ -410,9 +415,9 @@ export async function POST(request) {
           awardedPoints: wa.points,
           aiExtractedAnswer: answerText,
           aiIsCorrect: true,
-          aiFeedback: 'الإجابة صحيحة ✓ (مطابقة للإجابة النموذجية)',
+          aiFeedback: quickFb,
           aiAwardedPoints: wa.points,
-          feedback: 'الإجابة صحيحة ✓',
+          feedback: quickFb,
         })
       }
       // AI text grading

@@ -3,6 +3,7 @@
 import { useAppStore, GRADES, GRADES_EN, GRADE_SHORT_NAMES, type Student, type Video as VideoType, type Homework, type Exam, type Announcement, type ExamResult, type GalleryImage, type Stats } from '@/stores/app-store'
 import { chunkedUpload } from '@/lib/chunked-upload'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -52,6 +53,109 @@ function writingVerdictBadgeForStudent(was: any[]): { cls: string; text: string 
     return null
   }
   return pick('bg-gray') || pick('bg-amber') || pick('bg-red') || pick('bg-emerald')
+}
+
+/* (2026-و24-c) لووب إعادة التصحيح الجماعي — بيلوب على regrade-all على دفعات
+   لحد ما remaining === 0 (النتايج القديمة المخزنة كانت فضلت غلط للأبد).
+   الـ skip هو مؤشر العميل جوه القايمة عشان كل نداء يكمّل من عند اللي فات. */
+async function runRegradeAllBatches(apiPath: string, idKey: string, id: string): Promise<boolean> {
+  var skip = 0
+  var guard = 0
+  while (guard++ < 500) {
+    var body: any = { limit: 6, skip: skip }
+    body[idKey] = id
+    var res = await fetch(apiPath, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    var d: any = {}
+    try { d = await res.json() } catch (e) {}
+    if (!res.ok || !d.success) {
+      toast.error((d && d.error) || 'فشل إعادة التصحيح الجماعي — جرب تاني', { duration: 8000 })
+      return false
+    }
+    if (d.total > 0) toast.success('اتصحح ' + d.fixed + ' — باقي ' + d.remaining, { duration: 3500 })
+    skip += (typeof d.processed === 'number' && d.processed > 0) ? d.processed : (d.fixed || 0)
+    if (d.remaining === 0 || d.processed === 0) break
+  }
+  return true
+}
+
+/* زرار «🔁 إعادة تصحيح الكل بالذكاء الاصطناعي» — بيعيد تصحيح كل التسليمات
+   المخزنة (واجب/امتحان) على دفعات مع سبينر وقفل أثناء الشغل */
+function RegradeAllButton({ apiPath, idKey, id, onDone, label, title }: { apiPath: string; idKey: string; id: string; onDone?: () => void; label?: string; title?: string }) {
+  const [busy, setBusy] = useState(false)
+  const run = async function () {
+    if (busy || !id) return
+    setBusy(true)
+    var ok = false
+    try {
+      ok = await runRegradeAllBatches(apiPath, idKey, id)
+    } catch (err: any) {
+      toast.error('خطأ في الاتصال: ' + ((err && err.message) || ''), { duration: 8000 })
+    }
+    setBusy(false)
+    if (ok) {
+      toast.success('خلصت إعادة التصحيح بالذكاء الاصطناعي ✓', { duration: 5000 })
+      if (onDone) onDone()
+    }
+  }
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      className="h-7 px-2 text-[10px] border-purple-500/40 text-purple-600 hover:bg-purple-500/10 shrink-0"
+      onClick={run}
+      disabled={busy || !id}
+      title={title || 'إعادة تصحيح كل التسليمات المخزنة بالذكاء الاصطناعي — على دفعات لحد ما تخلص'}
+    >
+      {busy ? <Loader2 className="h-3 w-3 ml-1 animate-spin" /> : '🔁'}
+      {busy ? 'بيصحح الكل…' : (label || 'إعادة تصحيح الكل بالذكاء الاصطناعي')}
+    </Button>
+  )
+}
+
+/* زرار فردي «🔁 تصحيح بالـ AI» لنتيجة واحدة — بينادي regrade بـ resultId (منصة القائد — مفيهاش RegradeButton بتاع شيماء) */
+function RegradeOneButton({ kind, resultId, onDone }: { kind: 'homework' | 'exam'; resultId: string; onDone?: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const regrade = async function () {
+    if (busy) return
+    setBusy(true)
+    try {
+      var res = await fetch('/api/' + (kind === 'homework' ? 'homework' : 'exams') + '/regrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resultId: resultId }),
+      })
+      var d: any = {}
+      try { d = await res.json() } catch (e) {}
+      if (res.ok && d.success) {
+        toast.success('اتصحح بالذكاء: ' + d.score + ' / ' + d.maxScore + ' ✓', { duration: 5000 })
+        if (onDone) onDone()
+      } else {
+        toast.error(d.error || 'فشل إعادة التصحيح — جرب تاني', { duration: 8000 })
+      }
+    } catch (err: any) {
+      toast.error('خطأ في الاتصال: ' + (err.message || ''), { duration: 8000 })
+    }
+    setBusy(false)
+  }
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      className="h-6 px-1.5 text-[9px] border-purple-500/40 text-purple-600 hover:bg-purple-500/10 shrink-0"
+      onClick={regrade}
+      disabled={busy}
+      title="إعادة تصحيح النتيجة دي بالذكاء الاصطناعي"
+    >
+      {busy ? <Loader2 className="h-2.5 w-2.5 ml-1 animate-spin" /> : '🔁'}
+      {busy ? 'بيصحح…' : 'تصحيح بالـ AI'}
+    </Button>
+  )
 }
 
 export function AdminDashboard() {
@@ -220,7 +324,7 @@ export function AdminDashboard() {
           <TabsContent value="my-students"><MyStudentsPanel /></TabsContent>
           <TabsContent value="videos"><VideoManager onStatsRefresh={fetchStats} /></TabsContent>
           <TabsContent value="homework">
-            <ContentManager<Homework> title="إدارة الواجبات" apiPath="/api/homework" itemName="homework"
+            <ContentManager<Homework> title="إدارة الواجبات" apiPath="/api/homework" itemName="homework" regradeAllKind="homework"
               fields={{ title: { label: 'عنوان الواجب', type: 'text' }, content: { label: 'المحتوى', type: 'textarea' } }}
               renderTitle={(item) => item.title} renderSubtitle={(item) => item.content?.substring(0, 80) || (item.filePath ? `📎 ${item.fileType}` : '')}
               supportFileUpload fileCategory="homework" acceptedTypes=".pdf,.doc,.docx,image/*" supportAnswerKey supportThumbnail supportMCQ onRefresh={fetchStats} />
@@ -1362,7 +1466,20 @@ function ExamTrackingPanel() {
           </div>
         )}
 
-        {loading ? <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div> : (
+        {loading ? (
+          /* 2026-و24-c — skeleton بنفس شكل القايمة بدل السبينر (عرض تحميل بس) */
+          <div className="grid gap-4 lg:grid-cols-3" aria-hidden="true">
+            <div className="space-y-2 lg:col-span-1">
+              {[0, 1, 2, 3, 4, 5].map(function (i) { return <Skeleton key={i} className="h-[68px] w-full" /> })}
+            </div>
+            <div className="space-y-3 lg:col-span-2">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          </div>
+        ) : (
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar lg:col-span-1">
               <p className="text-xs font-medium text-muted-foreground mb-2">اختر امتحان لعرض النتائج</p>
@@ -1401,6 +1518,13 @@ function ExamTrackingPanel() {
                     <div className="text-center px-4 py-2 rounded-lg bg-primary/10"><p className="text-lg font-bold text-primary">{results.length}</p><p className="text-[10px] text-muted-foreground">قدموا</p></div>
                     <div className="text-center px-4 py-2 rounded-lg bg-emerald-500/10"><p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{avgScore}</p><p className="text-[10px] text-muted-foreground">متوسط الدرجات</p></div>
                     <div className="text-center px-4 py-2 rounded-lg bg-red-500/10"><p className="text-lg font-bold text-red-600 dark:text-red-400">{notTaken.length}</p><p className="text-[10px] text-muted-foreground">لم يقدموا بعد</p></div>
+                    {/* (2026-و24-c) زرار إعادة تصحيح كل تسليمات الامتحان بالذكاء الاصطناعي — على دفعات لحد ما تخلص */}
+                    <RegradeAllButton
+                      apiPath="/api/exams/regrade-all"
+                      idKey="examId"
+                      id={selectedExam}
+                      onDone={function () { if (selectedExam) loadExamResults(selectedExam) }}
+                    />
                   </div>
                   {results.length > 0 && (
                     <div className="space-y-2">
@@ -1421,6 +1545,12 @@ function ExamTrackingPanel() {
                               })()}
                               <span className={`font-bold ${r.score >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{r.score}/{r.maxScore}</span>
                               <span className="text-[10px] text-muted-foreground">{new Date(r.submittedAt).toLocaleDateString('ar-EG')}</span>
+                              {/* (2026-و24-c) زرار فردي: إعادة تصحيح النتيجة دي بالذكاء الاصطناعي */}
+                              <RegradeOneButton
+                                kind="exam"
+                                resultId={r.id}
+                                onDone={function () { if (selectedExam) loadExamResults(selectedExam) }}
+                              />
                             </div>
                           </div>
                         ))}
@@ -1808,7 +1938,13 @@ function MyStudentsPanel() {
               <p className="text-sm text-muted-foreground">اختر صفًا دراسيًا لعرض تحليلات الطلاب</p>
             </div>
           ) : loading ? (
-            <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+            /* 2026-و24-c — skeleton شكل جدول الطلاب (6 صفوف) بدل السبينر — عرض تحميل بس */
+            <div className="space-y-2" aria-hidden="true">
+              <div className="grid grid-cols-6 gap-2 py-1">
+                {[0, 1, 2, 3, 4, 5].map(function (i) { return <Skeleton key={'h' + i} className="h-3 w-full" /> })}
+              </div>
+              {[0, 1, 2, 3, 4, 5].map(function (i) { return <Skeleton key={i} className="h-10 w-full" /> })}
+            </div>
           ) : students.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Users className="h-10 w-10 text-muted-foreground/30 mb-3" />
@@ -1937,6 +2073,12 @@ function MyStudentsPanel() {
                           <div className="flex items-center gap-2">
                             <span className={`text-xs font-bold ${er.passed ? 'text-emerald-600' : 'text-rose-400'}`}>{er.score}/{er.maxScore}</span>
                             <Badge variant={er.passed ? 'default' : 'destructive'} className="text-[9px] h-5">{er.passed ? 'شاطر' : 'عايز مراجعة على الدروس'}</Badge>
+                            {/* (2026-و24-c) زرار فردي: إعادة تصحيح النتيجة دي بالذكاء الاصطناعي */}
+                            <RegradeOneButton
+                              kind="exam"
+                              resultId={er.id}
+                              onDone={function () { if (selectedStudent && selectedStudent.id) loadDetail(selectedStudent.id) }}
+                            />
                           </div>
                         </div>
                       ))}
@@ -1955,6 +2097,12 @@ function MyStudentsPanel() {
                           <div className="flex items-center gap-2">
                             <span className={`text-xs font-bold ${hr.passed ? 'text-teal-600' : 'text-amber-600'}`}>{hr.score}/{hr.maxScore}</span>
                             <Badge variant={hr.passed ? 'default' : 'secondary'} className="text-[9px] h-5">{hr.resultMessage}</Badge>
+                            {/* (2026-و24-c) زرار فردي: إعادة تصحيح النتيجة دي بالذكاء الاصطناعي */}
+                            <RegradeOneButton
+                              kind="homework"
+                              resultId={hr.id}
+                              onDone={function () { if (selectedStudent && selectedStudent.id) loadDetail(selectedStudent.id) }}
+                            />
                           </div>
                         </div>
                       ))}
@@ -1979,10 +2127,13 @@ interface CMProps<T extends { id: string; grade: string; createdAt: string }> {
   renderTitle: (item: T) => string; renderSubtitle: (item: T) => string
   supportFileUpload?: boolean; fileCategory?: string; acceptedTypes?: string
   supportAnswerKey?: boolean; supportThumbnail?: boolean; supportMCQ?: boolean
+  /* (2026-و24-c) لو متحددة: كل صف بياخد زرار «🔁 تصحيح الكل» — إعادة تصحيح كل
+     التسليمات المخزنة للعنصر ده (واجب) بالذكاء الاصطناعي على دفعات */
+  regradeAllKind?: 'homework' | 'exam'
   onRefresh: () => void
 }
 
-function ContentManager<T extends { id: string; grade: string; createdAt: string }>({ title, apiPath, itemName, fields, renderTitle, renderSubtitle, supportFileUpload, fileCategory, acceptedTypes, supportAnswerKey, supportThumbnail, supportMCQ, onRefresh }: CMProps<T>) {
+function ContentManager<T extends { id: string; grade: string; createdAt: string }>({ title, apiPath, itemName, fields, renderTitle, renderSubtitle, supportFileUpload, fileCategory, acceptedTypes, supportAnswerKey, supportThumbnail, supportMCQ, regradeAllKind, onRefresh }: CMProps<T>) {
   const [items, setItems] = useState<T[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -2338,7 +2489,12 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
             </div>
           </div>
         )}
-        {loading ? <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div> : items.length === 0 ? (
+        {loading ? (
+          /* 2026-و24-c — skeleton قايمة العناصر بدل السبينر (عرض تحميل بس) */
+          <div className="space-y-3" aria-hidden="true">
+            {[0, 1, 2, 3, 4, 5].map(function (i) { return <Skeleton key={i} className="h-[64px] w-full" /> })}
+          </div>
+        ) : items.length === 0 ? (
           <p className="text-center text-muted-foreground py-10 text-sm">لا توجد عناصر</p>
         ) : (
           <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
@@ -2356,7 +2512,19 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
                     <span className="text-[10px] text-muted-foreground">{new Date(item.createdAt).toLocaleDateString('ar-EG')}</span>
                   </div>
                 </div>
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4" /></Button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {regradeAllKind && (
+                    <RegradeAllButton
+                      apiPath={'/api/' + (regradeAllKind === 'homework' ? 'homework' : 'exams') + '/regrade-all'}
+                      idKey={regradeAllKind === 'homework' ? 'homeworkId' : 'examId'}
+                      id={item.id}
+                      label="تصحيح الكل"
+                      title="إعادة تصحيح كل تسليمات الطلاب للعنصر ده بالذكاء الاصطناعي — على دفعات لحد ما تخلص"
+                      onDone={function () { if (onRefresh) onRefresh() }}
+                    />
+                  )}
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4" /></Button>
+                </div>
               </div>
             ))}
           </div>

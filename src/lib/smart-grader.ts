@@ -135,12 +135,11 @@ function buildAiPrompt(needAI: WritingAnswer[]): string {
   lines.push('- Re-read the student final answer TWICE before deciding. Read every digit/word carefully. Never confuse digits — if the final value or key facts you read equal the model answer, it is CORRECT, full stop.')
   lines.push('- Assume the student MEANT the closest valid interpretation of what they wrote, unless it is clearly a different answer.')
   lines.push('')
-  lines.push('FEEDBACK STYLE (2026-و23 — the teacher wants notes like a real teacher chatting with the student):')
-  lines.push('- Write the feedback in Egyptian Arabic, talking DIRECTLY to the student (استخدم «انت»).')
-  lines.push('- Explain WHY the answer is correct or wrong — the reason, not just the verdict. 1–2 short sentences max.')
-  lines.push('- Correct: praise briefly + say what made it right (e.g. «برافو عليك، إجابتك غطيت النقاط المطلوبة كلها») ')
-  lines.push('- Wrong: say kindly what the student missed and what the correct answer is (e.g. «إجابتك ناقصها السبب الرئيسي — الصح هو ...»).')
-  lines.push('- NEVER be generic. No «إجابة غلط» alone — always the reason.')
+  lines.push('FEEDBACK STYLE (2026-و24-c — the teacher wants a PERSONAL note on EVERY question, like a teacher sitting with the student):')
+  lines.push('- Write the feedback in Egyptian Arabic, talking DIRECTLY to the student (استخدم «انت») — 2-3 short sentences.')
+  lines.push('- CORRECT: praise + say exactly WHAT the student did right (the key facts/points he covered and how). Example: «برافو عليك! غطيت أسباب الحدث الأساسية كلها بالترتيب وبكتابتك.»')
+  lines.push('- WRONG: (1) point at the EXACT part/key fact where the answer went wrong (the missing/wrong reason, date or term), (2) show the correct idea/way to answer it, (3) give the correct answer. Example: «إجابتك خلطت بين السبب السياسي والاقتصادي: الصح إن الحدث حصل بسبب كذا، والنتيجة كانت كذا. راجع الدرس تاني وجاوب بالأسباب بالترتيب.»')
+  lines.push('- NEVER generic. A bare «إجابة غلط» or «إجابة صح» alone is FORBIDDEN — every note must tell the student where he stands and what to do next.')
   lines.push('')
   lines.push('Return ONE valid JSON array ONLY — no markdown fences, no text before or after:')
   lines.push('[{"index":0,"awardedPoints":5,"isCorrect":true,"feedback":"..."}]')
@@ -214,6 +213,11 @@ export async function gradeWritingSmart(writingAnswers: WritingAnswer[]): Promis
     // fast path
     var quick = quickSmartMatch(answerText, wa.modelAnswer || '', wa.acceptedAnswers || [])
     if (quick === true) {
+      /* 2026-و24-c — الملاحظة السريعة بقت شخصية زي معلم بيتكلم مع الطالب.
+         مرادف finalAnswerCandidates في منصة القائد: الجزء الأخير من الإجابة
+         (بعد آخر = أو :) — لو مش موجود ناخد أول 40 حرف من الإجابة نفسها */
+      var stParts = String(answerText || '').split(/[=:]/)
+      var stCand = (stParts[stParts.length - 1] || '').trim() || answerText.trim().slice(0, 40)
       graded[i] = {
         question: wa.question,
         answer: answerText,
@@ -221,7 +225,7 @@ export async function gradeWritingSmart(writingAnswers: WritingAnswer[]): Promis
         awardedPoints: maxPts,
         maxPoints: maxPts,
         isCorrect: true,
-        feedback: 'الإجابة صحيحة ✓',
+        feedback: 'برافو عليك ✓ الإجابة النهائية (' + String(stCand).slice(0, 40) + ') مطابقة للإجابة الصحيحة',
         gradingStatus: 'graded',
       }
       continue
