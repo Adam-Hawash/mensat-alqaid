@@ -322,6 +322,29 @@ export async function gradeImageAnswer(params: {
   var feedback = String(parsed.feedback || '').trim()
   var needsGrading = false
 
+  // ---- GUARD 0 (2026-و19): الصورة واصلة **مقطوعة/ناقصة** — صور رفع قديم
+  // قبل إصلاح تجميع الأجزاء (أول 2MB بس كانت بتتحفظ). ممنوع صفر ظالم على
+  // عيب في الرفع مش في حل الطالب: درجة محاولة عادلة (نص الدرجة) والأستاذ
+  // يقدر يعدلها يدويًا من الأدمن. الصور الجديدة بعد إصلاح الرفع بتوصل كاملة.
+  var truncHay = (feedback + ' \n ' + extractedAnswer).toLowerCase()
+  var truncHint = /(?:الصورة|الصوره|الصور|photo|image|picture|screenshot)[^\n.]{0,40}(?:مقطوع|مقصوص|متقطع|ناقص|ناقصة|غير كامل|مش كامل|مش مكتمل|غير مكتمل|cut|cropped|truncat|incomplete|partial)|(?:cut off|cut-off|truncated|incomplete|cropped|partially)[^\n.]{0,30}(?:photo|image|picture)|only (?:the )?(?:top|first|upper|beginning|part of)[^\n.]{0,40}(?:photo|image|visible|shown|page)/i.test(truncHay)
+  if (!isCorrect && truncHint) {
+    var fairAttempt = maxPoints > 0 ? Math.max(1, Math.ceil(maxPoints / 2)) : 0
+    return {
+      extractedAnswer: extractedAnswer,
+      finalAnswer: finalAns,
+      isCorrect: false,
+      awardedPoints: fairAttempt,
+      maxPoints: maxPoints,
+      feedback: feedback
+        ? feedback + ' — الصورة وصلت ناقصة (رفع قديم) فاتحسبت درجة محاولة عادلة؛ عدّلها يدويًا من هنا لو حل الطالب كامل وصحيح'
+        : 'الصورة وصلت ناقصة (رفع قديم قبل إصلاح الرفع) — اتحسبت نص الدرجة كمحاولة عادلة، عدّلها يدويًا من الأدمن لو الحل كامل وصحيح',
+      onTopic: true,
+      confidence: 'low',
+      needsGrading: false,
+    }
+  }
+
   // ---- GUARD 1: photo is not actually the student's answer to THIS question.
   // Decisive verdict (0 points + clear feedback) instead of stalling on manual
   // review — the teacher can override from the admin panel if needed.
