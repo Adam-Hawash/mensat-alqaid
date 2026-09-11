@@ -67,7 +67,7 @@ function PodiumSlot({ entry }: { entry: BoardEntry | undefined }) {
           <span className={'text-2xl sm:text-3xl leading-none ' + (isFirst ? 'sm:text-4xl' : '')} role="img" aria-label={'المركز ' + entry.rank}>
             {medal.emoji}
           </span>
-          <p className={'font-bold text-foreground leading-snug max-w-full truncate ' + (isFirst ? 'text-sm sm:text-base' : 'text-xs sm:text-sm')}>
+          <p className={'font-bold text-foreground leading-snug max-w-full truncate ' + (isFirst ? 'text-sm sm:text-base' : 'text-xs sm:text-sm')} title={entry.name}>
             {entry.name}
           </p>
           {entry.grade && (
