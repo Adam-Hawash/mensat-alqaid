@@ -10,7 +10,7 @@ import {
   Video, ClipboardList, FileText, Megaphone, MessageSquare, Send,
   LogOut, Loader2, FileDown, Bell, PlayCircle, CheckCircle2,
   BookOpen, Target, TrendingUp, GraduationCap, ChevronLeft,
-  User, Phone, Award, Lock, X, ImagePlus, ListTodo, Flag,
+  User, Phone, Award, Lock, X, ImagePlus, ListTodo, Flag, Search, ExternalLink,
 } from 'lucide-react'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Image from 'next/image'
@@ -1286,6 +1286,21 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
           <h3 className="font-bold">{exam.title}</h3>
           <Button variant="outline" size="sm" onClick={function() { setTakingExam(null); setAnswers({}); setExamQuestions([]); setLockedOut(false) }}>رجوع</Button>
         </div>
+
+        {/* 2026-و19 — ورقة الامتحان جوه شاشة الحل: الطالب يفتحها كاملة في أي لحظة وهو بيحل */}
+        {exam.filePath && (
+          <a
+            href={exam.filePath}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="sticky top-0 z-30 flex items-center justify-center gap-2 w-full min-h-[44px] px-4 py-2.5 rounded-xl font-bold text-sm text-amber-900 dark:text-amber-300 bg-amber-100/95 dark:bg-amber-900/40 border border-amber-400/60 shadow-sm backdrop-blur hover:bg-amber-200/95 dark:hover:bg-amber-900/60 transition-colors"
+            dir="rtl"
+          >
+            <FileText className="h-4 w-4 shrink-0" />
+            ورقة الامتحان — اضغط في أي وقت لعرضها كاملة
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70" />
+          </a>
+        )}
         {examQuestions.map(function(q, qi) {
           var isWriting = isWritingQuestion(q)
           return (
@@ -1585,16 +1600,27 @@ function DiscussionsTab({ grade, studentId, studentName }: { grade: string; stud
 }
 
 /* ========== SHARED COMPONENTS ========== */
+/* 2026-و19 — «الورق ما بيحملش كله» — المرفق بيتفتح كامل: صورة الورقة
+ * قابلة للضغط بتفتح الصورة الأصلية كاملة (تبويب جديد + زوم المتصفح)
+ * والـ PDF زرار واضح 44px — الطالب بيشوف الورقة كاملة مش مصغرة 48px */
 function FileAttachment({ filePath, fileType }: { filePath: string; fileType: string }) {
   const isImage = fileType?.startsWith('image/')
   const isPdf = fileType === 'application/pdf'
   if (isImage) {
-    return <Image src={filePath} alt="Attachment" width={48} height={48} className="max-h-12 rounded-lg border" unoptimized />
+    return (
+      <a href={filePath} target="_blank" rel="noopener noreferrer" className="inline-block group align-top" title="اضغط لعرض الورقة كاملة">
+        <Image src={filePath} alt="ورقة الامتحان — اضغط للعرض الكامل" width={120} height={96} className="max-h-24 w-auto rounded-lg border group-hover:ring-2 ring-primary/60 transition-all" unoptimized />
+        <span className="flex items-center gap-1 text-[11px] font-bold text-primary mt-1">
+          <Search className="h-3 w-3" />
+          اضغط لعرض الورقة كاملة
+        </span>
+      </a>
+    )
   }
   return (
-    <a href={filePath} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs shrink-0">
+    <a href={filePath} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-3 py-2.5 min-h-[44px] rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs font-bold shrink-0">
       <FileDown className="h-4 w-4" />
-      {isPdf ? 'PDF' : 'ملف'}
+      {isPdf ? 'افتح الورقة كاملة (PDF)' : 'افتح الملف كامل'}
     </a>
   )
 }
