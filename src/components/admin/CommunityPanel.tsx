@@ -7,10 +7,11 @@ import { Badge } from '@/components/ui/badge'
 import { Send, Loader2, MessageSquare, Users, Trash2, Pencil, Check, X } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
-import { GRADES } from '@/stores/app-store'
-import type { Discussion } from '@/stores/app-store'
+import { gradesFromConfig, useAppStore, type Discussion } from '@/stores/app-store'
 
 export function CommunityPanel() {
+  // (24-e) قايمة الصفوف بقت ديناميكية من لوحة الأدمن بدل القايمة الثابتة من الستور
+  var GRADES = gradesFromConfig(useAppStore(function (s) { return s.siteConfig }))
   const [selectedGrade, setSelectedGrade] = useState('')
   const [discussions, setDiscussions] = useState<Discussion[]>([])
   const [loading, setLoading] = useState(true)
@@ -109,7 +110,7 @@ export function CommunityPanel() {
             >
               <option value="">اختار صف...</option>
               {GRADES.map((g) => (
-                <option key={g} value={g}>{g}</option>
+                <option key={g.ar} value={g.ar}>{(g.emoji ? g.emoji + ' ' : '') + g.ar}</option>
               ))}
             </select>
             {selectedGrade && (

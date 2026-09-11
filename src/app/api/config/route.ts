@@ -26,6 +26,14 @@ var DEFAULTS = {
   footer_made_by_label: "Developed by Adam Hawash",
   prime_developer_url: "https://prime-developer-portfolio-11.vercel.app/",
 
+  // === Schedule Page (24-e — صفحة مواعيد السنتر + لوحة الأدمن) ===
+  schedule_title: "مواعيد السنتر",
+  schedule_subtitle: "جدول مواعيد الحصص الأسبوعية لكل الصفوف الدراسية — اختر اليوم المناسب لك وتابع موعد حصتك",
+  schedule_badge: "جدول الحصص الأسبوعي",
+  schedule_footer_note: "جميع المواعيد بتوقيت القاهرة. لو عندك أي استفسار عن موعد حصتك تواصل معنا عبر واتساب.",
+  schedule_brand: "منصة القائد — مستر عمرو رشدي",
+  schedule_data: "",
+
   // === Instructor ===
   instructor_name: "مستر عمرو رشدي",
   instructor_title: " مدرس الدراسات والتاريخ المتخصص",

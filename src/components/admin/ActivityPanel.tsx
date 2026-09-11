@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import type { StudentActivity, Student } from '@/stores/app-store'
 
-import { GRADES } from '@/stores/app-store'
+import { gradesFromConfig, useAppStore } from '@/stores/app-store'
 
 const ACTION_STYLES: Record<string, { label: string; color: string; icon: string }> = {
   login: { label: 'تسجيل دخول', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20', icon: '🔑' },
@@ -24,6 +24,8 @@ const ACTION_STYLES: Record<string, { label: string; color: string; icon: string
 }
 
 export function ActivityPanel() {
+  // (24-e) قايمة الصفوف بقت ديناميكية من لوحة الأدمن (فولباك DEFAULT_GRADES)
+  const GRADES = gradesFromConfig(useAppStore(function (s) { return s.siteConfig }))
   const [activities, setActivities] = useState<StudentActivity[]>([])
   const [loading, setLoading] = useState(true)
   const [filterGrade, setFilterGrade] = useState('')
@@ -77,7 +79,7 @@ export function ActivityPanel() {
               className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
             >
               <option value="">كل الصفوف | All Grades</option>
-              {GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
+              {GRADES.map((g) => <option key={g.ar} value={g.ar}>{(g.emoji ? g.emoji + ' ' : '') + g.ar}</option>)}
             </select>
             <select
               value={filterAction}

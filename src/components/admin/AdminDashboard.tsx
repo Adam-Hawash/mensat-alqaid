@@ -1,6 +1,6 @@
 'use client'
   
-import { useAppStore, GRADES, GRADES_EN, GRADE_SHORT_NAMES, type Student, type Video as VideoType, type Homework, type Exam, type Announcement, type ExamResult, type GalleryImage, type Stats } from '@/stores/app-store'
+import { useAppStore, GRADE_SHORT_NAMES, type Student, type Video as VideoType, type Homework, type Exam, type Announcement, type ExamResult, type GalleryImage, type Stats, gradesFromConfig, type GradeItem } from '@/stores/app-store'
 import { chunkedUpload } from '@/lib/chunked-upload'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -18,7 +18,7 @@ import {
   BarChart3, RefreshCw, Settings, Upload, MessageSquare,
   Link2, Activity, Eye, ImagePlus, Trophy, UserX, Camera,
   PlayCircle, Pause, Film, Search, FileDown, PictureInPicture2, Save, Sparkles, Wallet,
-  Smartphone, RotateCcw, ShieldCheck, Monitor, Tablet, Flag
+  Smartphone, RotateCcw, ShieldCheck, Monitor, Tablet, Flag, GraduationCap
 } from 'lucide-react'
 import { AdminComplaints } from './AdminComplaints'
 import { CMSPanel } from './CMSPanel'
@@ -26,10 +26,17 @@ import { VideoProtectionSettings } from './VideoProtectionSettings'
 import { SocialLinksPanel } from './SocialLinksPanel'
 import { CommunityPanel } from './CommunityPanel'
 import { ActivityPanel } from './ActivityPanel'
+import { GradesSchedulePanel } from './GradesSchedulePanel'
 import { PaymentsPanel } from '@/components/PaymentsPanel'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Image from 'next/image'
 import { toast } from 'sonner'
+
+/* (24-e) قايمة الصفوف الديناميكية من إعدادات الأدمن (grades_data) — المستر بقدر يضيف/يمسح صف ويظهر في كل المنصة فورًا — منقول من maths-genius */
+function useGradesList(): GradeItem[] {
+  const siteConfig = useAppStore(function (s) { return s.siteConfig })
+  return useMemo(function () { return gradesFromConfig(siteConfig) }, [siteConfig])
+}
 
 /* (2026-و22) بادج حكم التصحيح الذكي — درجة مؤقتة بدل «AI: غلط» الوهمي
    (طلب المستر: «بيقلب لي السؤال غلط أصلاً من غير ما يقرأه» — لما الـAI
@@ -318,6 +325,8 @@ export function AdminDashboard() {
             <TabsTrigger value="payments" className="text-xs sm:text-sm gap-1 text-amber-600 dark:text-amber-400"><Wallet className="h-4 w-4" /><span className="hidden sm:inline">المدفوعات</span></TabsTrigger>
             <TabsTrigger value="ai-extract" className="text-xs sm:text-sm gap-1 text-purple-600 dark:text-purple-400"><Sparkles className="h-4 w-4" /><span className="hidden sm:inline">استخراج AI</span></TabsTrigger>
             <TabsTrigger value="complaints" className="text-xs sm:text-sm gap-1 text-red-600 dark:text-red-400"><Flag className="h-4 w-4" /><span className="hidden sm:inline">الشكاوي</span>{newComplaints > 0 && <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold">{newComplaints}</span>}</TabsTrigger>
+            {/* (24-e) طلب المستر: إدارة الصفوف الدراسية (إضافة/حذف صف + عربي/إنجليزي/إيموجي) + مواعيد السنتر (حذف/إضافة يوم وحصة) — في كل المنصات */}
+            <TabsTrigger value="grades-schedule" className="text-xs sm:text-sm gap-1 text-emerald-600 dark:text-emerald-400"><GraduationCap className="h-4 w-4" /><span className="hidden sm:inline">الصفوف والمواعيد</span></TabsTrigger>
           </TabsList>
 
           <TabsContent value="students"><StudentsManager onStatsRefresh={fetchStats} /></TabsContent>
@@ -343,6 +352,8 @@ export function AdminDashboard() {
           <TabsContent value="payments"><PaymentsPanel onRefresh={fetchStats} /></TabsContent>
           <TabsContent value="ai-extract"><AIExtractionPanel onRefresh={fetchStats} /></TabsContent>
           <TabsContent value="complaints"><AdminComplaints /></TabsContent>
+          {/* (24-e) طلب المستر: إدارة الصفوف الدراسية (إضافة/حذف صف + عربي/إنجليزي/إيموجي) + مواعيد السنتر (حذف/إضافة يوم وحصة) — في كل المنصات */}
+          <TabsContent value="grades-schedule"><GradesSchedulePanel /></TabsContent>
         </Tabs>
 
         {/* Admin Settings Dialog */}
@@ -504,6 +515,7 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any; label: strin
 
 /* ========== STUDENTS MANAGER ========== */
 function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
+  const gradesList = useGradesList()
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending')
@@ -666,7 +678,7 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
           <div className="flex gap-1 flex-wrap items-center">
             <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="h-8 rounded-md border border-input bg-transparent px-2 text-xs">
               <option value="">كل الصفوف</option>
-              {GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar} {g.en}</option>)}
+              {gradesList.map((g) => <option key={g.ar} value={g.ar}>{(g.emoji ? g.emoji + ' ' : '') + g.ar}</option>)}
             </select>
             <div className="flex gap-1 bg-muted rounded-lg p-1">
               {(['pending', 'all', 'approved', 'rejected'] as const).map((f) => (
@@ -735,6 +747,7 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
 
 /* ========== VIDEO MANAGER (with REAL XHR upload progress) ========== */
 function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
+  const gradesList = useGradesList()
   const currentAdmin = useAppStore(function (s) { return s.currentAdmin })
   const adminId = currentAdmin?.id || ''
   const [videos, setVideos] = useState<VideoType[]>([])
@@ -862,7 +875,7 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
           <div className="flex gap-2 items-center flex-wrap">
             <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-3 text-sm">
               <option value="">كل الصفوف</option>
-              {GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar} {g.en}</option>)}
+              {gradesList.map((g) => <option key={g.ar} value={g.ar}>{(g.emoji ? g.emoji + ' ' : '') + g.ar}</option>)}
             </select>
             <Button size="sm" onClick={() => setShowForm(!showForm)}><Plus className="h-4 w-4 ml-1" />إضافة فيديو</Button>
           </div>
@@ -880,7 +893,7 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
               <div className="space-y-1.5">
                 <Label className="text-xs">الصف الدراسي *</Label>
                 <select value={formGrade} onChange={(e) => setFormGrade(e.target.value)} className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm">
-                  <option value="">اختر الصف</option>{GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar} {g.en}</option>)}
+                  <option value="">اختر الصف</option>{gradesList.map((g) => <option key={g.ar} value={g.ar}>{(g.emoji ? g.emoji + ' ' : '') + g.ar}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5">
@@ -1046,6 +1059,7 @@ interface MCQQuestion {
 }
 
 function ExamTrackingPanel() {
+  const gradesList = useGradesList()
   const [exams, setExams] = useState<Exam[]>([])
   const [selectedExam, setSelectedExam] = useState<string>('')
   const [results, setResults] = useState<ExamResult[]>([])
@@ -1295,7 +1309,7 @@ function ExamTrackingPanel() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5"><Label className="text-xs">الصف</Label>
                 <select value={formGrade} onChange={(e) => setFormGrade(e.target.value)} className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm">
-                  <option value="">اختر الصف</option>{GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar} {g.en}</option>)}
+                  <option value="">اختر الصف</option>{gradesList.map((g) => <option key={g.ar} value={g.ar}>{(g.emoji ? g.emoji + ' ' : '') + g.ar}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5"><Label className="text-xs">العنوان</Label>
@@ -1853,6 +1867,7 @@ interface StudentAnalytics {
 }
 
 function MyStudentsPanel() {
+  const gradesList = useGradesList()
   const [grade, setGrade] = useState('')
   const [students, setStudents] = useState<StudentAnalytics[]>([])
   const [summary, setSummary] = useState<any>(null)
@@ -1926,7 +1941,7 @@ function MyStudentsPanel() {
               </div>
               <select value={grade} onChange={(e) => setGrade(e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-3 text-sm min-w-[200px]">
                 <option value="">اختر الصف لعرض التحليلات</option>
-                {GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar} {g.en}</option>)}
+                {gradesList.map((g) => <option key={g.ar} value={g.ar}>{(g.emoji ? g.emoji + ' ' : '') + g.ar}</option>)}
               </select>
             </div>
           </div>
@@ -2134,6 +2149,7 @@ interface CMProps<T extends { id: string; grade: string; createdAt: string }> {
 }
 
 function ContentManager<T extends { id: string; grade: string; createdAt: string }>({ title, apiPath, itemName, fields, renderTitle, renderSubtitle, supportFileUpload, fileCategory, acceptedTypes, supportAnswerKey, supportThumbnail, supportMCQ, regradeAllKind, onRefresh }: CMProps<T>) {
+  const gradesList = useGradesList()
   const [items, setItems] = useState<T[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -2342,7 +2358,7 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
           <div className="flex gap-2 items-center flex-wrap">
             <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-3 text-sm">
               <option value="">كل الصفوف</option>
-              {GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar} {g.en}</option>)}
+              {gradesList.map((g) => <option key={g.ar} value={g.ar}>{(g.emoji ? g.emoji + ' ' : '') + g.ar}</option>)}
             </select>
             <Button size="sm" onClick={() => setShowForm(!showForm)}><Plus className="h-4 w-4 ml-1" />إضافة</Button>
           </div>
@@ -2355,7 +2371,7 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
             <div className="space-y-1.5">
               <Label className="text-xs">الصف الدراسي</Label>
               <select value={formGrade} onChange={(e) => setFormGrade(e.target.value)} className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm">
-                <option value="">اختر الصف</option>{GRADES_EN.map((g) => <option key={g.ar} value={g.ar}>{g.ar} {g.en}</option>)}
+                <option value="">اختر الصف</option>{gradesList.map((g) => <option key={g.ar} value={g.ar}>{(g.emoji ? g.emoji + ' ' : '') + g.ar}</option>)}
               </select>
             </div>
             {Object.entries(fields).map(([key, field]) => (
@@ -2542,6 +2558,7 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
    ============================================================ */
 
 function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
+  const gradesList = useGradesList()
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [extractType, setExtractType] = useState<'exam' | 'homework'>('exam')
   const [grade, setGrade] = useState('')
@@ -2593,7 +2610,7 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
           <Label className="text-xs font-medium">الصف *</Label>
           <select value={grade} onChange={function(e) { setGrade(e.target.value) }} className="w-full h-10 rounded-lg border border-input bg-transparent px-3 text-sm">
             <option value="">اختار الصف</option>
-            {GRADES.map(function(g) { return <option key={g} value={g}>{g}</option> })}
+            {gradesList.map(function(g) { return <option key={g.ar} value={g.ar}>{(g.emoji ? g.emoji + ' ' : '') + g.ar}</option> })}
           </select>
         </div>
         <div className="space-y-1.5">

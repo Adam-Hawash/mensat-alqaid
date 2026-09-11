@@ -1,30 +1,24 @@
 'use client'
 
 import { Card, CardContent } from '@/components/ui/card'
-import { useAppStore, GRADES } from '@/stores/app-store'
+import { useAppStore, gradesFromConfig } from '@/stores/app-store'
 import { toast } from 'sonner'
 
-var gradeIcons: Record<string, string> = {
-  'أولى إعدادي': '1ع',
-  'تانية إعدادي': '2ع',
-  'تالتة إعدادي': '3ع',
-  'أولى بكالوريا': '1ب',
-  'تانية بكالوريا': '2ب',
-}
-
-var gradeColors: Record<string, string> = {
-  'أولى إعدادي': 'bg-[#0D9488]/10 text-[#0D9488] group-hover:bg-[#0D9488] group-hover:text-white',
-  'تانية إعدادي': 'bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white',
-  'تالتة إعدادي': 'bg-amber-500/10 text-amber-600 group-hover:bg-amber-500 group-hover:text-white',
-  'أولى بكالوريا': 'bg-rose-500/10 text-rose-600 group-hover:bg-rose-500 group-hover:text-white',
-  'تانية بكالوريا': 'bg-sky-500/10 text-sky-600 group-hover:bg-sky-500 group-hover:text-white',
-}
-
-var grades = GRADES.map(function(g) { return { id: g, name: g, icon: gradeIcons[g] || g[0], color: gradeColors[g] || 'bg-primary/10 text-primary' } })
+// (24-e) القايمة بقت ديناميكية من لوحة الأدمن — والإيموجي هو اللي بيظهر في الكارت
+// الألوان بقت بالات بسيطة بتتوزع على الصفوف بالترتيب (نفس ألوان التصميم القديم)
+var GRADE_CARD_COLORS = [
+  'bg-[#0D9488]/10 text-[#0D9488] group-hover:bg-[#0D9488] group-hover:text-white',
+  'bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white',
+  'bg-amber-500/10 text-amber-600 group-hover:bg-amber-500 group-hover:text-white',
+  'bg-rose-500/10 text-rose-600 group-hover:bg-rose-500 group-hover:text-white',
+  'bg-sky-500/10 text-sky-600 group-hover:bg-sky-500 group-hover:text-white',
+]
 
 export function GradesSection() {
   var { siteConfig } = useAppStore()
   var cfg = siteConfig
+  // (24-e) القايمة بقت ديناميكية من قايمة الصفوف في لوحة الأدمن
+  var grades = gradesFromConfig(siteConfig)
 
   var handleGradeClick = function(gradeName: string) {
     toast.info('سجّل حسابك الأول عشان توصل لمحتوى ' + gradeName)
@@ -47,22 +41,23 @@ export function GradesSection() {
           </p>
         </div>
         <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-          {grades.map(function(grade) {
+          {grades.map(function(grade, gradeIdx) {
+            var color = GRADE_CARD_COLORS[gradeIdx % GRADE_CARD_COLORS.length]
             return (
               <Card
-                key={grade.id}
+                key={grade.ar}
                 className="group cursor-pointer hover:shadow-xl transition-all duration-300 hover:-translate-y-2 hover:border-primary/50 border-border/50 bg-card overflow-hidden"
-                onClick={function() { handleGradeClick(grade.name) }}
+                onClick={function() { handleGradeClick(grade.ar) }}
               >
                 <CardContent className="p-5 sm:p-6 text-center space-y-4">
-                  <div className={"mx-auto flex h-16 w-16 items-center justify-center rounded-2xl transition-all duration-300 " + grade.color}>
-                    <span className="text-2xl font-bold">
-                      {grade.icon}
+                  <div className={"mx-auto flex h-16 w-16 items-center justify-center rounded-2xl transition-all duration-300 " + color}>
+                    <span className="text-2xl leading-none" role="img" aria-label={grade.ar}>
+                      {grade.emoji || grade.short || grade.ar[0]}
                     </span>
                   </div>
                   <div>
                     <h3 className="font-bold text-sm sm:text-base leading-tight text-foreground">
-                      {grade.name}
+                      {grade.ar}
                     </h3>
                   </div>
                 </CardContent>

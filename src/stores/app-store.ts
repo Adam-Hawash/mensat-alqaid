@@ -139,6 +139,58 @@ export const GRADES_EN = [
   { ar: 'أولى بكالوريا', en: '1 Bac', icon: '1B' },
 ] as const
 
+// ============================================================
+// (24-e) الصفوف الدراسية الديناميكية — منقول من maths-genius (24-b) — طلب المستر:
+// «في كل المنصات — أقدر أضيف صف، أمسح صف، أخلي الاسم بالعربي
+// وبالإنجليزي والإيموجي بتاعه اللي يظهر فوق الصورة»
+// DEFAULT_GRADES = نفس الصفوف الحالية في GRADES و GRADES_EN
+// (متلمةسش القايمتين دول عشان التوافق الخلفي مع باقي الكود)
+// ============================================================
+export interface GradeItem {
+  ar: string
+  en: string
+  emoji: string
+  short: string
+}
+
+export const DEFAULT_GRADES: GradeItem[] = [
+  { ar: 'الصف السادس الابتدائي', en: 'Grade 6', emoji: '6️⃣', short: 'G6' },
+  { ar: 'أولى إعدادي', en: 'Prep 1', emoji: '1️⃣', short: '1' },
+  { ar: 'تانية إعدادي', en: 'Prep 2', emoji: '2️⃣', short: '2' },
+  { ar: 'تالتة إعدادي', en: 'Prep 3', emoji: '3️⃣', short: '3' },
+  { ar: 'أولى بكالوريا', en: '1 Bac', emoji: '🅱️', short: '1B' },
+]
+
+// بتفك JSON من siteConfig.grades_data (المفتاح اللي لوحة الأدمن بتكتب فيه)
+// ولو فاشل/فاضي بترجّع DEFAULT_GRADES — كل شاشات العرض بتقرأ من هنا
+export function gradesFromConfig(siteConfig: SiteConfig | null | undefined): GradeItem[] {
+  try {
+    var raw = siteConfig ? siteConfig.grades_data : null
+    if (typeof raw === 'string' && raw.trim() !== '') {
+      var parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        var items: GradeItem[] = []
+        for (var i = 0; i < parsed.length; i++) {
+          var g: any = parsed[i] || {}
+          items.push({
+            ar: typeof g.ar === 'string' ? g.ar : '',
+            en: typeof g.en === 'string' ? g.en : '',
+            emoji: typeof g.emoji === 'string' ? g.emoji : '',
+            short: typeof g.short === 'string' ? g.short : (typeof g.en === 'string' && g.en ? g.en : (typeof g.ar === 'string' ? g.ar : '')),
+          })
+        }
+        // لو في صف واحد على الأقل ليه اسم عربي نرجع القايمة، غير كده فولباك
+        var hasAny = false
+        for (var j = 0; j < items.length; j++) {
+          if (items[j].ar.trim() !== '') { hasAny = true; break }
+        }
+        if (hasAny) return items
+      }
+    }
+  } catch (e) { /* فولباك تحت */ }
+  return DEFAULT_GRADES
+}
+
 export interface Stats {
   totalStudents: number
   pendingStudents: number
