@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { gradeImageAnswer, gradeTextAnswer, extractImageMediaIds } from '@/lib/ai-image-grader'
 import { regradeExamResult, gradesLookPending, questionsHaveWriting } from '@/lib/regrade-core'
 import { gradeFallbackDecisive } from '@/lib/smart-grader'
+import { resolveQuestionsForStudent } from '@/lib/exam-models'
 
 // GET /api/exam-results?examId=xxx OR ?studentId=xxx
 export async function GET(request: NextRequest) {
@@ -144,12 +145,13 @@ export async function GET(request: NextRequest) {
       rawResults = rawResults.filter(function(r: any) { return !!studentMap[r.studentId] })
     }
 
-    // Parse exam questions — writing questions keyed by ORIGINAL index (for live fallback)
+    // Parse exam questions — (2026-و22) الأساس للعرض العام بس؛ جوه اللوب
+    // كل طالب بيتعرض أسئلة نموذجه هو (resolveQuestionsForStudent)
     var examRow: any = null
-    try { examRow = await db.exam.findUnique({ where: { id: examId }, select: { id: true, grade: true, questions: true, passScore: true } }) } catch (e) {
+    try { examRow = await db.exam.findUnique({ where: { id: examId }, select: { id: true, grade: true, questions: true, models: true, modelMode: true, fixedModel: true, passScore: true } }) } catch (e) {
       // fallback: raw SQL لو Prisma وقع مؤقتًا
       try {
-        var examRows0: any[] = (await db.$queryRawUnsafe('SELECT id, grade, questions, passScore FROM Exam WHERE id = ? LIMIT 1', examId)) as any[]
+        var examRows0: any[] = (await db.$queryRawUnsafe('SELECT id, grade, questions, models, modelMode, fixedModel, passScore FROM Exam WHERE id = ? LIMIT 1', examId)) as any[]
         examRow = examRows0 && examRows0.length > 0 ? examRows0[0] : null
       } catch (e2) {}
     }
@@ -159,31 +161,32 @@ export async function GET(request: NextRequest) {
     if (!examRow) {
       return NextResponse.json({ error: 'Exam not found' }, { status: 404 })
     }
-    var examWritingQs: any[] = []
-    try {
-      var examQsRaw: any[] = []
-      if (examRow && examRow.questions) {
-        var parsedExamQs = typeof examRow.questions === 'string' ? JSON.parse(examRow.questions) : examRow.questions
-        if (Array.isArray(parsedExamQs)) examQsRaw = parsedExamQs
-      }
-      examQsRaw.forEach(function(q: any, idx: number) {
-        var isWriting = q.type === 'writing' || q.type === 'essay'
-        if (!isWriting && Array.isArray(q.options)) {
-          var allNA = q.options.length > 0 && q.options.every(function(o: any) { return !o || o === 'N/A' || o === 'لا يوجد' || String(o).trim() === '' })
-          if (allNA) isWriting = true
-        }
-        if (!isWriting && (!q.options || q.options.length === 0)) isWriting = true
-        if (isWriting) {
-          examWritingQs.push({
-            origIdx: idx,
-            question: q.question || q.q || '',
-            modelAnswer: q.modelAnswer || q.answer || '',
-            acceptedAnswers: Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers : [],
-            points: (typeof q.points === 'number' && q.points > 0) ? q.points : 5,
-          })
-        }
-      })
-    } catch (e) {}
+    /* (2026-و22) فصل الأسئلة المقالية **بالفهرس الأصلي** — بنستدعيها جوه اللوب
+       على أسئلة نموذج كل طالب (مش أسئلة الأساس) — ده كان سبب «الورق بيتعرض
+       في سؤال مش سؤاله» في امتحانات النماذج */
+    function splitExamWritingQs(questions: any[]): any[] {
+      var out: any[] = []
+      try {
+        (Array.isArray(questions) ? questions : []).forEach(function(q: any, idx: number) {
+          var isWriting = q.type === 'writing' || q.type === 'essay'
+          if (!isWriting && Array.isArray(q.options)) {
+            var allNA = q.options.length > 0 && q.options.every(function(o: any) { return !o || o === 'N/A' || o === 'لا يوجد' || String(o).trim() === '' })
+            if (allNA) isWriting = true
+          }
+          if (!isWriting && (!q.options || q.options.length === 0)) isWriting = true
+          if (isWriting) {
+            out.push({
+              origIdx: idx,
+              question: q.question || q.q || '',
+              modelAnswer: q.modelAnswer || q.answer || '',
+              acceptedAnswers: Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers : [],
+              points: (typeof q.points === 'number' && q.points > 0) ? q.points : 5,
+            })
+          }
+        })
+      } catch (e) {}
+      return out
+    }
 
     function normQ(s: any): string {
       return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim()
@@ -228,8 +231,10 @@ export async function GET(request: NextRequest) {
       } catch (e) {}
 
       var writingAnswers: any[] = []
-      for (var wi = 0; wi < examWritingQs.length; wi++) {
-        var wq = examWritingQs[wi]
+      // (2026-و22) أسئلة الطالب الفعلية — نموذجه لو الامتحان فيه نماذج
+      var studentWritingQs = splitExamWritingQs(resolveQuestionsForStudent(examRow, r.studentId, examId))
+      for (var wi = 0; wi < studentWritingQs.length; wi++) {
+        var wq = studentWritingQs[wi]
         // FAST PATH: grades stored at submit time → use them directly (no live AI)
         var stored = storedByOrig[wq.origIdx]
         if (stored) {
@@ -363,17 +368,21 @@ export async function GET(request: NextRequest) {
       select: { id: true, name: true, phone: true },
     }) : []
 
-    const questionMisses: Record<number, { question: string; total: number; wrong: number }> = {}
+    // Calculate most missed questions (across all submissions)
+    // (2026-و22) بالمفتاح نص السؤال — في النماذج كل طالب لسته مختلفة
+    // فالترقيم الموضعي كان بيجمع أسئلة مختلفة تحت بعض
+    const questionMisses: Record<string, { question: string; total: number; wrong: number }> = {}
     results.forEach((r: any) => {
       if (r.details) {
         try {
           const dets = JSON.parse(r.details)
-          dets.forEach((d: any, idx: number) => {
-            if (!questionMisses[idx]) {
-              questionMisses[idx] = { question: d.question, total: 0, wrong: 0 }
+          dets.forEach((d: any) => {
+            var qKey = String(d.question || '')
+            if (!questionMisses[qKey]) {
+              questionMisses[qKey] = { question: d.question, total: 0, wrong: 0 }
             }
-            questionMisses[idx].total++
-            if (!d.correct) questionMisses[idx].wrong++
+            questionMisses[qKey].total++
+            if (!d.correct) questionMisses[qKey].wrong++
           })
         } catch {}
       }

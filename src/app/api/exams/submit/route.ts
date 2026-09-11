@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { gradeImageAnswer, extractImageMediaIds } from '@/lib/ai-image-grader'
 import { gradeWritingSmart } from '@/lib/smart-grader'
+import { parseQuestions, resolveQuestionsForStudent } from '@/lib/exam-models'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -81,7 +82,8 @@ export async function POST(request) {
     var exam = null
     try {
       var examRows = await db.$queryRawUnsafe(
-        'SELECT id, title, questions, passScore FROM Exam WHERE id = ? LIMIT 1',
+        // (2026-و22) النماذج معانا — التسليم يتصحح على أسئلة نموذج الطالب نفسها
+        'SELECT id, title, questions, passScore, models, modelMode, fixedModel FROM Exam WHERE id = ? LIMIT 1',
         examId
       )
       exam = examRows && examRows.length > 0 ? examRows[0] : null
@@ -93,15 +95,13 @@ export async function POST(request) {
       return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
     }
 
-    // Parse questions
-    var questions = []
-    if (exam.questions) {
-      try {
-        var raw = typeof exam.questions === 'string' ? JSON.parse(exam.questions) : exam.questions
-        if (Array.isArray(raw)) { questions = raw }
-      } catch (e) {
-        console.error('Parse exam questions error:', e)
-      }
+    // Parse questions — (2026-و22) الـ helper المشترك resolveQuestionsForStudent:
+    // لو الامتحان فيه نماذج ← أسئلة نموذج الطالب هو هي الأصل للتصحيح
+    // (حتى لو فيه أسئلة أساس — الطالب شاف النموذج بتاعه فلازم يتصحح عليه)،
+    // والأساس بوابه احتياط. نفس الدالة اللي بتقرأ شاشات الأدمن — صفر تعارض.
+    var questions = resolveQuestionsForStudent(exam, studentId, examId)
+    if (questions.length === 0) {
+      questions = parseQuestions(exam.questions)
     }
     if (questions.length === 0) {
       return NextResponse.json({ error: 'لا توجد أسئلة في هذا الامتحان' }, { status: 400 })

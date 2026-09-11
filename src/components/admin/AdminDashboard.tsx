@@ -30,6 +30,30 @@ import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { toast } from 'sonner'
 
+/* (2026-و22) بادج حكم التصحيح الذكي — درجة مؤقتة بدل «AI: غلط» الوهمي
+   (طلب المستر: «بيقلب لي السؤال غلط أصلاً من غير ما يقرأه» — لما الـAI
+   مش متأكد بيحط درجة مؤقتة والمستر يعدلها، فالبادج لازم يقول كده صريح) */
+function writingVerdictBadge(aq: any): { cls: string; text: string } {
+  if (aq.needsGrading) return { cls: 'bg-gray-500/10 text-gray-600', text: 'بيتصحح بالذكاء الاصطناعي…' }
+  if (aq.aiIsCorrect === true) return { cls: 'bg-emerald-500/10 text-emerald-600', text: 'AI: صح' }
+  var awarded = Number(aq.awardedPoints || 0)
+  var maxP = Number(aq.maxPoints || aq.points || 0)
+  if (awarded > 0) return { cls: 'bg-amber-500/10 text-amber-600', text: 'درجة مؤقتة (' + awarded + '/' + maxP + ') — راجعها وعدّلها' }
+  return { cls: 'bg-red-500/10 text-red-600', text: 'AI: غلط' }
+}
+
+/* (2026-و22) صف الأدمن = طالب كامل — بنختار أهم حكم على أسئلته المقالية:
+   المعلق أولًا (بيتصحح…) ثم الدرجة المؤقتة ثم الغلط ثم الصح */
+function writingVerdictBadgeForStudent(was: any[]): { cls: string; text: string } | null {
+  if (!Array.isArray(was) || was.length === 0) return null
+  var badges = was.map(function (wa: any) { return writingVerdictBadge(wa) })
+  var pick = function (frag: string): { cls: string; text: string } | null {
+    for (var i = 0; i < badges.length; i++) { if (badges[i].cls.indexOf(frag) >= 0) return badges[i] }
+    return null
+  }
+  return pick('bg-gray') || pick('bg-amber') || pick('bg-red') || pick('bg-emerald')
+}
+
 export function AdminDashboard() {
   const { adminTab, setAdminTab, logout, currentAdmin, setCurrentAdmin } = useAppStore()
   const [stats, setStats] = useState<Stats | null>(null)
@@ -1384,8 +1408,17 @@ function ExamTrackingPanel() {
                       <div className="max-h-[200px] overflow-y-auto custom-scrollbar space-y-1">
                         {results.map((r) => (
                           <div key={r.id} className="flex items-center justify-between p-2 rounded-lg border bg-card text-sm">
-                            <div><span className="font-medium">{r.student?.name || '—'}</span> <span className="text-[10px] text-muted-foreground" dir="ltr">{r.student?.phone || ''}</span></div>
+                            <div className="min-w-0"><span className="font-medium">{r.student?.name || '—'}</span> <span className="text-[10px] text-muted-foreground" dir="ltr">{r.student?.phone || ''}</span></div>
                             <div className="flex items-center gap-2">
+                              {(function () {
+                                /* (2026-و22) بادج حكم الذكاء الاصطناعي لأسئلة الطالب المقالية —
+                                   «بيتصحح…» المعلق / درجة مؤقتة راجعها / صح / غلط — بدل ما
+                                   المستر يفتح كل نتيجة يعرف إيه اللي محتاج مراجعته */
+                                var vb = writingVerdictBadgeForStudent((r as any).writingAnswers)
+                                return vb ? (
+                                  <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${vb.cls}`}>{vb.text}</span>
+                                ) : null
+                              })()}
                               <span className={`font-bold ${r.score >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{r.score}/{r.maxScore}</span>
                               <span className="text-[10px] text-muted-foreground">{new Date(r.submittedAt).toLocaleDateString('ar-EG')}</span>
                             </div>

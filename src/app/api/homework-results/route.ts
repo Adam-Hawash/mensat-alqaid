@@ -194,8 +194,11 @@ export async function GET(request: NextRequest) {
           var acceptedAnswers = Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers : []
           var pts = (typeof q.points === 'number' && q.points > 0) ? q.points : 5
 
-          // Stored verdict for this writing question (match by question text, then by index)
-          var stored = storedWriting.find(function(sw: any) { return (sw.question || '') === qText })
+          // Stored verdict for this writing question — **بالفهرس الأصلي** (2026-و22)
+          // → نص السؤال → الموضع (للتسليمات القديمة بس). الـ fallback الموضعي الأول
+          // كان بيربط حكم سؤال بسؤال تاني لما التطابق يفشل = «الورق في سؤال مش سؤاله»
+          var stored = storedWriting.find(function(sw: any) { return sw && sw.origIdx === item.origIdx })
+            || storedWriting.find(function(sw: any) { return sw && (sw.question || '') === qText })
             || storedWriting[wi]
             || null
 

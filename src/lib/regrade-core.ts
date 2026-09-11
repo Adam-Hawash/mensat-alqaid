@@ -13,6 +13,7 @@
 import { db } from '@/lib/db'
 import { gradeWritingSmart, gradeFallbackDecisive } from '@/lib/smart-grader'
 import { gradeImageAnswer, extractImageMediaIds } from '@/lib/ai-image-grader'
+import { resolveQuestionsForStudent } from '@/lib/exam-models'
 
 export type QItem = { q: any; origIdx: number }
 
@@ -336,16 +337,16 @@ export async function regradeExamResult(resultId: string): Promise<{ score: numb
   var res = rows[0]
 
   var examRows: any[] = await db.$queryRawUnsafe(
-    'SELECT id, title, questions, passScore FROM Exam WHERE id = ? LIMIT 1',
+    'SELECT id, title, questions, passScore, models, modelMode, fixedModel FROM Exam WHERE id = ? LIMIT 1',
     res.examId
   )
   if (!examRows || examRows.length === 0) return null
 
-  var rawQ: any[] = []
-  try {
-    var parsed = typeof examRows[0].questions === 'string' ? JSON.parse(examRows[0].questions) : examRows[0].questions
-    if (Array.isArray(parsed)) rawQ = parsed
-  } catch (e) {}
+  /* 2026-و22 — علة «الورق بيتصحح على أسئلة تانية»: لو الامتحان فيه نماذج
+     لازم نعيد التصحيح على **أسئلة نموذج الطالب** (نفس الأسئلة اللي شافها
+     وسلّم عليها) مش أسئلة الأساس — وإلا كل الفهارس بتتزحزح والورق يتعرض
+     ويتصحح في سؤال مش سؤاله */
+  var rawQ: any[] = resolveQuestionsForStudent(examRows[0], res.studentId, res.examId)
   var parts = splitQuestions(rawQ)
   if (parts.writing.length === 0 && parts.mcq.length === 0) return null // مفيش أسئلة نقدر نحسب عليها
 
