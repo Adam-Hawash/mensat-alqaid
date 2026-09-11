@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
 import { parseAiJson } from '@/lib/parse-ai-json'
+import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,6 +13,21 @@ export async function POST(request: NextRequest) {
     var grade = formData.get('grade') as string || ''
     var title = formData.get('title') as string || ''
     var questionsJson = formData.get('questions') as string || ''
+    // (2026-و25 نقل 25-b1) إعدادات الامتحان — نفس عقد /api/ai-extract-questions
+    var showResult = String(formData.get('showResult') || '') === 'true'
+    var timeLimitMin = parseInt(String(formData.get('timeLimitMin') || ''), 10)
+    if (isNaN(timeLimitMin) || timeLimitMin < 0) timeLimitMin = 0
+    var scheduledAt: Date | null = null
+    var rawScheduled = String(formData.get('scheduledAt') || '')
+    if (rawScheduled) {
+      try {
+        var sd = new Date(rawScheduled)
+        if (!isNaN(sd.getTime())) scheduledAt = sd
+      } catch (e) { scheduledAt = null }
+    }
+
+    // defensive ALTERs — الأعمدة الجديدة موجودة قبل أي كتابة
+    await ensureExamSettingsColumns(function (sql: string) { return db.$executeRawUnsafe(sql) })
 
     // Validate required fields
     if (!grade) {
@@ -184,7 +200,11 @@ export async function POST(request: NextRequest) {
             grade: grade,
             content: extractedQuestions.length + ' سؤال مستخرج بالذكاء الاصطناعي',
             questions: questionsStr,
-            passScore: 50
+            passScore: 50,
+            // (2026-و25 نقل 25-b1) إعدادات الامتحان
+            showResult,
+            timeLimitMin,
+            scheduledAt,
           }
         })
       })
@@ -195,7 +215,9 @@ export async function POST(request: NextRequest) {
             title: title.trim(),
             grade: grade,
             content: extractedQuestions.length + ' سؤال مستخرج بالذكاء الاصطناعي',
-            questions: questionsStr
+            questions: questionsStr,
+            // (2026-و25 نقل 25-b1) موعد ظهور الواجب
+            scheduledAt,
           }
         })
       })

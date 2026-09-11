@@ -33,18 +33,43 @@ import { repairModelJson, repairCorruptMath } from '@/lib/parse-ai-json'
 // Grading calls: low thinking = much faster, output is small structured JSON.
 // One automatic retry — a transient failure should NEVER leave a submission
 // stuck on "needs manual correction" (teacher request: AI finishes the job).
-async function callGrader(parts: any[]): Promise<{ ok: boolean; text?: string; error?: string }> {
+/* 2026-و25 (نقل من maths-genius 25-a) — 3 محاولات بـ backoff صريح (1.5s ثم 4s)
+   على 429/فشل: مفتاح Gemini الواحد المجاني بيضرب 429 بسهولة (خصوصًا مع تسلسل
+   أسئلة مقالي كتير) — المحاولتين القديمين (1.2s بس) كانوا مش كفاية، وأول فشل
+   كان بيسقط على فولباك الصفر. timeoutMs: 35s افتراضي للنص — الصور بتمرر 60s
+   (صور الحل الكبيرة كانت بتقطع لو قللناه — درس 2026-و12). */
+async function callGrader(parts: any[], timeoutMs?: number): Promise<{ ok: boolean; text?: string; error?: string }> {
   var lastErr = ''
-  for (var attempt = 0; attempt < 2; attempt++) {
+  var backoffs = [1500, 4000]
+  for (var attempt = 0; attempt < 3; attempt++) {
     var result = await callGeminiCentral({
       parts: parts,
       generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
-      timeoutMs: 35000,
+      timeoutMs: timeoutMs || 35000,
       thinking: 'low',
     })
     if (result.ok) return { ok: true, text: result.text }
     lastErr = result.error || 'unknown'
-    if (attempt === 0) await new Promise(function (r) { setTimeout(r, 1200) })
+    if (attempt < 2) await new Promise(function (r) { setTimeout(r, backoffs[attempt]) })
+  }
+  return { ok: false, error: lastErr }
+}
+
+/* (2026-و25 — نقل 25-a) نداء التحقق الرخيص — STRICT VERIFY: بيقارن قيم/حقائق
+   الإجابة النهائية بس. 2 محاولات بتايم أوت قصير (20s) — دي مكالمة صغيرة
+   (رد JSON سطر واحد). */
+async function callVerifier(parts: any[]): Promise<{ ok: boolean; text?: string; error?: string }> {
+  var lastErr = ''
+  for (var attempt = 0; attempt < 2; attempt++) {
+    var result = await callGeminiCentral({
+      parts: parts,
+      generationConfig: { temperature: 0.0, maxOutputTokens: 1024 },
+      timeoutMs: 20000,
+      thinking: 'low',
+    })
+    if (result.ok) return { ok: true, text: result.text }
+    lastErr = result.error || 'unknown'
+    if (attempt === 0) await new Promise(function (r) { setTimeout(r, 1500) })
   }
   return { ok: false, error: lastErr }
 }
@@ -183,6 +208,117 @@ function wordSimilarity(a: string, b: string): number {
   return hit / Math.min(wa.length, wb.length)
 }
 
+/* ------------------------------------------------------------------
+ * 2026-و25 (نقل 25-a) — مرشّحات الإجابة النهائية (مرادف نسخة جينيوس حرفيًا:
+ * نفس المنطق العام — يعمل مع التواريخ والأسماء والأرقام زي ما هو بدون أي
+ * افتراض رياضي). المتغير العاري (x, y) ملوش قيمة لوحده — بنمنع مطابقة
+ * عاري×عاري. بترجع كل القيم المرشحة للإجابة النهائية: آخر جزء بعد آخر
+ * "=" أو ":" + (لو النص جزأين وفيه متغير عاري) الجزء القيمي التاني.
+ * ------------------------------------------------------------------ */
+export function isBareVariable(s: string): boolean {
+  return /^[a-z]{1,2}$/.test(normalizeFinalAnswer(s))
+}
+
+function finalAnswerCandidatesSingle(text: string): string[] {
+  var t = String(text || '').toLowerCase()
+  var parts = t.split(/[=:]/)
+  var segs: string[] = []
+  for (var i = 0; i < parts.length; i++) {
+    var s = (parts[i] || '').trim()
+    if (s) segs.push(s)
+  }
+  var out: string[] = []
+  if (segs.length === 0) {
+    var whole = t.trim()
+    if (whole) out.push(whole)
+    return out
+  }
+  out.push(segs[segs.length - 1])
+  if (segs.length === 2) {
+    var lastBare = isBareVariable(segs[1])
+    var firstBare = isBareVariable(segs[0])
+    if (lastBare !== firstBare) {
+      if (!firstBare && out.indexOf(segs[0]) === -1) out.push(segs[0])
+      if (!lastBare && out.indexOf(segs[1]) === -1) out.push(segs[1])
+    }
+  }
+  return out
+}
+
+export function finalAnswerCandidates(text: string): string[] {
+  var t = String(text || '').toLowerCase()
+  /* بدائل الإجابة المقبولة مفصولة بـ «أو / او / or / |» (زي "١٩٥٢ أو 1952م") —
+     بنستخرج مرشحين لكل بديل لوحده عشان أي بديل يعتبر إجابة صحيحة.
+     ممنوع القسمة على "/" — دي بتاعة الكسور/التواريخ. */
+  var alternatives = t.split(/\s+(?:أو|او|or)\s+|\s*\|\s*/)
+    .map(function (x) { return x.trim() })
+    .filter(Boolean)
+  if (alternatives.length === 0) alternatives = [t]
+  var out: string[] = []
+  alternatives.forEach(function (alt: string) {
+    finalAnswerCandidatesSingle(alt).forEach(function (c: string) {
+      if (c && out.indexOf(c) === -1) out.push(c)
+    })
+  })
+  return out
+}
+
+/* كل القيم/الحقائق النهائية المقبولة من جهة النموذج: أجزاء الإجابة النموذجية
+   + المربّع \\boxed + 【…】 + الإجابات المقبولة الإضافية (نقل 25-a) */
+export function modelFinalCandidates(modelAnswer: string, acceptedAnswers?: string[]): string[] {
+  var out: string[] = []
+  var push = function (v: string) {
+    var t = String(v || '').trim()
+    if (t && out.indexOf(t) === -1) out.push(t)
+  }
+  var m = String(modelAnswer || '')
+  finalAnswerCandidates(m).forEach(push)
+  var boxedM = m.match(/\\boxed\{([^}]+)\}/g) || []
+  for (var bi = 0; bi < boxedM.length; bi++) push(boxedM[bi].replace(/^\\boxed\{/, '').replace(/\}$/, ''))
+  var jpM = m.match(/【([^】]+)】/g) || []
+  for (var ji = 0; ji < jpM.length; ji++) push(jpM[ji].replace(/[【】]/g, ''))
+  ;(acceptedAnswers || []).forEach(push)
+  return out
+}
+
+/* ------------------------------------------------------------------
+ * 2026-و25 (نقل 25-a) — STRICT VERIFY: نداء تحقق ثاني رخيص ضد «الـ AI واثق
+ * إنه غلط وهو غلطان». لما الحكم الأول يقول غلط بنبعت مكالمة صغيرة مركّزة
+ * على حاجة واحدة: «قارن قيم/حقائق الإجابة النهائية بس — نفس القيمة/الحقيقة؟»
+ * — لو رجع same=true يقلب الحكم صح. ده اللي بيقتل شكوى «أسئلة صح بيحسبها
+ * غلط» من جذورها. مكيّف للدراسات: القيمة/الحقيقة (تاريخ، اسم، رقم، سبب) —
+ * الصياغة المختلفة مبتغيرش الحكم.
+ * الفشل هنا آمن: لو النداء فشل بنسيب الحكم الأول زي ما هو.
+ * ------------------------------------------------------------------ */
+export async function verifyFinalAnswerEqual(params: {
+  studentFinals: string[]
+  modelFinals: string[]
+  question?: string
+}): Promise<boolean> {
+  if (!hasGeminiKey()) return false
+  var cut = function (v: string) { return String(v || '').trim().substring(0, 80) }
+  var sVals = (params.studentFinals || []).map(cut).filter(Boolean).slice(0, 3)
+  var mVals = (params.modelFinals || []).map(cut).filter(Boolean).slice(0, 3)
+  if (sVals.length === 0 || mVals.length === 0) return false
+
+  var prompt = 'You are checking ONE thing only: are the student final answer value(s)/fact(s) and the correct final value(s)/fact(s) the SAME?\n\n'
+  prompt += 'Compare ONLY the final values/key facts — wording, order, spelling variants, notation and formatting NEVER matter.\n'
+  prompt += 'All of these are the SAME: 1952 = 1952م = ١٩٥٢, different Arabic spellings of the same name or term, same facts in a different order, 50% = ٥٠٪ = 0.5, 3,5 = 3.5, ٤٢ = 42, a date written with/without the era marker.\n\n'
+  if (params.question) {
+    prompt += 'Question (context only): ' + String(params.question).substring(0, 300) + '\n'
+  }
+  prompt += 'Student final value(s)/fact(s): ' + sVals.join(' | ') + '\n'
+  prompt += 'Correct final value(s)/fact(s): ' + mVals.join(' | ') + '\n\n'
+  prompt += 'Is ANY student value/fact truly the SAME as ANY correct value/fact? Answer true only if one truly matches; false if every student value/fact is genuinely different.\n'
+  prompt += 'Respond with ONLY this JSON — no other text:\n{"same": true}\nor\n{"same": false}\n'
+
+  var result = await callVerifier([{ text: prompt }])
+  if (!result.ok || !result.text) return false
+  var parsed = parseAIJson(result.text)
+  if (!parsed) return false
+  return parsed.same === true || parsed.verdict === true || parsed.equal === true
+}
+
 /* clamp points to [0, maxPoints] as integer */
 function clampPoints(p: any, maxPoints: number): number {
   var n = parseInt(String(p), 10)
@@ -298,7 +434,7 @@ export async function gradeImageAnswer(params: {
     { inlineData: { mimeType: mimeType, data: media.data } },
   ]
 
-  var result = await callGrader(parts)
+  var result = await callGrader(parts, 60000)
 
   if (!result.ok) {
     console.error('[gradeImageAnswer] Gemini failed:', result.error)
@@ -406,6 +542,25 @@ export async function gradeImageAnswer(params: {
         break
       }
     }
+  }
+  // ---- GUARD 3.5 (2026-و25 نقل 25-a): الـ AI رفض والحكم غلط والإجابة النهائية مقروءة
+  // → نداء تحقق ثاني رخيص (STRICT VERIFY) يقارن القيم/الحقائق النهائية بس — لو same
+  // يقلب صح كاملة. ده بيقتل «بيحسبها غلط وهي صح» في مسار الصور كمان.
+  if (!isCorrect && finalAns && (modelAnswer || acceptedAnswers.length > 0)) {
+    try {
+      var mCandsV = modelFinalCandidates(modelAnswer, acceptedAnswers).slice(0, 3)
+      if (mCandsV.length > 0) {
+        var sameImg = await verifyFinalAnswerEqual({ studentFinals: [finalAns], modelFinals: mCandsV, question: question })
+        if (sameImg) {
+          isCorrect = true
+          awardedPoints = maxPoints
+          needsGrading = false
+          if (!feedback || feedback.indexOf('غلط') >= 0 || feedback.indexOf('خطأ') >= 0 || feedback.indexOf('خاطئة') >= 0) {
+            feedback = 'إجابة صحيحة — الإجابة النهائية (' + finalAns + ') مطابقة للصحيحة (اتأكدنا منها مرتين)'
+          }
+        }
+      }
+    } catch (verErr) { console.error('[gradeImageAnswer] verify error:', verErr) }
   }
   // AI said correct but gave 0 points → give full
   // 2026-و19 — الصح = الدرجة كاملة دايمًا (الموديل كان بيفهم صح ويخصم نقطة ببلاش 4/5)
@@ -564,6 +719,27 @@ export async function gradeTextAnswer(params: {
         break
       }
     }
+  }
+  // ---- STRICT VERIFY (2026-و25 نقل 25-a): الـ AI واثق إنه غلط؟ نداء تحقق ثاني رخيص
+  // يقارن قيم/حقائق الإجابة النهائية بس — لو رجع same يقلب الحكم صح كاملة.
+  // ده علاج شكوى «أسئلة صح بيحسبها غلط» — المقارنة الأولى بتغلط في قراية
+  // الشكل/الصياغة، والتحديده بيتم على القيمة/الحقيقة بس.
+  if (!isCorrect && (modelAnswer || acceptedAnswers.length > 0)) {
+    try {
+      var sCandsV = finalAnswerCandidates(studentAnswer).slice(0, 3)
+      if (sCandsV.length > 0) {
+        var mCandsV = modelFinalCandidates(modelAnswer, acceptedAnswers).slice(0, 3)
+        if (mCandsV.length > 0) {
+          var sameTxt = await verifyFinalAnswerEqual({ studentFinals: sCandsV, modelFinals: mCandsV, question: question })
+          if (sameTxt) {
+            isCorrect = true
+            awardedPoints = maxPoints
+            confidence = 'high'
+            feedback = 'برافو عليك ✓ الإجابة النهائية (' + sCandsV[0] + ') مطابقة للإجابة الصحيحة — تم التأكد مرتين'
+          }
+        }
+      }
+    } catch (verErr) { console.error('[gradeTextAnswer] verify error:', verErr) }
   }
   // 2026-و19 — الصح = الدرجة كاملة دايمًا (الموديل كان بيفهم صح ويخصم نقطة ببلاش 4/5)
   if (isCorrect) awardedPoints = maxPoints

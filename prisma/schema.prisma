@@ -82,6 +82,8 @@ model Homework {
   answerKeyType String           @default("")
   grade         String
   questions     String           @default("")
+  // (2026-و25 نقل 25-b1) جدولة ظهور الواجب — قبل الموعد الطالب مش شايفه
+  scheduledAt   DateTime?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   results       HomeworkResult[]
@@ -120,6 +122,11 @@ model Exam {
   modelMode     String       @default("random")
   fixedModel    String       @default("")
   passScore     Float        @default(50)
+  // (2026-و25 نقل 25-b1) إظهار الإجابات للطالب بعد التسليم + مؤقت اختياري بالدقائق
+  // + جدولة ظهور (قبل الموعد الطالب مش شايف الامتحان خالص)
+  showResult    Boolean      @default(false)
+  timeLimitMin  Int          @default(0)
+  scheduledAt   DateTime?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   results       ExamResult[]

@@ -3,9 +3,10 @@
 import { useAppStore } from '@/stores/app-store'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import {
-  ArrowRight, Upload, Loader2, CheckCircle2,
+  ArrowRight, Loader2, CheckCircle2,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
@@ -29,7 +30,8 @@ var PAYMENT_METHODS_ORDER = ['vodafone_cash', 'instapay', 'fawry']
 export function StudentPaymentView() {
   const { pendingPaymentVideo, setView, setPendingPaymentVideo, siteConfig } = useAppStore()
   const [paymentMethod, setPaymentMethod] = useState('vodafone_cash')
-  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  /* و25 — بدل رفع الإيصال: مرجع عملية نصي اختياري (مفيش مساحة قاعدة بيانات) */
+  const [transactionRef, setTransactionRef] = useState('')
   const [uploading, setUploading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
@@ -71,8 +73,8 @@ export function StudentPaymentView() {
   var currentNumber = getPaymentNumber(paymentMethod)
 
   const handleSubmit = async () => {
-    if (!paymentMethod || !receiptFile) {
-      toast.error('اختر طريقة الدفع وارفع الإيصال')
+    if (!paymentMethod) {
+      toast.error('اختر طريقة الدفع الأول')
       return
     }
 
@@ -83,7 +85,8 @@ export function StudentPaymentView() {
       formData.append('videoTitle', video.title)
       formData.append('amount', String(video.price))
       formData.append('paymentMethod', paymentMethod)
-      formData.append('receipt', receiptFile)
+      /* و25 — مفيش رفع إيصال (توفير مساحة قاعدة البيانات) — مرجع العملية نص اختياري */
+      formData.append('notes', transactionRef ? 'مرجع العملية: ' + transactionRef : '')
 
       const res = await fetch('/api/payments', {
         method: 'POST',
@@ -92,7 +95,7 @@ export function StudentPaymentView() {
 
       if (res.ok) {
         setSubmitted(true)
-        toast.success('تم إرسال إيصال الدفع بنجاح! سيتم مراجعته قريباً')
+        toast.success('تم إرسال طلب التفعيل بنجاح! سيتم مراجعته قريباً')
       } else {
         toast.error('حدث خطأ أثناء إرسال الدفع')
       }
@@ -116,7 +119,7 @@ export function StudentPaymentView() {
             <div className="mx-auto h-16 w-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
               <CheckCircle2 className="h-8 w-8 text-emerald-600" />
             </div>
-            <h2 className="text-xl font-bold">تم إرسال الإيصال بنجاح!</h2>
+            <h2 className="text-xl font-bold">تم إرسال طلب التفعيل بنجاح!</h2>
             <p className="text-muted-foreground">
               سيتم مراجعة الدفع وتشغيل الفيديو في أقرب وقت.
             </p>
@@ -203,32 +206,20 @@ export function StudentPaymentView() {
           </CardContent>
         </Card>
 
-        {/* Receipt Upload */}
+        {/* مرجع العملية (و25 — بدل رفع الإيصال: نص اختياري بدون مساحة قاعدة بيانات) */}
         <Card className="mb-6">
-          <CardContent className="p-4 space-y-4">
-            <h2 className="font-bold">ارفع إيصال الدفع</h2>
-            <label className={"flex flex-col items-center justify-center gap-3 p-8 rounded-xl border-2 border-dashed cursor-pointer transition-colors " + (
-              receiptFile ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"
-            )}>
-              {receiptFile ? (
-                <>
-                  <CheckCircle2 className="h-8 w-8 text-primary" />
-                  <p className="text-sm font-medium text-primary">{receiptFile.name}</p>
-                  <p className="text-xs text-muted-foreground">اضغط لتغيير الصورة</p>
-                </>
-              ) : (
-                <>
-                  <Upload className="h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">اضغط لاختيار صورة الإيصال</p>
-                </>
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
-              />
-            </label>
+          <CardContent className="p-4 space-y-3">
+            <h2 className="font-bold">مرجع عملية التحويل (اختياري)</h2>
+            <Input
+              value={transactionRef}
+              onChange={(e) => setTransactionRef(e.target.value)}
+              placeholder="رقم العملية من رسالة المحفظة (لو متاح)"
+              dir="ltr"
+              className="text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              مفيش حاجة لرفع صورة — اكتب مرجع العملية لو تحبه وسيتم تأكيد التحويل وتفعيل الفيديو
+            </p>
           </CardContent>
         </Card>
 
@@ -237,14 +228,14 @@ export function StudentPaymentView() {
           className="w-full py-6 text-base"
           size="lg"
           onClick={handleSubmit}
-          disabled={!paymentMethod || !receiptFile || uploading}
+          disabled={!paymentMethod || uploading}
         >
           {uploading ? (
             <Loader2 className="h-5 w-5 animate-spin ml-2" />
           ) : (
             <CheckCircle2 className="h-5 w-5 ml-2" />
           )}
-          {uploading ? 'جاري الإرسال...' : 'إرسال الإيصال'}
+          {uploading ? 'جاري الإرسال...' : 'إرسال طلب التفعيل'}
         </Button>
       </div>
     </div>

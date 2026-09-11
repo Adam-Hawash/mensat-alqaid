@@ -358,7 +358,7 @@ export async function POST(request) {
           needsGrading: false,
           isCorrect: false,
           awardedPoints: 0,
-          feedback: 'Not answered',
+          feedback: 'لم يتم الإجابة',
         })
       }
       if (!wa.modelAnswer && (!wa.acceptedAnswers || wa.acceptedAnswers.length === 0)) {
@@ -477,32 +477,45 @@ export async function POST(request) {
     }
 
     var backgroundGrading = async function() {
-      try {
-        var gradedList = await Promise.all(writingAnswers.map(function(wa) { return gradeOneWriting(wa) }))
-        var writingScore = 0
-        gradedList.forEach(function(g) {
-          // كل الأسئلة بقت 'graded' — مفيش manual خالص (طلب المستر)
-          writingScore += (g.awardedPoints || 0)
-        })
-        var finalScore = mcqScore + writingScore
+      /* (2026-و25 نقل 25-a) — إصلاح جذري لشكوى «بيديه كله غلط»: النداءات المتوازية
+         (Promise.all) كانت بتبعت N طلبات Gemini في نفس اللحظة على مفتاح واحد
+         مجاني ← 429 rate limit لكل النداءات ← فولباك حاسم ← أصفار جماعية.
+         الحل: تسلسل النداءات (نداء واحد في المرة) — callGemini نفسها بتتداول
+         المفاتيح/الموديلز على 429، وcallGrader بقى له backoff صريح (1.5s ثم 4s)
+         — فالتسلسل بيخلي النداءات متباعدة ومتشبعلش حد الـ RPM.
+         + partial persist: كل سؤال يتصحح يتحفظ فورًا في writingResults (والدرجة
+         تتحديث) — لو التسليم الخلفي اتقطع (serverless timeout) اللي اتصحح
+         مش بيضيع، والباقي بيفضل pending لحد الإصلاح الذاتي (sweep/self-heal)
+         يكمّله. */
+      var gradedList = writingAnswers.slice()
+      var writingScore = 0
+      var persistPartial = async function() {
         try {
           await db.$executeRawUnsafe(
             'UPDATE HomeworkResult SET score = ?, writingResults = ? WHERE id = ?',
-            finalScore, JSON.stringify(gradedList), resultId
+            mcqScore + writingScore, JSON.stringify(gradedList), resultId
           )
-          console.log('[HW BG] Grading done for', resultId, '— final score', finalScore + '/' + maxScore)
-        } catch (updErr) {
-          console.error('[HW BG] Update result error:', updErr)
+        } catch (pErr) {
+          console.error('[HW BG] Partial persist error:', pErr)
           try {
             await db.$executeRawUnsafe(
               'UPDATE HomeworkResult SET score = ? WHERE id = ?',
-              finalScore, resultId
+              mcqScore + writingScore, resultId
             )
-          } catch (e2) {}
+          } catch (pErr2) {}
         }
-      } catch (bgErr) {
-        console.error('[HW BG] Background grading fatal error:', bgErr)
       }
+      for (var gi = 0; gi < writingAnswers.length; gi++) {
+        try {
+          var gOne = await gradeOneWriting(writingAnswers[gi])
+          gradedList[gi] = gOne
+          writingScore += (gOne.awardedPoints || 0)
+        } catch (oneErr) {
+          console.error('[HW BG] grade one writing error:', oneErr)
+        }
+        await persistPartial()
+      }
+      console.log('[HW BG] Grading done for', resultId, '— final score', (mcqScore + writingScore) + '/' + maxScore)
     }
 
     if (hasWriting && inserted) {

@@ -11,7 +11,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { gradeImageAnswer, extractImageMediaIds } from '@/lib/ai-image-grader'
-import { gradeWritingSmart } from '@/lib/smart-grader'
+import { gradeWritingSmart, gradeFallbackDecisive } from '@/lib/smart-grader'
 import { parseQuestions, resolveQuestionsForStudent } from '@/lib/exam-models'
 
 export const runtime = 'nodejs'
@@ -36,6 +36,11 @@ async function ensureTable() {
     try { await db.$executeRawUnsafe('ALTER TABLE ExamResult ADD COLUMN writingResults TEXT DEFAULT ""') } catch(e) {}
     // writingGrades column — per-question grades keyed by ORIGINAL index (student UI + fast path)
     try { await db.$executeRawUnsafe('ALTER TABLE ExamResult ADD COLUMN writingGrades TEXT DEFAULT ""') } catch(e) {}
+    // (2026-و25 نقل 25-b1) إعدادات الامتحان على جدول Exam — scheduledAt DATETIME
+    // مش TEXT (درس موثق: Prisma بيكتب DateTime كـ epoch-millis وTEXT بيكسر القراءة)
+    try { await db.$executeRawUnsafe('ALTER TABLE Exam ADD COLUMN showResult INTEGER DEFAULT 0') } catch(e) {}
+    try { await db.$executeRawUnsafe('ALTER TABLE Exam ADD COLUMN timeLimitMin INTEGER DEFAULT 0') } catch(e) {}
+    try { await db.$executeRawUnsafe('ALTER TABLE Exam ADD COLUMN scheduledAt DATETIME') } catch(e) {}
   } catch (e) {
     console.error('Ensure ExamResult table error:', e)
   }
@@ -83,7 +88,8 @@ export async function POST(request) {
     try {
       var examRows = await db.$queryRawUnsafe(
         // (2026-و22) النماذج معانا — التسليم يتصحح على أسئلة نموذج الطالب نفسها
-        'SELECT id, title, questions, passScore, models, modelMode, fixedModel FROM Exam WHERE id = ? LIMIT 1',
+        // (2026-و25 نقل 25-b1) showResult معانا — بيتحدد هل الطالب يشوف تفاصيل الإجابات
+        'SELECT id, title, questions, passScore, models, modelMode, fixedModel, showResult FROM Exam WHERE id = ? LIMIT 1',
         examId
       )
       exam = examRows && examRows.length > 0 ? examRows[0] : null
@@ -143,11 +149,16 @@ export async function POST(request) {
     if (mcqQuestions.length > 0 && maxScore === 0) { maxScore = mcqQuestions.length }
 
     // ===== WRITING: full AI grading NOW (inline — nothing stays pending) =====
+    /* (2026-و25 نقل 25-a) — partial persist: صف النتيجة بيتعمل من أول لحظة
+       (المقالي كلّه pending) وبيتحدّث بعد كل مرحلة/سؤال — لو السيرفلس اتقطع في
+       نص التصحيح، اللي اتصحح محفوظ والباقي pending والإصلاح الذاتي (sweep /
+       self-heal في exam-results) بيكملهم — مفيش شغل بيضيع ولا صفر صامت. */
     var mcqScore = score
     var writingScore = 0
     var writingGrades: any[] = []
+    var gradesByOrig: Record<number, any> = {}
 
-    // 1) build the writing workload (original index tracked for every question)
+    // 1) build the writing workload first (original index tracked for every question)
     var textWorkload: any[] = []   // for gradeWritingSmart (batch, one AI call)
     var imageWorkload: any[] = []  // for gradeImageAnswer (per question, VLM)
     writingQuestions.forEach(function(item) {
@@ -169,6 +180,76 @@ export async function POST(request) {
       else textWorkload.push(wl)
     })
 
+    // كل سؤال مقالي يبدأ pending — بيتبدل بحكمه لما يتصحح
+    textWorkload.forEach(function(w) {
+      gradesByOrig[w.origIdx] = {
+        question: w.question, answer: w.studentText, modelAnswer: w.modelAnswer,
+        awardedPoints: 0, maxPoints: w.points, isCorrect: false,
+        feedback: 'جاري التصحيح بالذكاء الاصطناعي...', gradingStatus: 'pending',
+      }
+    })
+    imageWorkload.forEach(function(w) {
+      gradesByOrig[w.origIdx] = {
+        question: w.question, answer: w.studentText, modelAnswer: w.modelAnswer,
+        awardedPoints: 0, maxPoints: w.points, isCorrect: false,
+        feedback: 'جاري التصحيح بالذكاء الاصطناعي...', gradingStatus: 'pending',
+      }
+    })
+
+    var buildGradesInOrder = function() {
+      var out: any[] = []
+      writingQuestions.forEach(function(wItem) {
+        var gr = gradesByOrig[wItem.origIdx]
+        if (gr) {
+          out.push({
+            origIdx: wItem.origIdx,
+            question: gr.question,
+            answer: gr.answer,
+            modelAnswer: gr.modelAnswer,
+            awardedPoints: gr.awardedPoints,
+            maxPoints: gr.maxPoints,
+            isCorrect: gr.isCorrect,
+            feedback: gr.feedback,
+            gradingStatus: gr.gradingStatus || 'graded',
+            aiExtractedAnswer: gr.aiExtractedAnswer || '',
+          })
+        }
+      })
+      return out
+    }
+
+    var resultId = 'exr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+    var answersJson = ''
+    if (answers !== undefined && answers !== null) {
+      try { answersJson = JSON.stringify(answers) } catch(e) { answersJson = '' }
+    }
+
+    // early INSERT — الصف موجود من دلوقتي بمقالي pending ودرجة الاختياري بس
+    var rowPersisted = false
+    try {
+      var pendingJson = JSON.stringify(buildGradesInOrder())
+      await db.$executeRawUnsafe(
+        'INSERT INTO ExamResult (id, studentId, examId, score, maxScore, answers, writingResults, writingGrades, submittedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+        resultId, studentId, examId, mcqScore, maxScore, answersJson, pendingJson, pendingJson
+      )
+      rowPersisted = true
+    } catch (earlyInsertErr) {
+      console.error('Early insert exam result error (سيتكمل بالحفظ النهائي):', earlyInsertErr)
+    }
+
+    var persistExamGrades = async function() {
+      if (!rowPersisted) return
+      try {
+        var gradesJson = JSON.stringify(buildGradesInOrder())
+        await db.$executeRawUnsafe(
+          'UPDATE ExamResult SET score = ?, writingResults = ?, writingGrades = ? WHERE id = ?',
+          mcqScore + writingScore, gradesJson, gradesJson, resultId
+        )
+      } catch (pErr) {
+        console.error('Partial persist exam grades error:', pErr)
+      }
+    }
+
     // 2) text answers → smart grader (fast match + ONE batch AI call + deterministic fallback)
     var textGraded: any[] = []
     try {
@@ -184,16 +265,49 @@ export async function POST(request) {
       textGraded = textResult.graded || []
     } catch (grErr) {
       console.error('Writing smart grade error:', grErr)
+      /* (2026-و25 نقل 25-a) ممنوع صفر صامت «تعذر التصحيح — راجع مع المستر» —
+         الحسم المحلي gradeFallbackDecisive لكل سؤال (مطابقة قيم ← كاملة /
+         محاولة حقيقية ← نص الدرجة + «درجة مؤقتة» / فاضي ← 0 «لم يتم الإجابة») */
       textGraded = textWorkload.map(function(w) {
-        return {
-          question: w.question, answer: w.studentText, modelAnswer: w.modelAnswer,
-          awardedPoints: 0, maxPoints: w.points, isCorrect: false,
-          feedback: 'تعذر التصحيح — راجع مع المستر', gradingStatus: 'graded',
+        try {
+          return gradeFallbackDecisive({
+            question: w.question, answer: w.studentText, modelAnswer: w.modelAnswer,
+            acceptedAnswers: w.acceptedAnswers, points: w.points,
+          })
+        } catch (fbErr) {
+          console.error('gradeFallbackDecisive error:', fbErr)
+          return {
+            question: w.question, answer: w.studentText, modelAnswer: w.modelAnswer,
+            awardedPoints: 0, maxPoints: w.points, isCorrect: false,
+            feedback: 'لم يتم الإجابة', gradingStatus: 'graded',
+          }
         }
       })
     }
+    for (var tx = 0; tx < textWorkload.length; tx++) {
+      var tGrade = textGraded[tx] || null
+      if (!tGrade) {
+        try {
+          tGrade = gradeFallbackDecisive({
+            question: textWorkload[tx].question, answer: textWorkload[tx].studentText,
+            modelAnswer: textWorkload[tx].modelAnswer, acceptedAnswers: textWorkload[tx].acceptedAnswers,
+            points: textWorkload[tx].points,
+          })
+        } catch (fbErr2) {
+          tGrade = {
+            question: textWorkload[tx].question, answer: textWorkload[tx].studentText, modelAnswer: textWorkload[tx].modelAnswer,
+            awardedPoints: 0, maxPoints: textWorkload[tx].points, isCorrect: false,
+            feedback: 'لم يتم الإجابة', gradingStatus: 'graded',
+          }
+        }
+      }
+      writingScore += Number(tGrade.awardedPoints) || 0
+      gradesByOrig[textWorkload[tx].origIdx] = tGrade
+    }
+    // persist بعد مرحلة النصوص
+    await persistExamGrades()
 
-    // 3) image answers → VLM per question
+    // 3) image answers → VLM per question (بتسلسل + persist بعد كل سؤال)
     var imageGraded: any[] = []
     for (var im = 0; im < imageWorkload.length; im++) {
       var iw = imageWorkload[im]
@@ -213,7 +327,7 @@ export async function POST(request) {
       if (gradeData && gradeData.needsGrading !== true) {
         /* حكم الـ AI الواثق على الإجابة النهائية — نهائي: صح/غلط */
         var imAwarded = Math.min(Math.max(Math.round(Number(gradeData.awardedPoints) || (gradeData.isCorrect ? iw.points : 0)), 0), iw.points)
-        imageGraded.push({
+        var imGrade = {
           question: iw.question,
           answer: iw.studentText,
           modelAnswer: iw.modelAnswer,
@@ -223,13 +337,16 @@ export async function POST(request) {
           feedback: gradeData.feedback || (imAwarded > 0 ? 'تم تصحيح صورة الحل' : 'الحل مش مطابق'),
           gradingStatus: 'graded',
           aiExtractedAnswer: gradeData.extractedAnswer || '',
-        })
+        }
+        imageGraded.push(imGrade)
+        writingScore += Number(imGrade.awardedPoints) || 0
+        gradesByOrig[iw.origIdx] = imGrade
       } else {
         /* الحسم الحاسم (نفس decisiveImageFallback بتاع الواجب):
            الـ VLM فشل أو مش متأكد ← مفيش needsGrading معلقة خالص —
            درجة مؤقتة عادلة (نص درجة المحاولة) والمستر يعدّلها من لوحته */
         var hasRealWork = iw.studentText.replace(/\[📷[^\]]*\]/g, '').trim().length > 0
-        imageGraded.push({
+        var fbGrade = {
           question: iw.question,
           answer: iw.studentText,
           modelAnswer: iw.modelAnswer,
@@ -238,84 +355,101 @@ export async function POST(request) {
           isCorrect: false,
           feedback: hasRealWork ? 'صورة الحل اترفعت — درجة مؤقتة والمستر هيراجعها ويعادلها' : 'لم يتم الإجابة',
           gradingStatus: 'graded',
-        })
+        }
+        imageGraded.push(fbGrade)
+        writingScore += Number(fbGrade.awardedPoints) || 0
+        gradesByOrig[iw.origIdx] = fbGrade
       }
-    }
-
-    // 4) merge back in original question order + sum the score
-    var gradesByOrig: Record<number, any> = {}
-    for (var tx = 0; tx < textWorkload.length; tx++) {
-      var tGrade = textGraded[tx] || {
-        question: textWorkload[tx].question, answer: textWorkload[tx].studentText, modelAnswer: textWorkload[tx].modelAnswer,
-        awardedPoints: 0, maxPoints: textWorkload[tx].points, isCorrect: false,
-        feedback: 'لم يتم الإجابة', gradingStatus: 'graded',
-      }
-      writingScore += Number(tGrade.awardedPoints) || 0
-      gradesByOrig[textWorkload[tx].origIdx] = tGrade
-    }
-    for (var ix = 0; ix < imageWorkload.length; ix++) {
-      var iGrade = imageGraded[ix]
-      writingScore += Number(iGrade.awardedPoints) || 0
-      gradesByOrig[imageWorkload[ix].origIdx] = iGrade
+      // persist بعد كل سؤال صورة
+      await persistExamGrades()
     }
 
     // keep grades in the ORIGINAL question order for display
-    writingQuestions.forEach(function(wItem) {
-      var gr = gradesByOrig[wItem.origIdx]
-      if (gr) {
-        writingGrades.push({
-          origIdx: wItem.origIdx,
-          question: gr.question,
-          answer: gr.answer,
-          modelAnswer: gr.modelAnswer,
-          awardedPoints: gr.awardedPoints,
-          maxPoints: gr.maxPoints,
-          isCorrect: gr.isCorrect,
-          feedback: gr.feedback,
-          gradingStatus: gr.gradingStatus || 'graded',
-          aiExtractedAnswer: gr.aiExtractedAnswer || '',
-        })
-      }
-    })
+    writingGrades = buildGradesInOrder()
 
     score = mcqScore + writingScore
 
     if (maxScore === 0) { maxScore = questions.length }
 
-    // Save with answers + writingGrades (+ legacy writingResults for old readers)
-    var resultId = 'exr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
-    var answersJson = ''
-    if (answers !== undefined && answers !== null) {
-      try { answersJson = JSON.stringify(answers) } catch(e) { answersJson = '' }
-    }
-    var writingGradesJson = ''
-    try { writingGradesJson = JSON.stringify(writingGrades) } catch(e) { writingGradesJson = '' }
-
-    try {
-      await db.$executeRawUnsafe(
-        'INSERT INTO ExamResult (id, studentId, examId, score, maxScore, answers, writingResults, writingGrades, submittedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
-        resultId, studentId, examId, score, maxScore, answersJson, writingGradesJson, writingGradesJson
-      )
-    } catch (insertErr) {
-      console.error('Insert exam result error:', insertErr)
+    // الحفظ النهائي — لو الصف موجود من الـ early insert بنحدّثه، وإلا INSERT زي ما هو
+    if (rowPersisted) {
+      await persistExamGrades()
+    } else {
+      var writingGradesJson = ''
+      try { writingGradesJson = JSON.stringify(writingGrades) } catch(e) { writingGradesJson = '' }
       try {
         await db.$executeRawUnsafe(
-          'INSERT INTO ExamResult (id, studentId, examId, score, maxScore, answers, submittedAt) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
-          resultId, studentId, examId, score, maxScore, answersJson
+          'INSERT INTO ExamResult (id, studentId, examId, score, maxScore, answers, writingResults, writingGrades, submittedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+          resultId, studentId, examId, score, maxScore, answersJson, writingGradesJson, writingGradesJson
         )
-      } catch (retryErr) {
-        console.error('Retry insert exam result error:', retryErr)
-        return NextResponse.json({ error: 'حدث خطأ أثناء تسليم الامتحان' }, { status: 500 })
+      } catch (insertErr) {
+        console.error('Insert exam result error:', insertErr)
+        try {
+          await db.$executeRawUnsafe(
+            'INSERT INTO ExamResult (id, studentId, examId, score, maxScore, answers, submittedAt) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+            resultId, studentId, examId, score, maxScore, answersJson
+          )
+        } catch (retryErr) {
+          console.error('Retry insert exam result error:', retryErr)
+          return NextResponse.json({ error: 'حدث خطأ أثناء تسليم الامتحان' }, { status: 500 })
+        }
       }
     }
 
-    return NextResponse.json({
+    // (2026-و25 نقل 25-b1) بناء تفاصيل الاختياري للطالب — من نفس حساب الاختياري
+    // الموجود فوق بالظبط (نفس lookupAnswer + نفس مقارنة correctIdx) عشان العرض
+    // يتسق مع الدرجة المحسوبة: إجابته كنص الخيار + الصح + صح/غلط + نقاط السؤال
+    var buildMcqResults = function() {
+      var out: any[] = []
+      mcqQuestions.forEach(function(item) {
+        var q = item.q
+        var pts = (typeof q.points === 'number' && q.points > 0) ? q.points : 1
+        var opts = Array.isArray(q.options) ? q.options : []
+        var correctIdx = typeof q.correct === 'number' ? q.correct : -1
+        var hasKey = correctIdx >= 0 && correctIdx < opts.length
+        var studentAnswer = lookupAnswer(answers, item.origIdx)
+        var saNum = (studentAnswer === undefined || studentAnswer === null) ? -1 : Number(studentAnswer)
+        // إجابة الطالب كنص الخيار عشان الطالب يشوف كلامه — ولو الرقم بره الحدود/مش رقم يظهر زي ما هو
+        var studentText = ''
+        if (studentAnswer === undefined || studentAnswer === null || studentAnswer === '') studentText = 'لم يتم الإجابة'
+        else if (typeof saNum === 'number' && !isNaN(saNum) && saNum >= 0 && saNum < opts.length) studentText = String(opts[saNum])
+        else studentText = String(studentAnswer)
+        // اختياري من غير مفتاح مؤكد ← isCorrect:false + correctAnswer:'' + needsManualKey
+        // (ملاحظة داخلية للمستر — مش بتتعمل فلترة للطالب)
+        out.push({
+          origIdx: item.origIdx,
+          question: q.question || q.q || '',
+          studentAnswer: studentText,
+          correctAnswer: hasKey ? String(opts[correctIdx]) : '',
+          isCorrect: hasKey && saNum === correctIdx,
+          points: pts,
+          needsManualKey: !hasKey,
+        })
+      })
+      return out
+    }
+
+    // (2026-و25 نقل 25-b1) رد التسليم بحالتين:
+    // showResult=false (افتراضي) → نفس رد القائد الحالي حرفيًا
+    // showResult=true → + تفاصيل كل سؤال اختياري + بانر المقالي لو لسه بيتصحح
+    var showResultEnabled = false
+    try { showResultEnabled = exam.showResult === 1 || exam.showResult === true || exam.showResult === 'true' } catch (e) { showResultEnabled = false }
+
+    var responsePayload: Record<string, any> = {
       success: true,
       submitted: true,
       score: score,
       maxScore: maxScore,
       writingGrades: writingGrades,
-    })
+    }
+    if (showResultEnabled) {
+      responsePayload.showResult = true
+      responsePayload.message = 'تم تسليم الامتحان بنجاح'
+      responsePayload.mcqScore = mcqScore
+      responsePayload.writingPending = writingGrades.some(function(g) { return g.gradingStatus === 'pending' })
+      responsePayload.mcqResults = buildMcqResults()
+    }
+    return NextResponse.json(responsePayload)
   } catch (error) {
     console.error('Exam submit error:', error)
     return NextResponse.json({ error: 'حدث خطأ أثناء تسليم الامتحان' }, { status: 500 })

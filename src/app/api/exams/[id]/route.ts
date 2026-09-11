@@ -1,6 +1,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
+import { isAdmin } from '@/lib/video-guard'
+import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
 
 // GET /api/exams/[id] - 获取单个考试
 export async function GET(
@@ -56,6 +58,69 @@ export async function PUT(
   } catch (error) {
     console.error('更新考试失败:', error)
     return NextResponse.json({ error: '服务器内部错误' }, { status: 500 })
+  }
+}
+
+// PATCH /api/exams/[id] - (2026-و25 نقل 25-b1) تعديل جزئي لإعدادات الامتحان:
+// {adminId, showResult?, timeLimitMin?, scheduledAt?} — scheduledAt: null =
+// إلغاء الجدولة، نص ISO = جدولة، بايظ = 400 — بنفس نمط auth الأدمن
+// (isAdmin زي /api/videos و /api/files بالظبط)
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const body = await request.json()
+    const adminId = body.adminId || ''
+
+    if (!(await isAdmin(adminId))) {
+      return NextResponse.json({ error: 'غير مصرح — أدمن فقط' }, { status: 401 })
+    }
+
+    await ensureExamSettingsColumns(function (sql: string) { return db.$executeRawUnsafe(sql) })
+
+    const existing = await db.exam.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
+    }
+
+    const data: Record<string, unknown> = {}
+    if (body.showResult !== undefined) {
+      data.showResult = body.showResult === true || body.showResult === 'true' || body.showResult === 1
+    }
+    if (body.timeLimitMin !== undefined) {
+      var tlm = parseInt(String(body.timeLimitMin ?? ''), 10)
+      if (isNaN(tlm) || tlm < 0) tlm = 0
+      data.timeLimitMin = tlm
+    }
+    if (body.scheduledAt !== undefined) {
+      if (body.scheduledAt === null || body.scheduledAt === '') {
+        data.scheduledAt = null // إلغاء الجدولة
+      } else {
+        try {
+          var sd = new Date(String(body.scheduledAt))
+          if (isNaN(sd.getTime())) {
+            return NextResponse.json({ error: 'موعد الظهور غير صالح' }, { status: 400 })
+          }
+          data.scheduledAt = sd
+        } catch (e) {
+          return NextResponse.json({ error: 'موعد الظهور غير صالح' }, { status: 400 })
+        }
+      }
+    }
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: 'مفيش حقول للتعديل' }, { status: 400 })
+    }
+
+    const exam = await safeWrite(function () {
+      return db.exam.update({ where: { id }, data })
+    })
+
+    return NextResponse.json({ message: 'تم تحديث إعدادات الامتحان', exam })
+  } catch (error: any) {
+    console.error('PATCH exam error:', error)
+    return NextResponse.json({ error: 'Server error: ' + (error.message || String(error)) }, { status: 500 })
   }
 }
 

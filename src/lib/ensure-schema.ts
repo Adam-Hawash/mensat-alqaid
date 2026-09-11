@@ -17,8 +17,8 @@ export var SCHEMA_TABLES = [
   'CREATE TABLE IF NOT EXISTS Student (id TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL UNIQUE, password TEXT NOT NULL DEFAULT "", grade TEXT NOT NULL, status TEXT NOT NULL DEFAULT "pending", parentName TEXT NOT NULL DEFAULT "", parentPhone TEXT NOT NULL DEFAULT "", loginCount INTEGER NOT NULL DEFAULT 0, lastLogin DATETIME, isPaidAccess INTEGER NOT NULL DEFAULT 0, deviceId TEXT NOT NULL DEFAULT "", deviceFp TEXT NOT NULL DEFAULT "", deviceTraits TEXT NOT NULL DEFAULT "", creationDeviceId TEXT NOT NULL DEFAULT "", creationDeviceFp TEXT NOT NULL DEFAULT "", deviceType TEXT NOT NULL DEFAULT "", allowAllDevices INTEGER NOT NULL DEFAULT 0, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
   'CREATE TABLE IF NOT EXISTS StudentActivity (id TEXT PRIMARY KEY, studentId TEXT NOT NULL, action TEXT NOT NULL, details TEXT DEFAULT "", createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (studentId) REFERENCES Student(id) ON DELETE CASCADE)',
   'CREATE TABLE IF NOT EXISTS Video (id TEXT PRIMARY KEY, title TEXT NOT NULL, url TEXT DEFAULT "", filePath TEXT DEFAULT "", fileType TEXT DEFAULT "", thumbnail TEXT DEFAULT "", grade TEXT NOT NULL, price REAL DEFAULT 0, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
-  'CREATE TABLE IF NOT EXISTS Homework (id TEXT PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL DEFAULT "", filePath TEXT DEFAULT "", fileType TEXT DEFAULT "", thumbnail TEXT DEFAULT "", answerKeyPath TEXT DEFAULT "", answerKeyType TEXT DEFAULT "", grade TEXT NOT NULL, questions TEXT DEFAULT "", createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
-  'CREATE TABLE IF NOT EXISTS Exam (id TEXT PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL DEFAULT "", filePath TEXT DEFAULT "", fileType TEXT DEFAULT "", thumbnail TEXT DEFAULT "", answerKeyPath TEXT DEFAULT "", answerKeyType TEXT DEFAULT "", grade TEXT NOT NULL, questions TEXT DEFAULT "", passScore REAL DEFAULT 50, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+  'CREATE TABLE IF NOT EXISTS Homework (id TEXT PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL DEFAULT "", filePath TEXT DEFAULT "", fileType TEXT DEFAULT "", thumbnail TEXT DEFAULT "", answerKeyPath TEXT DEFAULT "", answerKeyType TEXT DEFAULT "", grade TEXT NOT NULL, questions TEXT DEFAULT "", scheduledAt DATETIME, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+  'CREATE TABLE IF NOT EXISTS Exam (id TEXT PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL DEFAULT "", filePath TEXT DEFAULT "", fileType TEXT DEFAULT "", thumbnail TEXT DEFAULT "", answerKeyPath TEXT DEFAULT "", answerKeyType TEXT DEFAULT "", grade TEXT NOT NULL, questions TEXT DEFAULT "", passScore REAL DEFAULT 50, showResult INTEGER DEFAULT 0, timeLimitMin INTEGER DEFAULT 0, scheduledAt DATETIME, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
   'CREATE TABLE IF NOT EXISTS ExamResult (id TEXT PRIMARY KEY, examId TEXT NOT NULL, studentId TEXT NOT NULL, score REAL DEFAULT 0, maxScore REAL DEFAULT 100, submittedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, answers TEXT DEFAULT \'\', writingGrades TEXT DEFAULT \'\', FOREIGN KEY (studentId) REFERENCES Student(id) ON DELETE CASCADE, FOREIGN KEY (examId) REFERENCES Exam(id) ON DELETE CASCADE)',
   'CREATE TABLE IF NOT EXISTS Announcement (id TEXT PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL DEFAULT "", grade TEXT NOT NULL, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
   'CREATE TABLE IF NOT EXISTS Discussion (id TEXT PRIMARY KEY, studentId TEXT NOT NULL, studentName TEXT NOT NULL, grade TEXT NOT NULL, content TEXT NOT NULL, isAdminReply INTEGER NOT NULL DEFAULT 0, likes INTEGER NOT NULL DEFAULT 0, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
@@ -67,6 +67,13 @@ var SCHEMA_COLUMNS = [
   ['Exam', 'modelMode', 'TEXT', "DEFAULT 'random'"],
   ['Exam', 'fixedModel', 'TEXT', "DEFAULT ''"],
   ['Exam', 'passScore', 'REAL', 'DEFAULT 50'],
+  // (2026-و25 نقل 25-b1) إعدادات الامتحان: إظهار الإجابات + مؤقت بالدقائق + جدولة الظهور
+  // scheduledAt DATETIME مش TEXT — درس موثق: Prisma بيكتب DateTime كـ epoch-millis
+  // وعمود TEXT بيخزنه نص فالقراءة بتفشل (Inconsistent column data)
+  ['Exam', 'showResult', 'INTEGER', 'DEFAULT 0'],
+  ['Exam', 'timeLimitMin', 'INTEGER', 'DEFAULT 0'],
+  ['Exam', 'scheduledAt', 'DATETIME', ''],
+  ['Homework', 'scheduledAt', 'DATETIME', ''],
   ['ExamResult', 'score', 'REAL', 'DEFAULT 0'],
   ['ExamResult', 'maxScore', 'REAL', 'DEFAULT 100'],
   ['ExamResult', 'answers', 'TEXT', "DEFAULT ''"],
@@ -222,4 +229,27 @@ export async function ensureSchema(client: any, opts?: { force?: boolean }) {
   } catch (hErr) {}
 
   return { missing, repaired: missing.length > 0, results }
+}
+
+/* ============================================================
+ * (2026-و25 نقل 25-b1) أعمدة إعدادات الامتحان/الواجب — defensive ALTERs
+ * بلا اعتماد على ensureSchema (اللي بيتسكّب بالبصمة وممكن يبقى قديم):
+ *   Exam: showResult INTEGER DEFAULT 0 + timeLimitMin INTEGER DEFAULT 0 + scheduledAt
+ *   Homework: scheduledAt
+ * **scheduledAt DATETIME مش TEXT** — درس موثق من 25-b1: محرك Prisma بيكتب
+ * DateTime كـ epoch-millis INTEGER، وعمود TEXT affinity بيخزنه نص
+ * «1789157800507» والقراءة بتفشل صريح (Inconsistent column data) —
+ * DATETIME هو نفسه المستخدم في كل أعمدة DateTime الموجودة (submittedAt …).
+ * دالة تنفيذية محايدة: بتشتغل مع Prisma ($executeRawUnsafe) ومع libsql (execute).
+ * ============================================================ */
+export async function ensureExamSettingsColumns(exec: (sql: string) => Promise<unknown>) {
+  var stmts = [
+    'ALTER TABLE Exam ADD COLUMN showResult INTEGER DEFAULT 0',
+    'ALTER TABLE Exam ADD COLUMN timeLimitMin INTEGER DEFAULT 0',
+    'ALTER TABLE Exam ADD COLUMN scheduledAt DATETIME',
+    'ALTER TABLE Homework ADD COLUMN scheduledAt DATETIME',
+  ]
+  for (var i = 0; i < stmts.length; i++) {
+    try { await exec(stmts[i]) } catch (e) {}
+  }
 }

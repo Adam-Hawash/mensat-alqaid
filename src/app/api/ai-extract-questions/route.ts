@@ -8,6 +8,7 @@
 
 import { NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
+import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
 
 export const runtime = 'nodejs'
 
@@ -18,6 +19,22 @@ export async function POST(request) {
     var grade = formData.get('grade') || ''
     var title = formData.get('title') || ''
     var questionsJson = formData.get('questions') || ''
+    // (2026-و25 نقل 25-b1) إعدادات الامتحان من خطوة المراجعة — مسار الحفظ
+    // الخاص بالقائد (المستخرج بيتحفظ من هنا)
+    var showResult = String(formData.get('showResult') || '') === 'true'
+    var timeLimitMin = parseInt(String(formData.get('timeLimitMin') || ''), 10)
+    if (isNaN(timeLimitMin) || timeLimitMin < 0) timeLimitMin = 0
+    var scheduledAt: Date | null = null
+    var rawScheduled = String(formData.get('scheduledAt') || '')
+    if (rawScheduled) {
+      try {
+        var sd = new Date(rawScheduled)
+        if (!isNaN(sd.getTime())) scheduledAt = sd
+      } catch (e) { scheduledAt = null }
+    }
+
+    // defensive ALTERs — الأعمدة الجديدة موجودة قبل أي كتابة
+    await ensureExamSettingsColumns(function (sql: string) { return db.$executeRawUnsafe(sql) })
 
     console.log('Save request:', { type: type, grade: grade, title: title, hasQuestions: !!questionsJson })
 
@@ -113,7 +130,11 @@ export async function POST(request) {
             grade: grade,
             content: dbQuestions.length + ' questions extracted by AI',
             questions: questionsStr,
-            passScore: 50
+            passScore: 50,
+            // (2026-و25 نقل 25-b1) إعدادات الامتحان
+            showResult,
+            timeLimitMin,
+            scheduledAt,
           }
         })
       })
@@ -129,7 +150,9 @@ export async function POST(request) {
             title: title.trim(),
             grade: grade,
             content: dbQuestions.length + ' questions extracted by AI',
-            questions: questionsStr
+            questions: questionsStr,
+            // (2026-و25 نقل 25-b1) موعد ظهور الواجب
+            scheduledAt,
           }
         })
       })

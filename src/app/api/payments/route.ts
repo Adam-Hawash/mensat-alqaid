@@ -3,54 +3,45 @@ import { db } from '@/lib/db'
 
 export const runtime = 'nodejs'
 
-// POST - Student submits a payment receipt
+// POST - Student submits a payment/activation request
+/* 2026-و25 — حذف تخزين الإيصالات نهائيًا (نقل من maths-genius — طلب المستر:
+   «بتاع الإقرار بتاع الـ PDF ده طباعة الإيصال هياخد من مساحة قاعدة البيانات، فشكله ملوش لزوم»):
+   - مفيش ملف إيصال بيتخزن خالص (كان بيتحفظ base64 في جدول Media = مساحة قاعدة بيانات)
+   - الطلب بقى نص بس (طريقة دفع + مرجع عملية اختياري)
+   - إيصالات قديمة متسجلة في قاعدة البيانات فضلت زي ما هي والأدمن لسه يشوفها من PaymentsPanel
+   - قبول JSON (صفحة /payment العامة) و FormData (البورتال) مع بعض — كان فيه باج قديم:
+     صفحة الدفع العامة بتبعت JSON والـ API بيقرأ formData فيرجع 500 */
 export async function POST(request: NextRequest) {
   try {
-    var formData = await request.formData()
-    var videoId = formData.get('videoId') as string || ''
-    var videoTitle = formData.get('videoTitle') as string || ''
-    var amount = parseFloat(formData.get('amount') as string || '0')
-    var paymentMethod = formData.get('paymentMethod') as string || ''
-    var receipt = formData.get('receipt') as File | null
-    var notes = formData.get('notes') as string || ''
-    var studentId = formData.get('studentId') as string || ''
-    var studentName = formData.get('studentName') as string || ''
-
-    if (!videoId || !paymentMethod || !receipt) {
-      return NextResponse.json({ error: 'videoId, paymentMethod, and receipt are required' }, { status: 400 })
+    var videoId = '', videoTitle = '', paymentMethod = '', notes = '', studentId = '', studentName = ''
+    var amount = 0
+    var contentType = request.headers.get('content-type') || ''
+    if (contentType.indexOf('application/json') !== -1) {
+      var body = await request.json()
+      videoId = String(body.videoId || '')
+      videoTitle = String(body.videoTitle || '')
+      amount = Number(body.amount) || 0
+      paymentMethod = String(body.method || body.paymentMethod || '')
+      notes = String(body.note || body.notes || '')
+      studentId = String(body.studentId || '')
+      studentName = String(body.studentName || '')
+    } else {
+      var formData = await request.formData()
+      videoId = String(formData.get('videoId') || '')
+      videoTitle = String(formData.get('videoTitle') || '')
+      amount = parseFloat(String(formData.get('amount') || '0')) || 0
+      paymentMethod = String(formData.get('paymentMethod') || '')
+      notes = String(formData.get('notes') || formData.get('note') || '')
+      studentId = String(formData.get('studentId') || '')
+      studentName = String(formData.get('studentName') || '')
     }
 
-    // Save receipt file
+    if (!videoId || !paymentMethod) {
+      return NextResponse.json({ error: 'videoId and paymentMethod are required' }, { status: 400 })
+    }
+
+    // مفيش تخزين إيصالات خالص — receiptPath فاضي دايمًا (توفير مساحة قاعدة البيانات)
     var receiptPath = ''
-    if (receipt) {
-      var chunks: Uint8Array[] = []
-      var reader = receipt.stream().getReader()
-      while (true) {
-        var chunk = await reader.read()
-        if (chunk.done) break
-        chunks.push(chunk.value)
-      }
-      var buffer = new Uint8Array(chunks.reduce(function(a, c) { return a + c.length }, 0))
-      var offset = 0
-      for (var c of chunks) {
-        buffer.set(c, offset)
-        offset += c.length
-      }
-      var base64 = Buffer.from(buffer).toString('base64')
-
-      // Store in Media table
-      var media = await db.media.create({
-        data: {
-          filename: receipt.name,
-          filePath: 'receipts/' + Date.now() + '_' + receipt.name,
-          fileType: receipt.type,
-          fileSize: String(receipt.size),
-          data: base64,
-          category: 'receipts',
-        },
-      })
-      receiptPath = media.id
-    }
 
     var payment = await db.payment.create({
       data: {

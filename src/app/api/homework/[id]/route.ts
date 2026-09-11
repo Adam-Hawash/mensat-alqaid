@@ -1,6 +1,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
+import { isAdmin } from '@/lib/video-guard'
+import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
 
 // GET /api/homework/[id] - 获取单个作业
 export async function GET(
@@ -50,6 +52,59 @@ export async function PUT(
   } catch (error) {
     console.error('更新作业失败:', error)
     return NextResponse.json({ error: '服务器内部错误' }, { status: 500 })
+  }
+}
+
+// PATCH /api/homework/[id] - (2026-و25 نقل 25-b1) تعديل جزئي لإعدادات الواجب:
+// {adminId, scheduledAt} — null = إلغاء الجدولة، نص ISO = جدولة — بنفس
+// نمط auth الأدمن (isAdmin زي /api/videos بالظبط)
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const body = await request.json()
+    const adminId = body.adminId || ''
+
+    if (!(await isAdmin(adminId))) {
+      return NextResponse.json({ error: 'غير مصرح — أدمن فقط' }, { status: 401 })
+    }
+
+    await ensureExamSettingsColumns(function (sql: string) { return db.$executeRawUnsafe(sql) })
+
+    const existing = await db.homework.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'الواجب غير موجود' }, { status: 404 })
+    }
+
+    if (body.scheduledAt === undefined) {
+      return NextResponse.json({ error: 'مفيش حقول للتعديل' }, { status: 400 })
+    }
+
+    var scheduledAt: Date | null
+    if (body.scheduledAt === null || body.scheduledAt === '') {
+      scheduledAt = null // إلغاء الجدولة
+    } else {
+      try {
+        var sd = new Date(String(body.scheduledAt))
+        if (isNaN(sd.getTime())) {
+          return NextResponse.json({ error: 'موعد الظهور غير صالح' }, { status: 400 })
+        }
+        scheduledAt = sd
+      } catch (e) {
+        return NextResponse.json({ error: 'موعد الظهور غير صالح' }, { status: 400 })
+      }
+    }
+
+    const homework = await safeWrite(async function () {
+      return db.homework.update({ where: { id }, data: { scheduledAt } })
+    })
+
+    return NextResponse.json({ message: 'تم تحديث موعد ظهور الواجب', homework })
+  } catch (error: any) {
+    console.error('PATCH homework error:', error)
+    return NextResponse.json({ error: 'Server error: ' + (error.message || String(error)) }, { status: 500 })
   }
 }
 

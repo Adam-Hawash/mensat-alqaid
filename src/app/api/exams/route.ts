@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { isAdmin } from '@/lib/video-guard'
+import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
 
 // ============================================================
 // توزيع النماذج العشوائي (طلب المستر): لما الامتحان يكون فيه نماذج كتير
@@ -49,8 +51,19 @@ function applyModelForStudent(exam: any, studentId: string) {
   }
 }
 
+/* (2026-و25 نقل 25-b1) هل الامتحان مجدول في المستقبل؟ — للأدمن بادج «مجدول» */
+function isScheduledFuture(e: any): boolean {
+  try {
+    if (!e || !e.scheduledAt) return false
+    return new Date(e.scheduledAt).getTime() > Date.now()
+  } catch { return false }
+}
+
 export async function GET(request: NextRequest) {
   try {
+    // (2026-و25 نقل 25-b1) defensive ALTERs — أي قاعدة بيانات بتترقّى أول ريكوست
+    await ensureExamSettingsColumns(function (sql: string) { return db.$executeRawUnsafe(sql) })
+
     const { searchParams } = new URL(request.url)
     const grade = searchParams.get('grade')
     const keyword = searchParams.get('keyword')
@@ -59,10 +72,18 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '20')
 
+    // (2026-و25 نقل 25-b1) فلترة المجدول: غير الأدمن مش بيشوف الامتحانات
+    // اللي موعد ظهورها في المستقبل خالص (متنزلش أصلًا) — الأدمن بيشوف الكل
+    const adminId = searchParams.get('adminId') || ''
+    const admin = await isAdmin(adminId)
+
     const where: Record<string, unknown> = {}
     if (grade) where.grade = grade
     if (keyword) {
       where.OR = [{ title: { contains: keyword } }]
+    }
+    if (!admin) {
+      where.AND = [{ OR: [{ scheduledAt: null }, { scheduledAt: { lte: new Date() } }] }]
     }
 
     const [exams, total] = await Promise.all([
@@ -75,9 +96,14 @@ export async function GET(request: NextRequest) {
       db.exam.count({ where }),
     ])
 
+    // بادج «مجدول» للأدمن على العناصر المستقبلية
+    const flagged = admin
+      ? exams.map(function (e: any) { return isScheduledFuture(e) ? { ...e, scheduled: true } : e })
+      : exams
+
     // توزيع النموذج للطالب (عشوائي ثابت أو نموذج واحد ثابت للكل حسب اختيار
     // المستر) — وإلا الامتحان زي ما هو
-    const outExams = studentId ? exams.map(function (e: any) { return applyModelForStudent(e, studentId) }) : exams
+    const outExams = studentId ? flagged.map(function (e: any) { return applyModelForStudent(e, studentId) }) : flagged
 
     return NextResponse.json({ exams: outExams, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
   } catch (error: any) {
@@ -88,11 +114,26 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await ensureExamSettingsColumns(function (sql: string) { return db.$executeRawUnsafe(sql) })
+
     const body = await request.json()
     const { title, content, grade, filePath, fileType, questions, models, modelMode, fixedModel, passScore, answerKeyPath, answerKeyType, thumbnail } = body
 
     if (!title || !grade) {
       return NextResponse.json({ error: 'Title and grade are required' }, { status: 400 })
+    }
+
+    // (2026-و25 نقل 25-b1) إعدادات الامتحان الجديدة — سوتش إظهار الإجابات +
+    // مؤقت بالدقائق (فاضي/سالب → 0) + موعد الظهور (ISO|null)
+    var showResult = body.showResult === true || body.showResult === 'true' || body.showResult === 1
+    var timeLimitMin = parseInt(String(body.timeLimitMin ?? ''), 10)
+    if (isNaN(timeLimitMin) || timeLimitMin < 0) timeLimitMin = 0
+    var scheduledAt: Date | null = null
+    if (body.scheduledAt) {
+      try {
+        var sd = new Date(String(body.scheduledAt))
+        if (!isNaN(sd.getTime())) scheduledAt = sd
+      } catch (e) { scheduledAt = null }
     }
 
     const exam = await db.exam.create({
@@ -110,6 +151,9 @@ export async function POST(request: NextRequest) {
         modelMode: modelMode === 'fixed' ? 'fixed' : 'random',
         fixedModel: (modelMode === 'fixed' && fixedModel) ? String(fixedModel) : '',
         passScore: passScore ? parseFloat(passScore) : 50,
+        showResult,
+        timeLimitMin,
+        scheduledAt,
       },
     })
 
