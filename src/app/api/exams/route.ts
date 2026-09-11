@@ -61,7 +61,7 @@ function isScheduledFuture(e: any): boolean {
 
 /* (2026-و26) تطبيع قايمة الطلاب المستهدفين — بتوصل array أو JSON string
    والخروج JSON string نظيفة (بدون تكرار). undefined = مش متغيرة */
-export function normalizeTargetIds(v: unknown): string | undefined {
+function normalizeTargetIds(v: unknown): string | undefined {
   if (v === undefined || v === null) return undefined
   var arr: unknown[] = []
   if (Array.isArray(v)) arr = v
