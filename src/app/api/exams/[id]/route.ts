@@ -62,8 +62,8 @@ export async function PUT(
 }
 
 // PATCH /api/exams/[id] - (2026-و25 نقل 25-b1) تعديل جزئي لإعدادات الامتحان:
-// {adminId, showResult?, timeLimitMin?, scheduledAt?} — scheduledAt: null =
-// إلغاء الجدولة، نص ISO = جدولة، بايظ = 400 — بنفس نمط auth الأدمن
+// {adminId, showResult?, timeLimitMin?, scheduledAt?, targetStudentIds?} —
+// scheduledAt: null = إلغاء الجدولة، نص ISO = جدولة، بايظ = 400 — بنفس نمط auth الأدمن
 // (isAdmin زي /api/videos و /api/files بالظبط)
 export async function PATCH(
   request: NextRequest,
@@ -109,6 +109,16 @@ export async function PATCH(
         }
       }
     }
+    /* (2026-و26) استهداف الطلاب: array ids → JSON string (فاضي = الكل يشوفه) */
+    if (body.targetStudentIds !== undefined) {
+      var arr: unknown[] = []
+      if (Array.isArray(body.targetStudentIds)) arr = body.targetStudentIds
+      else { try { var pp = JSON.parse(String(body.targetStudentIds)); if (Array.isArray(pp)) arr = pp } catch (e) {} }
+      var cleanIds = arr.map(function (x) { return String(x == null ? '' : x).trim() }).filter(Boolean)
+      cleanIds = cleanIds.filter(function (x: string, i: number) { return cleanIds.indexOf(x) === i })
+      data.targetStudentIds = JSON.stringify(cleanIds)
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: 'مفيش حقول للتعديل' }, { status: 400 })
     }

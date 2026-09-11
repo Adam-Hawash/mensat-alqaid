@@ -89,7 +89,7 @@ export async function POST(request) {
       var examRows = await db.$queryRawUnsafe(
         // (2026-و22) النماذج معانا — التسليم يتصحح على أسئلة نموذج الطالب نفسها
         // (2026-و25 نقل 25-b1) showResult معانا — بيتحدد هل الطالب يشوف تفاصيل الإجابات
-        'SELECT id, title, questions, passScore, models, modelMode, fixedModel, showResult FROM Exam WHERE id = ? LIMIT 1',
+        'SELECT id, title, questions, passScore, models, modelMode, fixedModel, showResult, targetStudentIds FROM Exam WHERE id = ? LIMIT 1',
         examId
       )
       exam = examRows && examRows.length > 0 ? examRows[0] : null
@@ -100,6 +100,15 @@ export async function POST(request) {
     if (!exam) {
       return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
     }
+
+    /* (2026-و26) حارس الاستهداف: الامتحان الموجه لطلاب محددين — التسليم
+       مسموح للي اسمه في القايمة بس (حتى لو طلبه بنفسه بالـ API) */
+    try {
+      var tParsed = JSON.parse(String((exam as any).targetStudentIds || '[]'))
+      if (Array.isArray(tParsed) && tParsed.length > 0 && tParsed.indexOf(String(studentId)) === -1) {
+        return NextResponse.json({ error: 'الامتحان ده مش موجه ليك — كلمني لو فيه غلط' }, { status: 403 })
+      }
+    } catch (e) {}
 
     // Parse questions — (2026-و22) الـ helper المشترك resolveQuestionsForStudent:
     // لو الامتحان فيه نماذج ← أسئلة نموذج الطالب هو هي الأصل للتصحيح

@@ -56,8 +56,8 @@ export async function PUT(
 }
 
 // PATCH /api/homework/[id] - (2026-و25 نقل 25-b1) تعديل جزئي لإعدادات الواجب:
-// {adminId, scheduledAt} — null = إلغاء الجدولة، نص ISO = جدولة — بنفس
-// نمط auth الأدمن (isAdmin زي /api/videos بالظبط)
+// {adminId, scheduledAt?, targetStudentIds?} — null = إلغاء الجدولة، نص ISO =
+// جدولة — بنفس نمط auth الأدمن (isAdmin زي /api/videos بالظبط)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -78,30 +78,43 @@ export async function PATCH(
       return NextResponse.json({ error: 'الواجب غير موجود' }, { status: 404 })
     }
 
-    if (body.scheduledAt === undefined) {
+    if (body.scheduledAt === undefined && body.targetStudentIds === undefined) {
       return NextResponse.json({ error: 'مفيش حقول للتعديل' }, { status: 400 })
     }
 
-    var scheduledAt: Date | null
-    if (body.scheduledAt === null || body.scheduledAt === '') {
-      scheduledAt = null // إلغاء الجدولة
-    } else {
-      try {
-        var sd = new Date(String(body.scheduledAt))
-        if (isNaN(sd.getTime())) {
+    var data: Record<string, unknown> = {}
+
+    /* (2026-و26) استهداف الطلاب: array ids → JSON string (فاضي = الكل) */
+    if (body.targetStudentIds !== undefined) {
+      var tArr: unknown[] = []
+      if (Array.isArray(body.targetStudentIds)) tArr = body.targetStudentIds
+      else { try { var tp = JSON.parse(String(body.targetStudentIds)); if (Array.isArray(tp)) tArr = tp } catch (e) {} }
+      var tClean = tArr.map(function (x) { return String(x == null ? '' : x).trim() }).filter(Boolean)
+      tClean = tClean.filter(function (x: string, i: number) { return tClean.indexOf(x) === i })
+      data.targetStudentIds = JSON.stringify(tClean)
+    }
+
+    if (body.scheduledAt !== undefined) {
+      if (body.scheduledAt === null || body.scheduledAt === '') {
+        data.scheduledAt = null // إلغاء الجدولة
+      } else {
+        try {
+          var sd = new Date(String(body.scheduledAt))
+          if (isNaN(sd.getTime())) {
+            return NextResponse.json({ error: 'موعد الظهور غير صالح' }, { status: 400 })
+          }
+          data.scheduledAt = sd
+        } catch (e) {
           return NextResponse.json({ error: 'موعد الظهور غير صالح' }, { status: 400 })
         }
-        scheduledAt = sd
-      } catch (e) {
-        return NextResponse.json({ error: 'موعد الظهور غير صالح' }, { status: 400 })
       }
     }
 
     const homework = await safeWrite(async function () {
-      return db.homework.update({ where: { id }, data: { scheduledAt } })
+      return db.homework.update({ where: { id }, data })
     })
 
-    return NextResponse.json({ message: 'تم تحديث موعد ظهور الواجب', homework })
+    return NextResponse.json({ message: 'تم تحديث إعدادات الواجب', homework })
   } catch (error: any) {
     console.error('PATCH homework error:', error)
     return NextResponse.json({ error: 'Server error: ' + (error.message || String(error)) }, { status: 500 })

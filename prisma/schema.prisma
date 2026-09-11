@@ -84,6 +84,9 @@ model Homework {
   questions     String           @default("")
   // (2026-و25 نقل 25-b1) جدولة ظهور الواجب — قبل الموعد الطالب مش شايفه
   scheduledAt   DateTime?
+  // (2026-و26) استهداف الطلاب — نفس نمط الفيديوهات (VideoSchedule):
+  // JSON array بids طلاب محددين — فاضي "[]" = الكل يشوفه
+  targetStudentIds String      @default("")
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   results       HomeworkResult[]
@@ -127,6 +130,9 @@ model Exam {
   showResult    Boolean      @default(false)
   timeLimitMin  Int          @default(0)
   scheduledAt   DateTime?
+  // (2026-و26) استهداف الطلاب — نفس نمط الفيديوهات (VideoSchedule):
+  // JSON array بids طلاب محددين — فاضي "[]" = الكل يشوفه
+  targetStudentIds String      @default("")
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   results       ExamResult[]

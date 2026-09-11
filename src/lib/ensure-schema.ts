@@ -248,6 +248,10 @@ export async function ensureExamSettingsColumns(exec: (sql: string) => Promise<u
     'ALTER TABLE Exam ADD COLUMN timeLimitMin INTEGER DEFAULT 0',
     'ALTER TABLE Exam ADD COLUMN scheduledAt DATETIME',
     'ALTER TABLE Homework ADD COLUMN scheduledAt DATETIME',
+    /* (2026-و26) استهداف الطلاب — نفس نمط الفيديوهات (VideoSchedule.studentIds):
+       JSON array من ids الطلاب — فاضي = الكل يشوفه */
+    "ALTER TABLE Exam ADD COLUMN targetStudentIds TEXT DEFAULT ''",
+    "ALTER TABLE Homework ADD COLUMN targetStudentIds TEXT DEFAULT ''",
   ]
   for (var i = 0; i < stmts.length; i++) {
     try { await exec(stmts[i]) } catch (e) {}

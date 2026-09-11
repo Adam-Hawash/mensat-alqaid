@@ -29,6 +29,7 @@ import { CommunityPanel } from './CommunityPanel'
 import { ActivityPanel } from './ActivityPanel'
 import { GradesSchedulePanel } from './GradesSchedulePanel'
 import { PaymentsPanel } from '@/components/PaymentsPanel'
+import { StudentTargetPicker, parseTargetStudentIds } from '@/components/admin/StudentTargetPicker'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Image from 'next/image'
 import { toast } from 'sonner'
@@ -1089,6 +1090,9 @@ function ExamSettingsRow({ exam, adminId, onDone }: { exam: any; adminId: string
   var [when, setWhen] = useState<string>(toLocalInputValue(exam.scheduledAt))
   var [busy, setBusy] = useState(false)
   var scheduledFuture = isScheduledFuture(exam.scheduledAt)
+  /* (2026-و26) استهداف الطلاب — زي الفيديوهات بالظبط */
+  var [targetOpen, setTargetOpen] = useState(false)
+  var targetIds = parseTargetStudentIds(exam.targetStudentIds)
 
   var patch = async function (payload: Record<string, unknown>, okMsg: string) {
     setBusy(true)
@@ -1146,6 +1150,27 @@ function ExamSettingsRow({ exam, adminId, onDone }: { exam: any; adminId: string
       {scheduledFuture && (
         <Badge className="text-[9px] bg-blue-500 text-white">مجدول — يظهر {formatEgyptian(exam.scheduledAt)}</Badge>
       )}
+      {/* (2026-و26) سطر 3: استهداف الطلاب — مين يشوف الامتحان (زي الفيديوهات) */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <Badge variant={targetIds.length === 0 ? 'secondary' : 'default'} className="text-[9px] gap-1 cursor-pointer"
+          onClick={function () { setTargetOpen(true) }}>
+          👥 {targetIds.length === 0 ? 'ظاهر لكل الطلاب' : ('موجه لـ ' + targetIds.length + ' طالب')}
+        </Badge>
+        <Button type="button" variant="ghost" size="sm" className="h-7 text-[10px] px-2"
+          onClick={function () { setTargetOpen(true) }}>
+          تحديد الطلاب
+        </Button>
+      </div>
+      <StudentTargetPicker
+        open={targetOpen}
+        onOpenChange={setTargetOpen}
+        apiPath="/api/exams"
+        itemId={exam.id}
+        initialIds={targetIds}
+        itemTitle={exam.title}
+        adminId={adminId}
+        onSaved={function () { if (onDone) onDone() }}
+      />
     </div>
   )
 }
@@ -1653,6 +1678,8 @@ function ExamTrackingPanel() {
                         {(exam as any).showResult ? <Badge className="text-[9px] bg-emerald-500 text-white">إجابات ظاهرة</Badge> : null}
                         {Number((exam as any).timeLimitMin) > 0 ? <Badge variant="outline" className="text-[9px] border-orange-500/40 text-orange-600">⏱ {(exam as any).timeLimitMin} د</Badge> : null}
                         {isScheduledFuture((exam as any).scheduledAt) ? <Badge className="text-[9px] bg-blue-500 text-white">مجدول — يظهر {formatEgyptian((exam as any).scheduledAt)}</Badge> : null}
+                        {/* (2026-و26) بادج الاستهداف */}
+                        {parseTargetStudentIds((exam as any).targetStudentIds).length > 0 && <Badge className="text-[9px] bg-teal-600 text-white">👥 موجه لـ {parseTargetStudentIds((exam as any).targetStudentIds).length} طالب</Badge>}
                       </div>
                     </div>
                     <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
@@ -2321,6 +2348,8 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
   const [schedEditId, setSchedEditId] = useState<string | null>(null)
   const [schedValue, setSchedValue] = useState('')
   const [schedBusy, setSchedBusy] = useState(false)
+  /* (2026-و26) استهداف الطلاب للواجب — زي الفيديوهات بالظبط */
+  const [targetEditId, setTargetEditId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const answerKeyRef = useRef<HTMLInputElement>(null)
   const thumbnailRef = useRef<HTMLInputElement>(null)
@@ -2717,6 +2746,10 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
                     {(item as any).questions && <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-600">أسئلة</Badge>}
                     {/* (2026-و25 نقل 25-b1) بادج الواجب المجدول */}
                     {isHomeworkManager && isScheduledFuture((item as any).scheduledAt) && <Badge className="text-[10px] bg-blue-500 text-white">مجدول — يظهر {formatEgyptian((item as any).scheduledAt)}</Badge>}
+                    {/* (2026-و26) بادج الاستهداف — الواجب موجه لطلاب محددين */}
+                    {isHomeworkManager && parseTargetStudentIds((item as any).targetStudentIds).length > 0 && (
+                      <Badge className="text-[10px] bg-teal-600 text-white" title={'موجه لـ ' + parseTargetStudentIds((item as any).targetStudentIds).length + ' طالب بس'}>👥 موجه لـ {parseTargetStudentIds((item as any).targetStudentIds).length} طالب</Badge>
+                    )}
                     <span className="text-[10px] text-muted-foreground">{new Date(item.createdAt).toLocaleDateString('ar-EG')}</span>
                   </div>
                 </div>
@@ -2726,6 +2759,15 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0" title="موعد الظهور"
                       onClick={() => { if (schedEditId === item.id) { setSchedEditId(null) } else { setSchedEditId(item.id); setSchedValue(toLocalInputValue((item as any).scheduledAt)) } }}>
                       <CalendarClock className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {/* (2026-و26) زرار استهداف الطلاب — مين يشوف الواجب (زي الفيديوهات) */}
+                  {isHomeworkManager && (
+                    <Button size="icon" variant="ghost"
+                      className={'h-8 w-8 shrink-0 ' + (parseTargetStudentIds((item as any).targetStudentIds).length > 0 ? 'text-teal-600' : 'text-muted-foreground')}
+                      title="تحديد الطلاب اللي يشوفوا الواجب ده"
+                      onClick={function () { setTargetEditId(targetEditId === item.id ? null : item.id) }}>
+                      👥
                     </Button>
                   )}
                   {regradeAllKind && (
@@ -2740,6 +2782,19 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
                   )}
                   <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
+                {/* (2026-و26) منتقي الطلاب المستهدفين للواجب */}
+                {isHomeworkManager && targetEditId === item.id && (
+                  <StudentTargetPicker
+                    open={true}
+                    onOpenChange={function (o) { if (!o) setTargetEditId(null) }}
+                    apiPath="/api/homework"
+                    itemId={item.id}
+                    initialIds={parseTargetStudentIds((item as any).targetStudentIds)}
+                    itemTitle={renderTitle(item)}
+                    adminId={adminId}
+                    onSaved={function () { loadItems(false); if (onRefresh) onRefresh() }}
+                  />
+                )}
                 {/* (2026-و25 نقل 25-b1) محرر الموعد المضغوط تحت العنصر */}
                 {isHomeworkManager && schedEditId === item.id && (
                   <div className="w-full pt-2 mt-1 border-t border-dashed flex flex-wrap items-center gap-1.5">

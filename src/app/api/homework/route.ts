@@ -11,6 +11,11 @@ function isScheduledFuture(h: any): boolean {
   } catch { return false }
 }
 
+/* (2026-و26) قراءة قايمة الاستهداف من صف */
+function parseTargetIds(raw: unknown): string[] {
+  try { var p = JSON.parse(String(raw || '[]')); return Array.isArray(p) ? p : [] } catch (e) { return [] }
+}
+
 export async function GET(request: NextRequest) {
   try {
     // (2026-و25 نقل 25-b1) defensive ALTERs — أي قاعدة بيانات بتترقّى أول ريكوست
@@ -26,6 +31,8 @@ export async function GET(request: NextRequest) {
     // اللي موعد ظهورها في المستقبل خالص — والأدمن بيشوفهم ببادج
     const adminId = searchParams.get('adminId') || ''
     const admin = await isAdmin(adminId)
+    /* (2026-و26) طالب محدد؟ (للفلترة حسب الاستهداف) */
+    const studentId = searchParams.get('studentId') || ''
 
     const where: Record<string, unknown> = {}
     if (grade) where.grade = grade
@@ -46,10 +53,20 @@ export async function GET(request: NextRequest) {
       db.homework.count({ where }),
     ])
 
+    /* (2026-و26) استهداف الطلاب (نفس نمط الفيديوهات): الواجب الموجه
+       لطلاب محددين مش بيوصل غير للي اسمه في القايمة — فلترة على السيرفر */
+    let visibleHw = homework as unknown as any[]
+    if (!admin) {
+      visibleHw = visibleHw.filter(function (h) {
+        var t = parseTargetIds(h && (h as any).targetStudentIds)
+        return t.length === 0 || (!!studentId && t.indexOf(studentId) !== -1)
+      })
+    }
+
     // بادج «مجدول» للأدمن على العناصر المستقبلية
     const outHomework = admin
-      ? homework.map(function (h: any) { return isScheduledFuture(h) ? { ...h, scheduled: true } : h })
-      : homework
+      ? visibleHw.map(function (h: any) { return isScheduledFuture(h) ? { ...h, scheduled: true } : h })
+      : visibleHw
 
     return NextResponse.json({ homework: outHomework, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
   } catch (error: any) {
@@ -63,7 +80,7 @@ export async function POST(request: NextRequest) {
     await ensureExamSettingsColumns(function (sql: string) { return db.$executeRawUnsafe(sql) })
 
     const body = await request.json()
-    const { title, content, grade, filePath, fileType, answerKeyPath, answerKeyType, thumbnail, questions } = body
+    const { title, content, grade, filePath, fileType, answerKeyPath, answerKeyType, thumbnail, questions, targetStudentIds } = body
 
     if (!title || !grade) {
       return NextResponse.json({ error: 'Title and grade are required' }, { status: 400 })
@@ -78,8 +95,19 @@ export async function POST(request: NextRequest) {
       } catch (e) { scheduledAt = null }
     }
 
+    /* (2026-و26) استهداف الطلاب: array ids → JSON string (فاضي = الكل) */
+    var targetIds = '[]'
+    if (targetStudentIds !== undefined && targetStudentIds !== null) {
+      var tArr: unknown[] = []
+      if (Array.isArray(targetStudentIds)) tArr = targetStudentIds
+      else { try { var tp = JSON.parse(String(targetStudentIds)); if (Array.isArray(tp)) tArr = tp } catch (e) {} }
+      var tClean = tArr.map(function (x) { return String(x == null ? '' : x).trim() }).filter(Boolean)
+      tClean = tClean.filter(function (x: string, i: number) { return tClean.indexOf(x) === i })
+      targetIds = JSON.stringify(tClean)
+    }
+
     const homework = await db.homework.create({
-      data: { title, content: content || '', grade, filePath: filePath || '', fileType: fileType || '', thumbnail: thumbnail || '', answerKeyPath: answerKeyPath || '', answerKeyType: answerKeyType || '', questions: questions || '', scheduledAt },
+      data: { title, content: content || '', grade, filePath: filePath || '', fileType: fileType || '', thumbnail: thumbnail || '', answerKeyPath: answerKeyPath || '', answerKeyType: answerKeyType || '', questions: questions || '', scheduledAt, targetStudentIds: targetIds },
     })
 
     return NextResponse.json({ message: 'Homework added', homework }, { status: 201 })

@@ -139,7 +139,7 @@ export function StudentPortal() {
         var g = encodeURIComponent(grade)
         var results = await Promise.all([
           timeout('/api/videos?grade=' + g + '&pageSize=100', 15000),
-          timeout('/api/homework?grade=' + g + '&pageSize=50', 15000),
+          timeout('/api/homework?grade=' + g + '&pageSize=50&studentId=' + encodeURIComponent(studentId), 15000),
           timeout('/api/exams?grade=' + g + '&pageSize=50&studentId=' + encodeURIComponent(studentId), 15000),
           timeout('/api/announcements?grade=' + g + '&pageSize=10', 15000),
           timeout('/api/exam-results?studentId=' + encodeURIComponent(studentId), 15000),

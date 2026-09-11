@@ -59,6 +59,25 @@ function isScheduledFuture(e: any): boolean {
   } catch { return false }
 }
 
+/* (2026-و26) تطبيع قايمة الطلاب المستهدفين — بتوصل array أو JSON string
+   والخروج JSON string نظيفة (بدون تكرار). undefined = مش متغيرة */
+export function normalizeTargetIds(v: unknown): string | undefined {
+  if (v === undefined || v === null) return undefined
+  var arr: unknown[] = []
+  if (Array.isArray(v)) arr = v
+  else {
+    try { var p = JSON.parse(String(v)); if (Array.isArray(p)) arr = p } catch (e) { return '[]' }
+  }
+  var clean = arr.map(function (x) { return String(x == null ? '' : x).trim() }).filter(Boolean)
+  clean = clean.filter(function (x, i) { return clean.indexOf(x) === i })
+  return JSON.stringify(clean)
+}
+
+/* (2026-و26) قراءة قايمة الاستهداف من صف */
+function parseTargetIds(raw: unknown): string[] {
+  try { var p = JSON.parse(String(raw || '[]')); return Array.isArray(p) ? p : [] } catch (e) { return [] }
+}
+
 export async function GET(request: NextRequest) {
   try {
     // (2026-و25 نقل 25-b1) defensive ALTERs — أي قاعدة بيانات بتترقّى أول ريكوست
@@ -96,10 +115,21 @@ export async function GET(request: NextRequest) {
       db.exam.count({ where }),
     ])
 
+    /* (2026-و26) استهداف الطلاب (نفس نمط الفيديوهات): الامتحان الموجه
+       لطلاب محددين **مش بيوصل** غير للي اسمه في القايمة — الفلتر هنا
+       على السيرفر فمفيش أي بيانات بتسرب للطالب المستبعد */
+    let visibleExams = exams as unknown as any[]
+    if (!admin) {
+      visibleExams = visibleExams.filter(function (e) {
+        var t = parseTargetIds(e && (e as any).targetStudentIds)
+        return t.length === 0 || (!!studentId && t.indexOf(studentId) !== -1)
+      })
+    }
+
     // بادج «مجدول» للأدمن على العناصر المستقبلية
     const flagged = admin
-      ? exams.map(function (e: any) { return isScheduledFuture(e) ? { ...e, scheduled: true } : e })
-      : exams
+      ? visibleExams.map(function (e: any) { return isScheduledFuture(e) ? { ...e, scheduled: true } : e })
+      : visibleExams
 
     // توزيع النموذج للطالب (عشوائي ثابت أو نموذج واحد ثابت للكل حسب اختيار
     // المستر) — وإلا الامتحان زي ما هو
@@ -117,7 +147,7 @@ export async function POST(request: NextRequest) {
     await ensureExamSettingsColumns(function (sql: string) { return db.$executeRawUnsafe(sql) })
 
     const body = await request.json()
-    const { title, content, grade, filePath, fileType, questions, models, modelMode, fixedModel, passScore, answerKeyPath, answerKeyType, thumbnail } = body
+    const { title, content, grade, filePath, fileType, questions, models, modelMode, fixedModel, passScore, answerKeyPath, answerKeyType, thumbnail, targetStudentIds } = body
 
     if (!title || !grade) {
       return NextResponse.json({ error: 'Title and grade are required' }, { status: 400 })
@@ -135,6 +165,10 @@ export async function POST(request: NextRequest) {
         if (!isNaN(sd.getTime())) scheduledAt = sd
       } catch (e) { scheduledAt = null }
     }
+
+    /* (2026-و26) استهداف الطلاب: array ids → JSON string (فاضي = الكل) */
+    var targetIds = normalizeTargetIds(targetStudentIds)
+    if (targetIds === undefined) targetIds = '[]'
 
     const exam = await db.exam.create({
       data: {
@@ -154,6 +188,7 @@ export async function POST(request: NextRequest) {
         showResult,
         timeLimitMin,
         scheduledAt,
+        targetStudentIds: targetIds,
       },
     })
 

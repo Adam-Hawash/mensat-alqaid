@@ -137,7 +137,7 @@ export async function POST(request) {
     var homework = null
     try {
       var hwRows = await db.$queryRawUnsafe(
-        'SELECT id, title, questions FROM Homework WHERE id = ? LIMIT 1',
+        'SELECT id, title, questions, targetStudentIds FROM Homework WHERE id = ? LIMIT 1',
         homeworkId
       )
       homework = hwRows && hwRows.length > 0 ? hwRows[0] : null
@@ -148,6 +148,15 @@ export async function POST(request) {
     if (!homework) {
       return NextResponse.json({ error: 'الواجب غير موجود' }, { status: 404 })
     }
+
+    /* (2026-و26) حارس الاستهداف: الواجب الموجه لطلاب محددين — التسليم
+       مسموح للي اسمه في القايمة بس */
+    try {
+      var tParsed = JSON.parse(String((homework as any).targetStudentIds || '[]'))
+      if (Array.isArray(tParsed) && tParsed.length > 0 && tParsed.indexOf(String(studentId)) === -1) {
+        return NextResponse.json({ error: 'الواجب ده مش موجه ليك — كلمني لو فيه غلط' }, { status: 403 })
+      }
+    } catch (e) {}
 
     // Parse questions — keep ORIGINAL index for every question
     var mcq: any[] = []
