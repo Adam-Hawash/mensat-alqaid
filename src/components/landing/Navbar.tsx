@@ -122,16 +122,7 @@ export function Navbar() {
         </button>
 
         <nav className="hidden md:flex items-center gap-2">
-          {/* (24-e) رابط مواعيد السنتر — صفحة مستقلة /schedule */}
-          <a
-            href="/schedule"
-            className="inline-flex items-center min-h-[44px] px-3 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
-            title="مواعيد السنتر"
-          >
-            <CalendarClock className="h-4 w-4 ml-1" />
-            مواعيد السنتر
-          </a>
-          {/* (2026-و29) أوائل الطلبة — دايلوج أول 3 طلاب (والقسم اتشال من الرئيسية) */}
+          {/* (2026-و32) أوائل الطلبة أول عنصر — طلب المستر: «في منصات مش شيماء تبقى هي الاولانيه برده» */}
           <button
             type="button"
             onClick={function () { setTopStudentsOpen(true) }}
@@ -141,6 +132,15 @@ export function Navbar() {
             <Trophy className="h-4 w-4" />
             أوائل الطلبة
           </button>
+          {/* (24-e) رابط مواعيد السنتر — صفحة مستقلة /schedule */}
+          <a
+            href="/schedule"
+            className="inline-flex items-center min-h-[44px] px-3 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
+            title="مواعيد السنتر"
+          >
+            <CalendarClock className="h-4 w-4 ml-1" />
+            مواعيد السنتر
+          </a>
           {currentStudent ? (
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted-foreground">
@@ -261,6 +261,15 @@ export function Navbar() {
       {/* Mobile Menu - solid background so all text is clearly visible */}
       {mobileMenu && (
         <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-md px-4 py-3 space-y-2">
+          {/* (2026-و32) أوائل الطلبة أول عنصر في قايمة الموبايل — طلب المستر */}
+          <button
+            type="button"
+            onClick={function () { setMobileMenu(false); setTopStudentsOpen(true) }}
+            className="flex items-center gap-2 min-h-[44px] px-3 rounded-xl border border-[#C49A38]/40 bg-[#C49A38]/10 text-[#8A6D22] dark:text-[#E5BE5A] font-bold text-sm cursor-pointer"
+          >
+            <Trophy className="h-4 w-4" />
+            أوائل الطلبة
+          </button>
           {/* (24-e) رابط مواعيد السنتر — صفحة مستقلة /schedule */}
           <a
             href="/schedule"
@@ -270,15 +279,6 @@ export function Navbar() {
             <CalendarClock className="h-4 w-4 ml-2" />
             مواعيد السنتر
           </a>
-          {/* (2026-و29) أوائل الطلبة في قايمة الموبايل كمان */}
-          <button
-            type="button"
-            onClick={function () { setMobileMenu(false); setTopStudentsOpen(true) }}
-            className="flex items-center gap-2 min-h-[44px] px-3 rounded-xl border border-[#C49A38]/40 bg-[#C49A38]/10 text-[#8A6D22] dark:text-[#E5BE5A] font-bold text-sm cursor-pointer"
-          >
-            <Trophy className="h-4 w-4" />
-            أوائل الطلبة
-          </button>
           {currentStudent ? (
             <>
               <p className="text-sm text-muted-foreground py-2">

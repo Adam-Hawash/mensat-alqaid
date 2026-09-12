@@ -32,8 +32,10 @@ export default function HeroSection() {
   }, [configLoaded, setSiteConfig, siteConfig])
 
   var dbPhoto = cfg.instructor_photo || ''
+  // (2026-و32) طلب المستر: كل منصة ليها صورة أساسية وبديلة بتاعتها — الفولباك هنا
+  // نفس صورة مستر عمرو رشدي الحقيقية (/images/instructor.jpg) مش صورة من دماغنا
   var heroPhoto = dbPhoto || '/images/instructor.jpg'
-  var hasPhoto = !!dbPhoto
+  var hasPhoto = !!heroPhoto
 
   // Preload the image immediately so it shows up as soon as possible
   useEffect(() => {
@@ -45,7 +47,7 @@ export default function HeroSection() {
       // If image is already cached, onload may not fire - check complete
       if (img.complete) setPhotoLoaded(true)
     } else {
-      setPhotoLoaded(true) // fallback image doesn't need loading
+      setPhotoLoaded(true) // الفولباك المحلي نفس صورة المستر — مش محتاج تحميل
     }
   }, [dbPhoto, hasPhoto])
 

@@ -828,7 +828,7 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
   var [submittedHwId, setSubmittedHwId] = useState<string | null>(null)
   var [blockedHwId, setBlockedHwId] = useState<string | null>(null)
   var [hwResults, setHwResults] = useState<Record<string, { score: number; maxScore: number; resultId?: string }>>({})
-  var [hwWrongQuestions, setHwWrongQuestions] = useState<Record<string, { question: string; studentAnswer: string; correctAnswer: string }[]>>({})
+  var [hwWrongQuestions, setHwWrongQuestions] = useState<Record<string, { origIdx?: number; question: string; studentAnswer: string; correctAnswer: string }[]>>({})
   var [hwAllQuestions, setHwAllQuestions] = useState<Record<string, any[]>>({})
   var [hwWritingAnswers, setHwWritingAnswers] = useState<Record<string, any[]>>({})
   var [shuffledHwQ, setShuffledHwQ] = useState<Record<string, any[]>>({})
@@ -1151,7 +1151,10 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
             {sAllQs.map(function(q: any, qi: number) {
               var writing = isWritingQuestion(q)
               var qText = q.question || q.q || ''
-              var writingAns = writing ? (sWritingAnswers.find(function(wa: any) { return wa.question === qText }) || sWritingAnswers[qi - (sAllQs.length - sWritingAnswers.length)] || null) : null
+              /* (2026-و32) المطابقة بالفهرس الأصلي بدل نص السؤال — نصين متطابقين
+                 كانوا بيخليوا السؤال اللي اتحل صح ياخد حكم السؤال الغلط
+                 («بحل صح وبيظهرلي غلط»). النص فضل احتياط للنتايج القديمة */
+              var writingAns = writing ? (sWritingAnswers.find(function(wa: any) { return (typeof wa.origIdx === 'number' ? wa.origIdx === qi : false) || (wa.origIdx === undefined && wa.question === qText) }) || sWritingAnswers[qi - (sAllQs.length - sWritingAnswers.length)] || null) : null
               var wIsCorrect = writingAns && writingAns.isCorrect === true
               var wIsWrong = !!(writingAns && writingAns.isCorrect === false && writingAns.answer && String(writingAns.answer).trim() && writingAns.gradingStatus !== 'manual')
               var wPending = writingAns && writingAns.gradingStatus === 'pending'
@@ -1220,7 +1223,8 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
               }
               var opts = Array.isArray(q.options) ? q.options : []
               var correctIdx = typeof q.correct === 'number' ? q.correct : 0
-              var wrongEntry = sWrong.find(function(w) { return w.question === qText })
+              /* (2026-و32) نفس المطابقة بالـ origIdx — sAllQs بترتيبها الأصلي فـ qi هو الفهرس الأصلي */
+              var wrongEntry = sWrong.find(function(w) { return (typeof w.origIdx === 'number' ? w.origIdx === qi : false) || (w.origIdx === undefined && w.question === qText) })
               return (
                 <Card key={qi} className={wrongEntry ? 'border-red-200 dark:border-red-900/40' : 'border-emerald-200 dark:border-emerald-900/40'}>
                   <CardContent className="p-3 space-y-2">

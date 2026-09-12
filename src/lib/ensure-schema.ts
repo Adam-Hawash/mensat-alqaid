@@ -122,6 +122,12 @@ var SCHEMA_FIXES = [
   'UPDATE ExamResult SET score = 0 WHERE score IS NULL',
   'UPDATE ExamResult SET maxScore = 100 WHERE maxScore IS NULL',
   'UPDATE Payment SET amount = 0 WHERE amount IS NULL',
+  // ===== (2026-و32) صورة المعلم: الأساسية والبديلة نفس الصورة — طلب المستر حرفيًا:
+  // «كل المنصات مش صورة واحدة هي تكون البديلة — كل المنصات يبقى ليها الصورة الأساسية والبديلة بتاعتها»
+  // رابط i.imghos.co الخارجي بيتحول لملف محلي خالص /images/instructor.jpg (نفس الصورة الحقيقية
+  // اللي رفعها المستر عمرو رشدي) — أسرع في مصر ومفيش اعتماد على هوست صور خارجي، والفولباك في الكود
+  // نفس الملف بالظبط (idempotent — لو الأدمن رفع صورة تانية بعدين مش هتتلمس)
+  "UPDATE SiteConfig SET value = '/images/instructor.jpg' WHERE key = 'instructor_photo' AND (value LIKE '%i.imghos.co%' OR value LIKE '%instructor.webp%')",
 ]
 
 /* ============================================================
