@@ -120,9 +120,23 @@ export async function GET(request: NextRequest) {
        على السيرفر فمفيش أي بيانات بتسرب للطالب المستبعد */
     let visibleExams = exams as unknown as any[]
     if (!admin) {
+      /* (2026-و29) مجموعة الطالب — نداء واحد رخيص (فاضي لو مفيش مجموعة) */
+      var studentGroup = ''
+      if (studentId) {
+        try {
+          var sgRows = await db.$queryRawUnsafe('SELECT groupId FROM Student WHERE id = ? LIMIT 1', studentId) as any[]
+          if (sgRows && sgRows.length > 0) studentGroup = String(sgRows[0].groupId || '')
+        } catch (sgErr) {}
+      }
       visibleExams = visibleExams.filter(function (e) {
         var t = parseTargetIds(e && (e as any).targetStudentIds)
-        return t.length === 0 || (!!studentId && t.indexOf(studentId) !== -1)
+        var g = parseTargetIds(e && (e as any).targetGroupIds)
+        /* (2026-و29) من غير استهداف = الكل — لو فيه استهداف طلاب أو مجموعات:
+           الطالب يشوفه لو اسمه في قايمة الطلاب أو مجموعته في قايمة المجموعات */
+        if (t.length === 0 && g.length === 0) return true
+        var byStudent = !!studentId && t.indexOf(studentId) !== -1
+        var byGroup = !!studentGroup && g.indexOf(studentGroup) !== -1
+        return byStudent || byGroup
       })
     }
 
@@ -147,7 +161,7 @@ export async function POST(request: NextRequest) {
     await ensureExamSettingsColumns(function (sql: string) { return db.$executeRawUnsafe(sql) })
 
     const body = await request.json()
-    const { title, content, grade, filePath, fileType, questions, models, modelMode, fixedModel, passScore, answerKeyPath, answerKeyType, thumbnail, targetStudentIds } = body
+    const { title, content, grade, filePath, fileType, questions, models, modelMode, fixedModel, passScore, answerKeyPath, answerKeyType, thumbnail, targetStudentIds, targetGroupIds } = body
 
     if (!title || !grade) {
       return NextResponse.json({ error: 'Title and grade are required' }, { status: 400 })
@@ -169,6 +183,9 @@ export async function POST(request: NextRequest) {
     /* (2026-و26) استهداف الطلاب: array ids → JSON string (فاضي = الكل) */
     var targetIds = normalizeTargetIds(targetStudentIds)
     if (targetIds === undefined) targetIds = '[]'
+    /* (2026-و29) استهداف المجموعات — نفس التطبيع بالظبط */
+    var targetGids = normalizeTargetIds(targetGroupIds)
+    if (targetGids === undefined) targetGids = '[]'
 
     const exam = await db.exam.create({
       data: {
@@ -189,6 +206,7 @@ export async function POST(request: NextRequest) {
         timeLimitMin,
         scheduledAt,
         targetStudentIds: targetIds,
+        targetGroupIds: targetGids,
       },
     })
 

@@ -57,9 +57,23 @@ export async function GET(request: NextRequest) {
        لطلاب محددين مش بيوصل غير للي اسمه في القايمة — فلترة على السيرفر */
     let visibleHw = homework as unknown as any[]
     if (!admin) {
+      /* (2026-و29) مجموعة الطالب — نداء واحد رخيص */
+      var studentGroupHw = ''
+      if (studentId) {
+        try {
+          var sgRowsHw = await db.$queryRawUnsafe('SELECT groupId FROM Student WHERE id = ? LIMIT 1', studentId) as any[]
+          if (sgRowsHw && sgRowsHw.length > 0) studentGroupHw = String(sgRowsHw[0].groupId || '')
+        } catch (sgErr) {}
+      }
       visibleHw = visibleHw.filter(function (h) {
         var t = parseTargetIds(h && (h as any).targetStudentIds)
-        return t.length === 0 || (!!studentId && t.indexOf(studentId) !== -1)
+        var g = parseTargetIds(h && (h as any).targetGroupIds)
+        /* (2026-و29) من غير استهداف = الكل — استهداف طلاب أو مجموعات =
+           اسمه في الطلاب أو مجموعته في المجموعات */
+        if (t.length === 0 && g.length === 0) return true
+        var byStudent = !!studentId && t.indexOf(studentId) !== -1
+        var byGroup = !!studentGroupHw && g.indexOf(studentGroupHw) !== -1
+        return byStudent || byGroup
       })
     }
 
@@ -80,7 +94,7 @@ export async function POST(request: NextRequest) {
     await ensureExamSettingsColumns(function (sql: string) { return db.$executeRawUnsafe(sql) })
 
     const body = await request.json()
-    const { title, content, grade, filePath, fileType, answerKeyPath, answerKeyType, thumbnail, questions, targetStudentIds } = body
+    const { title, content, grade, filePath, fileType, answerKeyPath, answerKeyType, thumbnail, questions, targetStudentIds, targetGroupIds } = body
 
     if (!title || !grade) {
       return NextResponse.json({ error: 'Title and grade are required' }, { status: 400 })
@@ -106,8 +120,19 @@ export async function POST(request: NextRequest) {
       targetIds = JSON.stringify(tClean)
     }
 
+    /* (2026-و29) استهداف المجموعات — نفس التطبيع بالظبط */
+    var targetGids = '[]'
+    if (targetGroupIds !== undefined && targetGroupIds !== null) {
+      var gArr: unknown[] = []
+      if (Array.isArray(targetGroupIds)) gArr = targetGroupIds
+      else { try { var gp2 = JSON.parse(String(targetGroupIds)); if (Array.isArray(gp2)) gArr = gp2 } catch (e) {} }
+      var gClean = gArr.map(function (x) { return String(x == null ? '' : x).trim() }).filter(Boolean)
+      gClean = gClean.filter(function (x: string, i: number) { return gClean.indexOf(x) === i })
+      targetGids = JSON.stringify(gClean)
+    }
+
     const homework = await db.homework.create({
-      data: { title, content: content || '', grade, filePath: filePath || '', fileType: fileType || '', thumbnail: thumbnail || '', answerKeyPath: answerKeyPath || '', answerKeyType: answerKeyType || '', questions: questions || '', scheduledAt, targetStudentIds: targetIds },
+      data: { title, content: content || '', grade, filePath: filePath || '', fileType: fileType || '', thumbnail: thumbnail || '', answerKeyPath: answerKeyPath || '', answerKeyType: answerKeyType || '', questions: questions || '', scheduledAt, targetStudentIds: targetIds, targetGroupIds: targetGids },
     })
 
     return NextResponse.json({ message: 'Homework added', homework }, { status: 201 })

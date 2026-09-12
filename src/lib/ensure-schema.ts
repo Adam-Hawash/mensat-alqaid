@@ -30,6 +30,9 @@ export var SCHEMA_TABLES = [
   'CREATE TABLE IF NOT EXISTS VideoAccess (id TEXT PRIMARY KEY, videoId TEXT NOT NULL, studentId TEXT NOT NULL, grantedBy TEXT NOT NULL DEFAULT "admin", createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(videoId, studentId))',
   'CREATE TABLE IF NOT EXISTS PlayTicket (id TEXT PRIMARY KEY, videoId TEXT NOT NULL, studentId TEXT DEFAULT "", createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, expiresAt DATETIME NOT NULL, consumed INTEGER NOT NULL DEFAULT 0)',
   'CREATE TABLE IF NOT EXISTS Complaint (id TEXT PRIMARY KEY, studentId TEXT DEFAULT "", studentName TEXT DEFAULT "", phone TEXT DEFAULT "", grade TEXT DEFAULT "", message TEXT NOT NULL, summary TEXT DEFAULT "", source TEXT NOT NULL DEFAULT "student", status TEXT NOT NULL DEFAULT "new", reply TEXT DEFAULT "", reviewedAt DATETIME, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+  // (2026-و29) نظام المجموعات — مجموعات الطلاب + جدولة الفيديوهات للمجموعات
+  'CREATE TABLE IF NOT EXISTS StudentGroup (id TEXT PRIMARY KEY, name TEXT NOT NULL, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
+  'CREATE TABLE IF NOT EXISTS VideoGroupSchedule (id TEXT PRIMARY KEY, videoId TEXT NOT NULL, groupId TEXT NOT NULL, unlockAt DATETIME, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
 ]
 
 
@@ -46,6 +49,9 @@ var SCHEMA_COLUMNS = [
   ['Student', 'creationDeviceFp', 'TEXT', "NOT NULL DEFAULT ''"],
   ['Student', 'deviceType', 'TEXT', "NOT NULL DEFAULT ''"],
   ['Student', 'allowAllDevices', 'INTEGER', 'NOT NULL DEFAULT 0'],
+  // (2026-و29) مجموعة الطالب — الطالب عضو في مجموعة واحدة (أو ولا حاجة لو فاضي)
+  // مطلوب قبل أي findMany — Prisma بيفصل كل الأعمدة المعلنة في السكيما
+  ['Student', 'groupId', 'TEXT', "DEFAULT ''"],
   ['Video', 'price', 'REAL', 'DEFAULT 0'],
   ['Video', 'fileType', 'TEXT', "DEFAULT ''"],
   ['Video', 'thumbnail', 'TEXT', "DEFAULT ''"],
@@ -134,6 +140,8 @@ export var SCHEMA_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_video_progress_student ON VideoProgress(studentId)',
   'CREATE INDEX IF NOT EXISTS idx_student_created ON Student(createdAt)',
   'CREATE INDEX IF NOT EXISTS idx_activity_created ON StudentActivity(createdAt)',
+  // (2026-و29) فهرس مجموعة الطالب — فلترة المجموعات في الامتحانات/الواجبات/الفيديوهات
+  'CREATE INDEX IF NOT EXISTS idx_student_group ON Student(groupId)',
 ]
 
 export var CORE_TABLES = ['Admin', 'Student', 'StudentActivity', 'Video', 'Homework', 'Exam', 'ExamResult', 'Announcement', 'Discussion', 'SiteConfig', 'Media', 'VideoProgress', 'GalleryImage', 'Payment', 'VideoAccess', 'Complaint']
@@ -241,19 +249,33 @@ export async function ensureSchema(client: any, opts?: { force?: boolean }) {
  * «1789157800507» والقراءة بتفشل صريح (Inconsistent column data) —
  * DATETIME هو نفسه المستخدم في كل أعمدة DateTime الموجودة (submittedAt …).
  * دالة تنفيذية محايدة: بتشتغل مع Prisma ($executeRawUnsafe) ومع libsql (execute).
+ * ============================================================
+ * (2026-و29) **كاش على مستوى الموديول**: كل ALTER = نداء شبكة لقاعدة البيانات —
+ * تنفيذها في كل ريكوست كان بيدفع نداءات ضاية في كل تحميل (من أكبر أسباب بطء
+ * المنصة) — دلوقتي مرة واحدة لكل instance (نفس إصلاح جينيوس في الراوترات،
+ * متجمّع هنا في النسخة المركزية بتاعة القائد).
  * ============================================================ */
-export async function ensureExamSettingsColumns(exec: (sql: string) => Promise<unknown>) {
-  var stmts = [
-    'ALTER TABLE Exam ADD COLUMN showResult INTEGER DEFAULT 0',
-    'ALTER TABLE Exam ADD COLUMN timeLimitMin INTEGER DEFAULT 0',
-    'ALTER TABLE Exam ADD COLUMN scheduledAt DATETIME',
-    'ALTER TABLE Homework ADD COLUMN scheduledAt DATETIME',
-    /* (2026-و26) استهداف الطلاب — نفس نمط الفيديوهات (VideoSchedule.studentIds):
-       JSON array من ids الطلاب — فاضي = الكل يشوفه */
-    "ALTER TABLE Exam ADD COLUMN targetStudentIds TEXT DEFAULT ''",
-    "ALTER TABLE Homework ADD COLUMN targetStudentIds TEXT DEFAULT ''",
-  ]
-  for (var i = 0; i < stmts.length; i++) {
-    try { await exec(stmts[i]) } catch (e) {}
+var _examSettingsReady: Promise<void> | null = null
+export function ensureExamSettingsColumns(exec: (sql: string) => Promise<unknown>): Promise<void> {
+  if (!_examSettingsReady) {
+    _examSettingsReady = (async function () {
+      var stmts = [
+        'ALTER TABLE Exam ADD COLUMN showResult INTEGER DEFAULT 0',
+        'ALTER TABLE Exam ADD COLUMN timeLimitMin INTEGER DEFAULT 0',
+        'ALTER TABLE Exam ADD COLUMN scheduledAt DATETIME',
+        'ALTER TABLE Homework ADD COLUMN scheduledAt DATETIME',
+        /* (2026-و26) استهداف الطلاب — نفس نمط الفيديوهات (VideoSchedule.studentIds):
+           JSON array من ids الطلاب — فاضي = الكل يشوفه */
+        "ALTER TABLE Exam ADD COLUMN targetStudentIds TEXT DEFAULT ''",
+        "ALTER TABLE Homework ADD COLUMN targetStudentIds TEXT DEFAULT ''",
+        /* (2026-و29) استهداف المجموعات — نفس النمط: JSON array بids المجموعات */
+        "ALTER TABLE Exam ADD COLUMN targetGroupIds TEXT DEFAULT ''",
+        "ALTER TABLE Homework ADD COLUMN targetGroupIds TEXT DEFAULT ''",
+      ]
+      for (var i = 0; i < stmts.length; i++) {
+        try { await exec(stmts[i]) } catch (e) {}
+      }
+    })()
   }
+  return _examSettingsReady
 }

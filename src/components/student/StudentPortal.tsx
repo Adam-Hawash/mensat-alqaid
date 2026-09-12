@@ -1058,12 +1058,17 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
             <p className="text-sm font-semibold text-muted-foreground">مراجعة الأسئلة المقالية:</p>
             {bWriting.map(function(wa: any, wi: number) {
               var waPending = wa.gradingStatus === 'pending'
+              /* (2026-و29) درجة جزئية → «جزئي» كهرماني بدل «غلط» أحمر — رسالة أصدق للطالب
+                 (المستر هو اللي يأكد الحكم النهائي من اللوحة) */
+              var waPartial = !waPending && wa.isCorrect !== true && ((wa.awardedPoints || 0) > 0) && wa.answer && String(wa.answer).trim()
               var badgeCls = waPending
                 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                 : (wa.isCorrect === true
                   ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                  : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400')
-              var badgeText = waPending ? 'بيتصحح دلوقتي…' : (wa.isCorrect === true ? 'صح ✓' : 'غلط ✗')
+                  : (waPartial
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'))
+              var badgeText = waPending ? 'بيتصحح دلوقتي…' : (wa.isCorrect === true ? 'صح ✓' : (waPartial ? 'جزئي' : 'غلط ✗'))
               return (
                 <Card key={'bwr-' + wi} className={waPending ? 'border-amber-200 dark:border-amber-900/40' : (wa.isCorrect === true ? 'border-emerald-200 dark:border-emerald-900/40' : 'border-red-200 dark:border-red-900/40')}>
                   <CardContent className="p-3 space-y-1.5">

@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
 import { isAdmin } from '@/lib/video-guard'
@@ -117,6 +116,16 @@ export async function PATCH(
       var cleanIds = arr.map(function (x) { return String(x == null ? '' : x).trim() }).filter(Boolean)
       cleanIds = cleanIds.filter(function (x: string, i: number) { return cleanIds.indexOf(x) === i })
       data.targetStudentIds = JSON.stringify(cleanIds)
+    }
+
+    /* (2026-و29) استهداف المجموعات — نفس المنطق بالظبط */
+    if (body.targetGroupIds !== undefined) {
+      var garr: unknown[] = []
+      if (Array.isArray(body.targetGroupIds)) garr = body.targetGroupIds
+      else { try { var gp = JSON.parse(String(body.targetGroupIds)); if (Array.isArray(gp)) garr = gp } catch (e) {} }
+      var cleanGids = garr.map(function (x) { return String(x == null ? '' : x).trim() }).filter(Boolean)
+      cleanGids = cleanGids.filter(function (x: string, i: number) { return cleanGids.indexOf(x) === i })
+      data.targetGroupIds = JSON.stringify(cleanGids)
     }
 
     if (Object.keys(data).length === 0) {

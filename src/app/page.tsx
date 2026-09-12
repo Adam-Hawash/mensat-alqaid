@@ -22,10 +22,8 @@ const FeaturesSection = dynamic(() => import('@/components/landing/FeaturesSecti
 const GradesSection = dynamic(() => import('@/components/landing/GradesSection').then(function(m) { return { default: m.GradesSection } }), {
   loading: () => <div className="h-20" />,
 })
-// لوحة الشرف — أول 3 طلاب بالنقاط على الصفحة الرئيسية (2026-و18/18-d) عامة بدون تسجيل دخول
-const LeaderboardSection = dynamic(() => import('@/components/landing/LeaderboardSection'), {
-  loading: () => <div className="h-20" />,
-})
+/* (2026-و29) قسم الأوائل اتشال من الصفحة الرئيسية بطلب المستر — بقى زرار
+   «أوائل الطلبة» في النافبار يفتح دايلوج بأول 3 طلاب (TopStudentsDialog) */
 const TipsSection = dynamic(() => import('@/components/landing/TipsSection'), {
   loading: () => <div className="h-20" />,
 })
@@ -144,7 +142,7 @@ export default function HomePage() {
           <FeaturesGuideSection />
           <FeaturesSection />
           <GradesSection />
-          <LeaderboardSection />
+          {/* (2026-و29) أفضل 3 طلاب بقوا في النافبار (زرار أوائل الطلبة) بدل الرئيسية */}
           <LessonsSection />
           <TipsSection />
           <GallerySection />

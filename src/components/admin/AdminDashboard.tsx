@@ -19,12 +19,16 @@ import {
   BarChart3, RefreshCw, Settings, Upload, MessageSquare,
   Link2, Activity, Eye, ImagePlus, Trophy, UserX, Camera,
   PlayCircle, Pause, Film, Search, FileDown, PictureInPicture2, Save, Sparkles, Wallet,
-  Smartphone, RotateCcw, ShieldCheck, Monitor, Tablet, Flag, GraduationCap, CalendarClock
+  Smartphone, RotateCcw, ShieldCheck, Monitor, Tablet, Flag, GraduationCap, CalendarClock, UsersRound
 } from 'lucide-react'
 import { AdminComplaints } from './AdminComplaints'
 import { CMSPanel } from './CMSPanel'
 import { VideoProtectionSettings } from './VideoProtectionSettings'
 import { SocialLinksPanel } from './SocialLinksPanel'
+/* (2026-و29) نظام المجموعات — تاب + منتقيات الاستهداف للمجموعات + جدولة فيديو للمجموعات */
+import { GroupsManager } from './GroupsManager'
+import { GroupTargetPicker } from './GroupTargetPicker'
+import { VideoGroupScheduleDialog } from './VideoGroupScheduleDialog'
 import { CommunityPanel } from './CommunityPanel'
 import { ActivityPanel } from './ActivityPanel'
 import { GradesSchedulePanel } from './GradesSchedulePanel'
@@ -336,6 +340,8 @@ export function AdminDashboard() {
         <Tabs value={adminTab} onValueChange={setAdminTab} className="space-y-6">
           <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
             <TabsTrigger value="students" className="text-xs sm:text-sm gap-1"><Users className="h-4 w-4" /><span className="hidden sm:inline">الطلاب</span></TabsTrigger>
+            {/* (2026-و29) تاب المجموعات — طلب المستر: تقسيم الطلاب مجموعات بأسماء الأيام */}
+            <TabsTrigger value="groups" className="text-xs sm:text-sm gap-1"><UsersRound className="h-4 w-4" /><span className="hidden sm:inline">المجموعات</span></TabsTrigger>
             <TabsTrigger value="my-students" className="text-xs sm:text-sm gap-1"><BarChart3 className="h-4 w-4" /><span className="hidden sm:inline">طلابي</span></TabsTrigger>
             <TabsTrigger value="videos" className="text-xs sm:text-sm gap-1"><Video className="h-4 w-4" /><span className="hidden sm:inline">الفيديوهات</span></TabsTrigger>
             <TabsTrigger value="homework" className="text-xs sm:text-sm gap-1"><ClipboardList className="h-4 w-4" /><span className="hidden sm:inline">الواجبات</span></TabsTrigger>
@@ -354,8 +360,9 @@ export function AdminDashboard() {
           </TabsList>
 
           <TabsContent value="students"><StudentsManager onStatsRefresh={fetchStats} /></TabsContent>
-          <TabsContent value="my-students"><MyStudentsPanel /></TabsContent>
-          <TabsContent value="videos"><VideoManager onStatsRefresh={fetchStats} /></TabsContent>
+          {/* (2026-و29) تاب المجموعات — طلب المستر: تقسيم الطلاب مجموعات بأسماء الأيام */}
+          <TabsContent value="groups"><GroupsManager /></TabsContent>
+          <TabsContent value="my-students"><MyStudentsPanel /></TabsContent>          <TabsContent value="videos"><VideoManager onStatsRefresh={fetchStats} /></TabsContent>
           <TabsContent value="homework">
             <ContentManager<Homework> title="إدارة الواجبات" apiPath="/api/homework" itemName="homework" regradeAllKind="homework"
               fields={{ title: { label: 'عنوان الواجب', type: 'text' }, content: { label: 'المحتوى', type: 'textarea' } }}
@@ -735,7 +742,26 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
                     {s.loginCount > 0 && <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Eye className="h-3 w-3" />{s.loginCount} دخول</span>}
                     {(s as any).watchedVideoCount > 0 && <span className="text-[10px] text-purple-600 dark:text-purple-400 flex items-center gap-0.5"><Video className="h-3 w-3" />{(s as any).watchedVideoCount} فيديو</span>}
                   </div>
-                  <p className="text-xs text-muted-foreground" dir="ltr">{s.phone}</p>
+                  <div className="flex items-center gap-2 flex-wrap" dir="ltr">
+                    <p className="text-xs text-muted-foreground">{s.phone}</p>
+                    {/* (2026-و29) طلب المستر الحرفي: الرقم والباسورد اللي الطالب دخل بيه
+                        ظاهرين في اللوحة عشان نساعده لما ينسى — زرار نسخ جنب كل واحد */}
+                    {(s as any).password ? (
+                      <button
+                        type="button"
+                        className="text-[10px] font-mono bg-muted hover:bg-muted/70 border border-border rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                        title="اضغط لنسخ كلمة السر"
+                        onClick={function () {
+                          try {
+                            navigator.clipboard.writeText(String((s as any).password || ''))
+                            toast.success('تم نسخ كلمة السر — ابعتها للطالب')
+                          } catch (e) { toast.error('انسخها يدويًا: ' + (s as any).password) }
+                        }}
+                      >🔑 {(s as any).password}</button>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">🔑 —</span>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground">ولي الأمر: {s.parentName} <span dir="ltr">({s.parentPhone})</span></p>
                   <div className="flex items-center gap-3 flex-wrap">
                     <Badge variant="outline" className="text-[10px]">{s.grade}</Badge>
@@ -793,6 +819,9 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
   // الجدولة: وقت فتح + طلاب هيشوفوا عداد تنازلي + إخفاء الفيديو عن طلاب
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [selectedVideoForSchedule, setSelectedVideoForSchedule] = useState<VideoType | null>(null)
+  /* (2026-و29) جدولة المجموعات للفيديو — منفصلة عن جدولة الطلاب القديمة (اللي فضلت زي ما هي) */
+  const [groupScheduleOpen, setGroupScheduleOpen] = useState(false)
+  const [selectedVideoForGroups, setSelectedVideoForGroups] = useState<VideoType | null>(null)
   const [scheduleStudents, setScheduleStudents] = useState<string[]>([])
   const [hiddenStudents, setHiddenStudents] = useState<string[]>([])
   const [scheduleUnlockAt, setScheduleUnlockAt] = useState('')
@@ -1108,6 +1137,10 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
                       <Button size="sm" variant="ghost" className="flex-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-xs h-7" onClick={() => { setSelectedVideoForSchedule(v); setScheduleOpen(true); loadStudentsForSchedule(v.grade); loadExistingSchedule(v.id) }}>
                         <Clock className="h-3.5 w-3.5 mr-1" />جدولة
                       </Button>
+                      {/* (2026-و29) جدولة المجموعات — كل مجموعة بميعادها والفيديو مخفي قبل الميعاد بدون عداد */}
+                      <Button size="sm" variant="ghost" className="flex-1 text-teal-600 hover:text-teal-700 hover:bg-teal-50 dark:hover:bg-teal-900/20 text-xs h-7" onClick={() => { setSelectedVideoForGroups(v); setGroupScheduleOpen(true) }}>
+                        <UsersRound className="h-3.5 w-3.5 mr-1" />المجموعات
+                      </Button>
                       <Button size="sm" variant="ghost" className="flex-1 text-destructive hover:text-destructive hover:bg-destructive/10 text-xs h-7" onClick={() => handleDelete(v.id)}>
                         <Trash2 className="h-3.5 w-3.5 mr-1" />حذف
                       </Button>
@@ -1221,6 +1254,16 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
           </div>
         </div>
       )}
+
+      {/* (2026-و29) نافذة جدولة المجموعات — كل مجموعة بميعادها، والفيديو مخفي قبل الميعاد بدون عداد */}
+      {selectedVideoForGroups && (
+        <VideoGroupScheduleDialog
+          open={groupScheduleOpen}
+          onOpenChange={setGroupScheduleOpen}
+          videoId={selectedVideoForGroups.id}
+          videoTitle={selectedVideoForGroups.title}
+        />
+      )}
     </Card>
   )
 }
@@ -1272,7 +1315,9 @@ function ExamSettingsRow({ exam, adminId, onDone }: { exam: any; adminId: string
   /* (2026-و26) استهداف الطلاب — زي الفيديوهات بالظبط */
   var [targetOpen, setTargetOpen] = useState(false)
   var targetIds = parseTargetStudentIds(exam.targetStudentIds)
-
+  /* (2026-و29) استهداف المجموعات — نفس النمط */
+  var [groupTargetOpen, setGroupTargetOpen] = useState(false)
+  var targetGids = parseTargetStudentIds(exam.targetGroupIds)
   var patch = async function (payload: Record<string, unknown>, okMsg: string) {
     setBusy(true)
     try {
@@ -1339,6 +1384,15 @@ function ExamSettingsRow({ exam, adminId, onDone }: { exam: any; adminId: string
           onClick={function () { setTargetOpen(true) }}>
           تحديد الطلاب
         </Button>
+        {/* (2026-و29) استهداف المجموعات — مجموعة السبت/التلات... مع ميعاد الظهور */}
+        <Badge variant={targetGids.length === 0 ? 'secondary' : 'default'} className="text-[9px] gap-1 cursor-pointer bg-teal-600 text-white border-teal-600"
+          onClick={function () { setGroupTargetOpen(true) }}>
+          🧑‍🤝‍🧑 {targetGids.length === 0 ? 'كل المجموعات' : ('موجه لـ ' + targetGids.length + ' مجموعة')}
+        </Badge>
+        <Button type="button" variant="ghost" size="sm" className="h-7 text-[10px] px-2"
+          onClick={function () { setGroupTargetOpen(true) }}>
+          تحديد المجموعات
+        </Button>
       </div>
       <StudentTargetPicker
         open={targetOpen}
@@ -1346,6 +1400,16 @@ function ExamSettingsRow({ exam, adminId, onDone }: { exam: any; adminId: string
         apiPath="/api/exams"
         itemId={exam.id}
         initialIds={targetIds}
+        itemTitle={exam.title}
+        adminId={adminId}
+        onSaved={function () { if (onDone) onDone() }}
+      />
+      <GroupTargetPicker
+        open={groupTargetOpen}
+        onOpenChange={setGroupTargetOpen}
+        apiPath="/api/exams"
+        itemId={exam.id}
+        initialIds={targetGids}
         itemTitle={exam.title}
         adminId={adminId}
         onSaved={function () { if (onDone) onDone() }}
@@ -2529,6 +2593,8 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
   const [schedBusy, setSchedBusy] = useState(false)
   /* (2026-و26) استهداف الطلاب للواجب — زي الفيديوهات بالظبط */
   const [targetEditId, setTargetEditId] = useState<string | null>(null)
+  /* (2026-و29) منتقي المجموعات للواجبات */
+  const [groupEditId, setGroupEditId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const answerKeyRef = useRef<HTMLInputElement>(null)
   const thumbnailRef = useRef<HTMLInputElement>(null)
@@ -2959,6 +3025,14 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
                       onDone={function () { if (onRefresh) onRefresh() }}
                     />
                   )}
+                  {/* (2026-و29) زرار استهداف المجموعات للواجب — نفس النمط */}
+                  {isHomeworkManager && (
+                    <Button size="icon" variant="ghost"
+                      className={'h-8 w-8 shrink-0 ' + (parseTargetStudentIds((item as any).targetGroupIds).length > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-muted-foreground')}
+                      title="تحديد المجموعات اللي تشوف الواجب ده"
+                      onClick={function () { setGroupEditId(groupEditId === item.id ? null : item.id) }}>
+                      🧑‍🤝‍🧑
+                    </Button>                  )}
                   <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
                 {/* (2026-و26) منتقي الطلاب المستهدفين للواجب */}
@@ -2974,8 +3048,20 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
                     onSaved={function () { loadItems(false); if (onRefresh) onRefresh() }}
                   />
                 )}
-                {/* (2026-و25 نقل 25-b1) محرر الموعد المضغوط تحت العنصر */}
-                {isHomeworkManager && schedEditId === item.id && (
+                {/* (2026-و29) منتقي المجموعات المستهدفة للواجب */}
+                {isHomeworkManager && groupEditId === item.id && (
+                  <GroupTargetPicker
+                    open={true}
+                    onOpenChange={function (o) { if (!o) setGroupEditId(null) }}
+                    apiPath="/api/homework"
+                    itemId={item.id}
+                    initialIds={parseTargetStudentIds((item as any).targetGroupIds)}
+                    itemTitle={renderTitle(item)}
+                    adminId={adminId}
+                    onSaved={function () { loadItems(false); if (onRefresh) onRefresh() }}
+                  />
+                )}
+                {/* (2026-و25 نقل 25-b1) محرر الموعد المضغوط تحت العنصر */}                {isHomeworkManager && schedEditId === item.id && (
                   <div className="w-full pt-2 mt-1 border-t border-dashed flex flex-wrap items-center gap-1.5">
                     <Input type="datetime-local" value={schedValue} onChange={(e) => setSchedValue(e.target.value)} className="h-7 w-[185px] text-[11px]" dir="ltr" />
                     <Button type="button" size="sm" variant="outline" className="h-7 text-[10px] px-2" disabled={schedBusy || !schedValue} onClick={() => patchSchedule(item.id, new Date(schedValue).toISOString())}>حفظ الموعد</Button>
