@@ -51,9 +51,13 @@ const AdminDashboard = dynamic(() => import('@/components/admin/AdminDashboard')
 })
 
 // Minimum loading screen duration (ms) - keep loading until images are preloaded
-var MIN_LOADING_MS = 4000
+// (2026-و30) طلب المستر: «لما يجي يدخل الطفل الأولاني بيقعد وقت — سرّعه»
+// كان 4000ms انتظار إجباري حتى لو البيانات وصلت — بقى 600ms بس (نفس
+// الوظيفة: منع وميض المحتوى غير المُبراند) والدخول بقى فوري تقريبًا
+var MIN_LOADING_MS = 600
 // Maximum loading screen duration - force show content even if APIs fail (ms)
-var MAX_LOADING_MS = 6000
+// (2026-و30) كان 6000 — بقى 3000 عشان البوابة ماتعلقش على API بطيء
+var MAX_LOADING_MS = 3000
 
 export default function HomePage() {
   var store = useAppStore()

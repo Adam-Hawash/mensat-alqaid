@@ -1076,6 +1076,16 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                       <p className="text-xs font-medium min-w-0 whitespace-pre-wrap break-words">{wa.question}</p>
                       <Badge className={'text-[10px] shrink-0 ' + badgeCls}>{badgeText}</Badge>
                     </div>
+                    {/* (2026-و30) طلب المستر: «الملاحظات بتاعة الـ AI تبقى هي التانية» —
+                        الملاحظة بعد السؤال مباشرة قبل إجابتك والدرجة وقراءة الـ AI */}
+                    {(wa.aiFeedback || wa.feedback) && !waPending && (
+                      <div className={'p-2.5 rounded-xl border-2 ' + (wa.isCorrect === true ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-400 dark:border-emerald-700' : wa.isCorrect === false ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-muted/40 border-border')}>
+                        <p className={'text-xs font-bold mb-1 flex items-center gap-1.5 ' + (wa.isCorrect === true ? 'text-emerald-700 dark:text-emerald-400' : wa.isCorrect === false ? 'text-red-700 dark:text-red-400' : 'text-foreground')}>
+                          <span>📝</span> ملاحظة المصحح الذكي:
+                        </p>
+                        <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words" style={{ textAlign: 'right' }}>{wa.aiFeedback || wa.feedback}</p>
+                      </div>
+                    )}
                     {wa.answer && String(wa.answer).indexOf('[📷') < 0 && (
                       <p className="text-xs text-foreground whitespace-pre-wrap break-words" dir="auto">إجابتك: {wa.answer}</p>
                     )}
@@ -1085,14 +1095,7 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                     {wa.aiExtractedAnswer && (
                       <p className="text-[10px] text-muted-foreground" dir="auto">🤖 قراءة إجابتك: {wa.aiExtractedAnswer}</p>
                     )}
-                    {(wa.aiFeedback || wa.feedback) && !waPending && (
-                      <div className={'mt-1 p-2.5 rounded-xl border-2 ' + (wa.isCorrect === true ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-400 dark:border-emerald-700' : wa.isCorrect === false ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-muted/40 border-border')}>
-                        <p className={'text-xs font-bold mb-1 flex items-center gap-1.5 ' + (wa.isCorrect === true ? 'text-emerald-700 dark:text-emerald-400' : wa.isCorrect === false ? 'text-red-700 dark:text-red-400' : 'text-foreground')}>
-                          <span>📝</span> ملاحظة المصحح الذكي:
-                        </p>
-                        <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words" style={{ textAlign: 'right' }}>{wa.aiFeedback || wa.feedback}</p>
-                      </div>
-                    )}
+                    {/* (2026-و30) الملاحظة اتنقلت لفوق — بقت تاني عنصر في الكارت بعد السؤال */}
                   </CardContent>
                 </Card>
               )
@@ -1160,6 +1163,17 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                         <Badge variant="outline" className="text-[9px] border-amber-500/40 text-amber-600 shrink-0 mt-0.5">مقالي</Badge>
                         <p className="font-medium text-sm flex-1 whitespace-pre-wrap break-words">{qi + 1}. {qText}</p>
                       </div>
+                      {/* (2026-و30) طلب المستر: «الملاحظات بتاعة الـ AI تبقى هي التانية» —
+                          الملاحظة بقت **تاني عنصر في الكارت** بعد السؤال مباشرة (كانت آخر حاجة)،
+                          وبتتكتب بالمصري العامي من برومبت المصحح نفسه */}
+                      {writingAns && (writingAns.aiFeedback || writingAns.feedback) && writingAns.gradingStatus !== 'pending' && (
+                        <div className={'p-3 rounded-xl border-2 ' + (writingAns.isCorrect === true ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-400 dark:border-emerald-700' : writingAns.isCorrect === false ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-muted/40 border-border')}>
+                          <p className={'text-xs font-bold mb-1 flex items-center gap-1.5 ' + (writingAns.isCorrect === true ? 'text-emerald-700 dark:text-emerald-400' : writingAns.isCorrect === false ? 'text-red-700 dark:text-red-400' : 'text-foreground')}>
+                            <span>📝</span> ملاحظة المصحح الذكي:
+                          </p>
+                          <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words" style={{ textAlign: 'right' }}>{writingAns.aiFeedback || writingAns.feedback}</p>
+                        </div>
+                      )}
                       {writingAns && (
                         <div className="space-y-1.5 text-sm">
                           {writingAns.answer && String(writingAns.answer).indexOf('[📷') < 0 && (
@@ -1194,15 +1208,7 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                           {writingAns.awardedPoints !== undefined && (
                             <p className="text-[10px] font-semibold text-muted-foreground">الدرجة: {writingAns.awardedPoints}/{writingAns.maxPoints || writingAns.points}</p>
                           )}
-                          {/* 2026-و23 — ملاحظة المصحح الذكي في آخر السؤال — صندوق واضح بلون الحكم */}
-                          {(writingAns.aiFeedback || writingAns.feedback) && writingAns.gradingStatus !== 'pending' && (
-                            <div className={'mt-2.5 p-3 rounded-xl border-2 ' + (writingAns.isCorrect === true ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-400 dark:border-emerald-700' : writingAns.isCorrect === false ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-muted/40 border-border')}>
-                              <p className={'text-xs font-bold mb-1 flex items-center gap-1.5 ' + (writingAns.isCorrect === true ? 'text-emerald-700 dark:text-emerald-400' : writingAns.isCorrect === false ? 'text-red-700 dark:text-red-400' : 'text-foreground')}>
-                                <span>📝</span> ملاحظة المصحح الذكي:
-                              </p>
-                              <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words" style={{ textAlign: 'right' }}>{writingAns.aiFeedback || writingAns.feedback}</p>
-                            </div>
-                          )}
+                          {/* (2026-و30) الملاحظة اتنقلت لفوق — بقت تاني عنصر في الكارت بعد السؤال */}
                         </div>
                       )}
                       {!writingAns && (
@@ -1740,13 +1746,14 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
                           <p className="text-xs font-medium min-w-0">{g.question || ''}</p>
                           <Badge className={'text-[10px] shrink-0 ' + (gOk ? 'bg-emerald-500 text-white' : gHalf ? 'bg-amber-500 text-white' : 'bg-red-500 text-white')} dir="ltr">{g.awardedPoints}/{g.maxPoints}</Badge>
                         </div>
+                        {/* (2026-و30) طلب المستر: «الملاحظات بتاعة الـ AI تبقى هي التانية» — الملاحظة بعد السؤال مباشرة */}
+                        {g.feedback && <p className="text-[10px] text-muted-foreground">🤖 {g.feedback}</p>}
                         {g.answer && (
                           <p className="text-[10px] text-muted-foreground">إجابتك: {g.answer}</p>
                         )}
                         {g.modelAnswer && (
                           <p className="text-[10px] text-emerald-600">الإجابة النموذجية: {g.modelAnswer}</p>
                         )}
-                        {g.feedback && <p className="text-[10px] text-muted-foreground">🤖 {g.feedback}</p>}
                       </div>
                     )
                   })}
