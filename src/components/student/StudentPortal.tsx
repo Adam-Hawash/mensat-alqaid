@@ -17,6 +17,9 @@ import Image from 'next/image'
 import { toast } from 'sonner'
 import { SecurePlayerModal } from '@/components/student/SecurePlayerModal'
 import { StudentComplaints } from '@/components/student/StudentComplaints'
+/* (2026-و33) عارض رموز المنصة + تطبيع مفتاح الإجابة المشترك (سيرفر + عميل نفس الدالة) */
+import { FractionText } from '@/components/FractionText'
+import { normalizeCorrectKey } from '@/lib/correct-key'
 import type { Video as VideoType, Homework, Exam, Announcement, Discussion, ExamResult } from '@/stores/app-store'
 
 /* ========== SHUFFLE UTILITIES (per-student) ========== */
@@ -838,6 +841,50 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
      بعد 12 ثانية لو المقالي لسه بيتصحح + زرار تحديث يدوي */
   var hwReviewAutoRefreshed = useRef<Record<string, boolean>>({})
   var hwReviewTimers = useRef<Record<string, any>>({})
+  /* (2026-و33) ملاحظات المصحح الذكي لأسئلة الاختيارات (الشوز) الغلط — طلب المستر:
+     «ملاحظات بالذكاء الاصطناعي عشان الطالب يفهم الاجابه دي ليه جت كده» */
+  var [hwMcqNotes, setHwMcqNotes] = useState<Record<string, string>>({})
+  var [hwMcqNotesLoading, setHwMcqNotesLoading] = useState(false)
+
+  /* ===== (2026-و33) ملاحظات المصحح الذكي لأسئلة الاختيارات الغلط — الواجب =====
+     لما شاشة المراجعة تفتح والأسئلة الغلط موجودة: نداء واحد مجمّع بيجيب
+     ملاحظة لكل سؤال (والكاش في الداتابيز بيمنع تكرار النداء)
+     القائد عنده صندوقان مراجعة («تم تقديم بالفعل» + شاشة النجاح) فالنداء بيغطي الاتنين */
+  useEffect(function() {
+    var activeHwId = submittedHwId || blockedHwId
+    if (!activeHwId) return
+    var wrongs = hwWrongQuestions[activeHwId] || []
+    if (wrongs.length === 0) return
+    var prefix = activeHwId + '|'
+    var items: any[] = []
+    var keys: string[] = []
+    wrongs.forEach(function(w: any) {
+      var k = prefix + (typeof w.origIdx === 'number' ? 'i' + w.origIdx : 'q' + String(w.question || '').slice(0, 80))
+      if (hwMcqNotes[k]) return
+      items.push({ question: w.question, options: [], studentAnswerText: w.studentAnswer, correctAnswerText: w.correctAnswer })
+      keys.push(k)
+    })
+    if (items.length === 0 || hwMcqNotesLoading) return
+    setHwMcqNotesLoading(true)
+    var ctrl = new AbortController()
+    var to = setTimeout(function() { ctrl.abort() }, 65000)
+    var resultId = (hwResults[activeHwId] && hwResults[activeHwId].resultId) || ''
+    fetch('/api/homework/mcq-notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resultId: resultId, items: items }),
+      signal: ctrl.signal,
+    })
+      .then(function(r) { return r.ok ? r.json() : { notes: [] } })
+      .then(function(d) {
+        var notes = (d && d.notes) || []
+        var patch: Record<string, string> = {}
+        keys.forEach(function(k, i) { if (notes[i]) patch[k] = notes[i] })
+        if (Object.keys(patch).length > 0) setHwMcqNotes(function(prev) { return Object.assign({}, prev, patch) })
+      })
+      .catch(function() {})
+      .finally(function() { clearTimeout(to); setHwMcqNotesLoading(false) })
+  }, [submittedHwId, blockedHwId, hwWrongQuestions, hwMcqNotes, hwMcqNotesLoading])
 
   /* Poll the background AI grading until it finishes — then update score + verdicts live */
   var startGradingPoll = function(resultId: string, hwId: string) {
@@ -1044,6 +1091,29 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                       <p className="text-xs text-red-600">إجابتك: <span dir="auto">{wq.studentAnswer}</span></p>
                       <p className="text-xs text-emerald-600">الإجابة الصحيحة: <span dir="auto">{wq.correctAnswer}</span></p>
                     </div>
+                    {/* (2026-و33) ملاحظة المصحح الذكي تحت سؤال الاختياري (الشوز) الغلط —
+                        شرح بالمصري ليه الإجابة الصح هي الصح وإيه الغلط اللي حصل (طلب المستر) */}
+                    {(function() {
+                      var nk = blockedHwId + '|' + (typeof wq.origIdx === 'number' ? 'i' + wq.origIdx : 'q' + String(wq.question || '').slice(0, 80))
+                      var nt = hwMcqNotes[nk] || ''
+                      if (nt) return (
+                        <div className="mt-1">
+                          <div className="p-2.5 rounded-xl border-2 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700">
+                            <p className="text-xs font-bold mb-1 text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5"><span>🤖</span> ملاحظة المصحح الذكي — ليه الإجابة دي:</p>
+                            <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words"><FractionText text={nt} /></p>
+                          </div>
+                        </div>
+                      )
+                      if (hwMcqNotesLoading) return (
+                        <div className="mt-1">
+                          <div className="p-2.5 rounded-xl border bg-muted/40 border-border flex items-center gap-2">
+                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
+                            <p className="text-xs text-muted-foreground">المصحح الذكي بيجهزلك شرح ليه الإجابة دي هي الصح…</p>
+                          </div>
+                        </div>
+                      )
+                      return null
+                    })()}
                   </CardContent>
                 </Card>
               )
@@ -1083,7 +1153,7 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                         <p className={'text-xs font-bold mb-1 flex items-center gap-1.5 ' + (wa.isCorrect === true ? 'text-emerald-700 dark:text-emerald-400' : wa.isCorrect === false ? 'text-red-700 dark:text-red-400' : 'text-foreground')}>
                           <span>📝</span> ملاحظة المصحح الذكي:
                         </p>
-                        <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words" style={{ textAlign: 'right' }}>{wa.aiFeedback || wa.feedback}</p>
+                        <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words" style={{ textAlign: 'right' }}><FractionText text={wa.aiFeedback || wa.feedback} /></p>
                       </div>
                     )}
                     {wa.answer && String(wa.answer).indexOf('[📷') < 0 && (
@@ -1174,7 +1244,7 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                           <p className={'text-xs font-bold mb-1 flex items-center gap-1.5 ' + (writingAns.isCorrect === true ? 'text-emerald-700 dark:text-emerald-400' : writingAns.isCorrect === false ? 'text-red-700 dark:text-red-400' : 'text-foreground')}>
                             <span>📝</span> ملاحظة المصحح الذكي:
                           </p>
-                          <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words" style={{ textAlign: 'right' }}>{writingAns.aiFeedback || writingAns.feedback}</p>
+                          <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words" style={{ textAlign: 'right' }}><FractionText text={writingAns.aiFeedback || writingAns.feedback} /></p>
                         </div>
                       )}
                       {writingAns && (
@@ -1222,7 +1292,13 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                 )
               }
               var opts = Array.isArray(q.options) ? q.options : []
-              var correctIdx = typeof q.correct === 'number' ? q.correct : 0
+              /* (2026-و33) تطبيع مفتاح الإجابة بنفس دالة السيرفر بالظبط (المكتبة المشتركة) —
+                 الكود القديم typeof q.correct === 'number' ? q.correct : 0 كان بيرجع 0 (=A)
+                 لأي مفتاح مخزن نص "2" أو حرف "B" — فالطالب اللي بحل صح كان بيلاقي
+                 كارت «إجابتك صحيحة» واريله حرف إجابة غلط — آخر بقايا من شكوى
+                 «بحل صح وبيظهرلي غلط» في الشوز/الاختيارات */
+              var correctIdx = normalizeCorrectKey(q, opts)
+              if (correctIdx < 0) correctIdx = 0
               /* (2026-و32) نفس المطابقة بالـ origIdx — sAllQs بترتيبها الأصلي فـ qi هو الفهرس الأصلي */
               var wrongEntry = sWrong.find(function(w) { return (typeof w.origIdx === 'number' ? w.origIdx === qi : false) || (w.origIdx === undefined && w.question === qText) })
               return (
@@ -1239,6 +1315,29 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                         <p className="text-emerald-600">إجابتك صحيحة ✅</p>
                       )}
                     </div>
+                    {/* (2026-و33) ملاحظة المصحح الذكي تحت سؤال الاختياري (الشوز) الغلط —
+                        شرح بالمصري ليه الإجابة الصح هي الصح وإيه الغلط اللي حصل (طلب المستر) */}
+                    {wrongEntry && (function() {
+                      var nk = submittedHwId + '|' + (typeof wrongEntry.origIdx === 'number' ? 'i' + wrongEntry.origIdx : 'q' + String(wrongEntry.question || '').slice(0, 80))
+                      var nt = hwMcqNotes[nk] || ''
+                      if (nt) return (
+                        <div className="mt-1">
+                          <div className="p-2.5 rounded-xl border-2 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700">
+                            <p className="text-xs font-bold mb-1 text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5"><span>🤖</span> ملاحظة المصحح الذكي — ليه الإجابة دي:</p>
+                            <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words"><FractionText text={nt} /></p>
+                          </div>
+                        </div>
+                      )
+                      if (hwMcqNotesLoading) return (
+                        <div className="mt-1">
+                          <div className="p-2.5 rounded-xl border bg-muted/40 border-border flex items-center gap-2">
+                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
+                            <p className="text-xs text-muted-foreground">المصحح الذكي بيجهزلك شرح ليه الإجابة دي هي الصح…</p>
+                          </div>
+                        </div>
+                      )
+                      return null
+                    })()}
                   </CardContent>
                 </Card>
               )
@@ -1380,6 +1479,47 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
   var submitInFlightRef = useRef(false)
   var latestAnswersRef = useRef(answers)
   latestAnswersRef.current = answers
+  /* (2026-و33) ملاحظات المصحح الذكي لأسئلة الاختيارات (الشوز) الغلط — الامتحانات */
+  var [examMcqNotes, setExamMcqNotes] = useState<Record<string, string>>({})
+  var [examMcqNotesLoading, setExamMcqNotesLoading] = useState(false)
+
+  /* ===== (2026-و33) نفس الملاحظات في كارت نتيجة الامتحان (مراجعة الاختياري) =====
+     بتتجمع من mcqResults لما «إظهار الإجابات» مفعّل — نداء واحد مجمّع للغلطات
+     والكاش في عمود mcqNotes بيرجع الملاحظة فورًا للنتايج الجديدة والقديمة */
+  useEffect(function() {
+    var cardRes: any = lastResult && lastResult.showResult === true ? lastResult : null
+    if (!cardRes || !Array.isArray(cardRes.mcqResults)) return
+    var wrongs = cardRes.mcqResults.filter(function(m: any) { return m && m.isCorrect === false })
+    if (wrongs.length === 0) return
+    var prefix = (cardRes.resultId || 'ex') + '|'
+    var items: any[] = []
+    var keys: string[] = []
+    wrongs.forEach(function(m: any) {
+      var k = prefix + (typeof m.origIdx === 'number' ? 'i' + m.origIdx : 'q' + String(m.question || '').slice(0, 80))
+      if (examMcqNotes[k]) return
+      items.push({ question: m.question, options: [], studentAnswerText: m.studentAnswer || 'لم يتم الإجابة', correctAnswerText: m.correctAnswer || '' })
+      keys.push(k)
+    })
+    if (items.length === 0 || examMcqNotesLoading) return
+    setExamMcqNotesLoading(true)
+    var ctrl2 = new AbortController()
+    var to2 = setTimeout(function() { ctrl2.abort() }, 65000)
+    fetch('/api/exams/mcq-notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resultId: cardRes.resultId || '', items: items }),
+      signal: ctrl2.signal,
+    })
+      .then(function(r) { return r.ok ? r.json() : { notes: [] } })
+      .then(function(d) {
+        var notes = (d && d.notes) || []
+        var patch: Record<string, string> = {}
+        keys.forEach(function(k, i) { if (notes[i]) patch[k] = notes[i] })
+        if (Object.keys(patch).length > 0) setExamMcqNotes(function(prev) { return Object.assign({}, prev, patch) })
+      })
+      .catch(function() {})
+      .finally(function() { clearTimeout(to2); setExamMcqNotesLoading(false) })
+  }, [lastResult, examMcqNotes, examMcqNotesLoading])
 
   // Lockout: detect tab switch during exam
   useEffect(function() {
@@ -1527,6 +1667,24 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
                       {!mOk && m.correctAnswer && (
                         <p className="text-[10px] text-emerald-600">الإجابة الصحيحة: {m.correctAnswer}</p>
                       )}
+                      {/* (2026-و33) ملاحظة المصحح الذكي تحت الاختياري الغلط — شرح ليه الإجابة دي (طلب المستر) */}
+                      {!mOk && (function() {
+                        var nk = ((lastResult.resultId || 'ex') + '|') + (typeof m.origIdx === 'number' ? 'i' + m.origIdx : 'q' + String(m.question || '').slice(0, 80))
+                        var nt = examMcqNotes[nk] || ''
+                        if (nt) return (
+                          <div className="mt-1 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25">
+                            <p className="text-[11px] font-bold text-emerald-600 mb-0.5">🤖 ملاحظة المصحح الذكي — ليه الإجابة دي:</p>
+                            <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words"><FractionText text={nt} /></p>
+                          </div>
+                        )
+                        if (examMcqNotesLoading) return (
+                          <div className="mt-1 p-2 rounded-lg bg-muted/40 border border-border flex items-center gap-2">
+                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
+                            <p className="text-[11px] text-muted-foreground">المصحح الذكي بيجهزلك شرح ليه الإجابة دي هي الصح…</p>
+                          </div>
+                        )
+                        return null
+                      })()}
                     </CardContent>
                   </Card>
                 )
@@ -1552,7 +1710,7 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
                       <p className="text-xs font-medium min-w-0">{g.question || ''}</p>
                       <Badge className={'text-[10px] shrink-0 ' + (gOk ? 'bg-emerald-500 text-white' : gHalf ? 'bg-amber-500 text-white' : 'bg-red-500 text-white')} dir="ltr">{g.awardedPoints}/{g.maxPoints}</Badge>
                     </div>
-                    {g.feedback && <p className="text-[10px] text-muted-foreground">🤖 {g.feedback}</p>}
+                    {g.feedback && <p className="text-[10px] text-muted-foreground">🤖 <FractionText text={g.feedback} /></p>}
                     {g.modelAnswer && (
                       <p className="text-[10px] text-emerald-600">الإجابة النموذجية: {g.modelAnswer}</p>
                     )}
@@ -1751,7 +1909,7 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
                           <Badge className={'text-[10px] shrink-0 ' + (gOk ? 'bg-emerald-500 text-white' : gHalf ? 'bg-amber-500 text-white' : 'bg-red-500 text-white')} dir="ltr">{g.awardedPoints}/{g.maxPoints}</Badge>
                         </div>
                         {/* (2026-و30) طلب المستر: «الملاحظات بتاعة الـ AI تبقى هي التانية» — الملاحظة بعد السؤال مباشرة */}
-                        {g.feedback && <p className="text-[10px] text-muted-foreground">🤖 {g.feedback}</p>}
+                        {g.feedback && <p className="text-[10px] text-muted-foreground">🤖 <FractionText text={g.feedback} /></p>}
                         {g.answer && (
                           <p className="text-[10px] text-muted-foreground">إجابتك: {g.answer}</p>
                         )}

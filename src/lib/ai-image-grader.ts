@@ -29,6 +29,8 @@
 import { db } from '@/lib/db'
 import { callGemini as callGeminiCentral, hasGeminiKey } from '@/lib/gemini'
 import { repairModelJson, repairCorruptMath } from '@/lib/parse-ai-json'
+/* (2026-و33) ملاحظات المصحح برموز المنصة + تنقية من $ و ** الخام */
+import { sanitizeMathText, NOTATION_RULES, ENGLISH_TERMS_RULE } from '@/lib/math-sanitize'
 
 // Grading calls: low thinking = much faster, output is small structured JSON.
 // One automatic retry — a transient failure should NEVER leave a submission
@@ -425,7 +427,7 @@ export async function gradeImageAnswer(params: {
   prompt += 'STEP 6.6 — READ THE HANDWRITING CAREFULLY (the worst failure is grading a CORRECT answer as wrong because you misread it): read every handwritten digit/word with FULL attention (4 vs 9, 1 vs 7, 5 vs 3, 0 vs 6). Re-read the final answer TWICE before deciding. If what you read matches the model answer → it is CORRECT, full stop.\n'
   prompt += 'STEP 7 — ALWAYS give a definite verdict (isCorrect true or false). Only say onTopic=false when the photo truly contains NO student work at all.\n\n'
   prompt += 'awardedPoints: an integer from 0 to ' + maxPoints + '. HARD RULE — no partial credit: if isCorrect=true then awardedPoints MUST be exactly ' + maxPoints + ' (NEVER deduct for messy/hard-to-read/unfinished-looking steps when the final answer is right); if isCorrect=false then awardedPoints MUST be 0.\n\n'
-  prompt += 'FEEDBACK STYLE (2026-و24-c + 2026-و30 — the teacher wants a PERSONAL note on EVERY question, like a teacher sitting with the student): LANGUAGE IS MANDATORY — write the feedback in عامية مصرية بسيطة (Egyptian COLLOQUIAL Arabic) — ممنوع منعاً باتاً الفصحى (لا «حدث/ثم/قمت ب/خطأ في») — use «بص، خلي بالك، اللي حصل إن، طبّق تاني، برافو، مش، عشان» talking DIRECTLY to the student (استخدم «إنت») — 2-3 short sentences. CORRECT → praise + say exactly WHAT the student did right (the key facts/points he covered). WRONG → (1) point at the EXACT part/key fact where the answer went wrong, (2) show the correct idea/way to answer it, (3) give the correct answer. NEVER generic (ممنوع «إجابة غلط» لوحدها) وNEVER فصحى.\n\n'
+  prompt += 'FEEDBACK STYLE (2026-و24-c + 2026-و30 — the teacher wants a PERSONAL note on EVERY question, like a teacher sitting with the student): LANGUAGE IS MANDATORY — write the feedback in عامية مصرية بسيطة (Egyptian COLLOQUIAL Arabic) — ممنوع منعاً باتاً الفصحى (لا «حدث/ثم/قمت ب/خطأ في») — use «بص، خلي بالك، اللي حصل إن، طبّق تاني، برافو، مش، عشان» talking DIRECTLY to the student (استخدم «إنت») — 2-3 short sentences. CORRECT → praise + say exactly WHAT the student did right (the key facts/points he covered). WRONG → (1) point at the EXACT part/key fact where the answer went wrong, (2) show the correct idea/way to answer it, (3) give the correct answer. NEVER generic (ممنوع «إجابة غلط» لوحدها) وNEVER فصحى.\n\nMATH NOTATION IN FEEDBACK (2026-و33 — mandatory, the platform renders these as real symbols for the student):\n' + NOTATION_RULES + '\n\nENGLISH/SUBJECT TERMS IN FEEDBACK (2026-و34 — mandatory, the platform lesson terms):\n' + ENGLISH_TERMS_RULE + '\n\n'
   prompt += 'Respond with ONLY this JSON — no markdown, no extra text:\n'
   prompt += '{"onTopic": true, "extractedAnswer": "إجابة الطالب زي ما كتبها (3 سطور كحد أقصى)", "finalAnswer": "الإجابة النهائية/النقطة الأساسية في إجابته", "isCorrect": true, "awardedPoints": ' + maxPoints + ', "confidence": "high", "feedback": "ملاحظة بالعامية المصرية للطالب: ليه صح أو ليه غلط + إزاي يصلح لو غلط — كأنك بتكلمه بجد (2-3 جمل قصيرة)"}\n'
 
@@ -458,7 +460,7 @@ export async function gradeImageAnswer(params: {
   }
   var isCorrect = parsed.isCorrect === true
   var awardedPoints = clampPoints(parsed.awardedPoints, maxPoints)
-  var feedback = String(parsed.feedback || '').trim()
+  var feedback = sanitizeMathText(String(parsed.feedback || '').trim())
   var needsGrading = false
 
   // ---- GUARD 0 (2026-و19): الصورة واصلة **مقطوعة/ناقصة** — صور رفع قديم
@@ -691,7 +693,7 @@ export async function gradeTextAnswer(params: {
   prompt += '5. If the student answer does not actually address the question (e.g. it is just the question text, or unrelated) → isCorrect=false and confidence="low" — but STILL a definite verdict.\n'
   prompt += '6. Never guess randomly. If unsure → confidence="low" and give your best verdict — the teacher reviews it from the admin panel.\n'
   prompt += '7. READ CAREFULLY (worst failure = a correct answer graded wrong): re-read the student final answer TWICE — read every digit/word carefully. If what you read matches the model answer → CORRECT, full stop.\n\n'
-  prompt += 'FEEDBACK STYLE (2026-و24-c + 2026-و30): the feedback must sound like a real teacher sitting with the student — LANGUAGE IS MANDATORY: عامية مصرية بسيطة (Egyptian COLLOQUIAL Arabic) — ممنوع منعاً باتاً الفصحى (لا «حدث/ثم/قمت ب/خطأ في») — use «بص، خلي بالك، اللي حصل إن، طبّق تاني، برافو، مش، عشان» — talk to him directly (استخدم «إنت»), 2-3 short sentences. CORRECT → praise + say exactly WHAT the student did right (the key facts/points he covered). WRONG → (1) point at the EXACT part/key fact where the answer went wrong, (2) show the correct idea/way to answer it, (3) give the correct answer. NEVER generic وNEVER فصحى.\n\n'
+  prompt += 'FEEDBACK STYLE (2026-و24-c + 2026-و30): the feedback must sound like a real teacher sitting with the student — LANGUAGE IS MANDATORY: عامية مصرية بسيطة (Egyptian COLLOQUIAL Arabic) — ممنوع منعاً باتاً الفصحى (لا «حدث/ثم/قمت ب/خطأ في») — use «بص، خلي بالك، اللي حصل إن، طبّق تاني، برافو، مش، عشان» — talk to him directly (استخدم «إنت»), 2-3 short sentences. CORRECT → praise + say exactly WHAT the student did right (the key facts/points he covered). WRONG → (1) point at the EXACT part/key fact where the answer went wrong, (2) show the correct idea/way to answer it, (3) give the correct answer. NEVER generic وNEVER فصحى.\n\nMATH NOTATION IN FEEDBACK (2026-و33 — mandatory, the platform renders these as real symbols for the student):\n' + NOTATION_RULES + '\n\nENGLISH/SUBJECT TERMS IN FEEDBACK (2026-و34 — mandatory, the platform lesson terms):\n' + ENGLISH_TERMS_RULE + '\n\n'
 
   prompt += 'awardedPoints: integer 0 to ' + maxPoints + '. HARD RULE — no partial credit: isCorrect=true ⇒ awardedPoints exactly ' + maxPoints + '; isCorrect=false ⇒ 0.\n\n'
   prompt += 'Respond with ONLY this JSON — no markdown:\n'
@@ -750,7 +752,7 @@ export async function gradeTextAnswer(params: {
     isCorrect: isCorrect,
     awardedPoints: awardedPoints,
     maxPoints: maxPoints,
-    feedback: String(parsed.feedback || '').trim() || (isCorrect ? 'إجابة صحيحة' : 'إجابة مختلفة عن الإجابة الصحيحة'),
+    feedback: sanitizeMathText(String(parsed.feedback || '').trim()) || (isCorrect ? 'إجابة صحيحة' : 'إجابة مختلفة عن الإجابة الصحيحة'),
     confidence: confidence,
     // غلط + ثقة واطية → نعلّمها "مش متأكد" عشان المسار الحاسم في التسليم
     // يدي درجة محاولة عادلة بدل صفر ظالم — ومفيش needsGrading معلقة خالص:

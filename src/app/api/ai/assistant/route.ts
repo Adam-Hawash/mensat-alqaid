@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { callGemini, callGeminiStream, hasGeminiKey } from '@/lib/gemini'
 import ZAI from 'z-ai-web-dev-sdk'
+/* (2026-و33) منقّي الرموز المشترك — نفس المكتبة اللي بتنضّف ملاحظات المصحح */
+import { sanitizeMathText, ENGLISH_TERMS_RULE } from '@/lib/math-sanitize'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -35,6 +37,10 @@ function extractComplaint(text: string): { clean: string; summary: string } {
   var clean = String(text || '').replace(COMPLAINT_MARKER_RE, '').replace(/\n{3,}/g, '\n\n').trim()
   return { clean: clean, summary: m ? String(m[1] || '').trim().slice(0, 300) : '' }
 }
+
+/* (2026-و33) منقّي رموز المنصة اتنقل للمكتبة المشتركة src/lib/math-sanitize.ts
+   (sanitizeMathText مستورد فوق) — بيتنفذ على رد الموديل قبل العرض
+   فالطالب ما يشوفش غير رموز المنصة النضيفة: كسور رأسية وأُس وجُذور */
 
 async function logAutoComplaint(studentId: string, studentMessage: string, summary: string) {
   try {
@@ -103,20 +109,32 @@ function buildSystemPrompt(platformName: string, subjectLine: string): string {
     '- ردودك قصيرة ومنظمة: نقاط أو خطوات مرقمة لما الموضوع يستحق، وإيموجي بسيط (✅ 💡 📚) من غير مبالغة.',
     '- ممنوع تبدأ ردك بترحيب طويل كل مرة — ادخل في الجواب على طول.',
     '',
+    '## قاعدة كتابة الرموز الرياضية (أهم قاعدة في الكلام كله — طلب المستر حرفيًا):',
+    '- إنت بتكتب في منصة ليها عارض رياضيات خاص بيحوّل أوامر LaTeX لرموز حقيقية (كسور رأسية وأُس فوق الرقم وجذر بخط فوقه). عشان كده:',
+    '- ممنوع منعًا باتًا علامات الدولار $ أو $$ حوالين أي رمز — دي بتظهر للطالب كحروف خام ووخة. اكتب الرمز لوحده على طول.',
+    '- ممنوع منعًا باتًا أي ماركداون: لا **نص** ولا *نص* ولا # ولا شرطات ماركداون — النجوم بتظهر للطالب زي ما هي.',
+    '- الكسر اكتبه: \\frac{فوق}{تحت} — مثال: \\frac{1}{4} هيظهر كسر رأسي حقيقي. ممنوع تكتب 1/4 ولا "$\\frac{1}{4}$".',
+    '- النسب والأعداد بتتكتب واضحة: 25% أو \\frac{1}{4}. الأُس لو احتاجته: 2^{3}. الجذر: \\sqrt{5}.',
+    '- الضرب × والقسمة ÷ دايمًا بالرموز مش بالكلمات أو النجوم.',
+    '- قبل ما تبعت الرد راجع نفسك: لو لقيت $ أو ** أو \\ .. \\ في كلامك يبقى فيه غلط — شيلهم.',
+    '',
+    '## قاعدة المصطلحات (طلب المستر — زي دروس المنصة بالظبط):',
+    ...ENGLISH_TERMS_RULE.split('\n'),
+    '',
     '## معلومات عنك وعن المنصة:',
     '- اسمك: المساعد الذكي. وأنت جزء من المنصة نفسها — شغال 24 ساعة.',
-    '- بتساعد الطلاب في: شرح أي جزئية رياضيات، مراجعة حل الواجبات من الصور، أسئلة الامتحانات، وتنظيم المذاكرة.',
+    '- بتساعد الطلاب في: شرح أي جزئية في الدراسات الاجتماعية والتاريخ، مراجعة حل الواجبات من الصور، أسئلة الامتحانات، وتنظيم المذاكرة.',
     '- المنصة فيها: فيديوهات الشرح، واجبات، امتحانات، نقاط وتقييمات، ومناقشات.',
     '',
-    '## قواعد الرياضيات:',
-    '- المصطلحات دايمًا إنجليزي مدرسي: History, Geography, Map, Climate, Civilization, Ancient Egyptians, Resources, Population.',
+    '## قواعد الدراسات الاجتماعية:',
     '- لما تشرح درس: اكتب النقاط الرئيسية بالترتيب وباختصار، ومعاها مثال أو تاريخ مهم لو ينفع.',
+    '- اشرح بذكاء: قول للطالب ليه الإجابة الصح هي الصح، واربط الكلام بالسبب أو الحدث أو المكان — مش بس "الإجابة C" من غير سبب.',
     '',
     '## قاعدة الواجبات والصور (مهم جدًا):',
     '- الصورة فيها حل الطالب بخط يده؟ لكل سؤال بالترتيب: اكتب "إجابتك:" ونصه زي ما هو بالظبط بدون تعديل ← ثم "الإجابة الصحيحة:" ← ثم صح أو غلط وليه في سطر واحد قصير.',
     '- الصورة فيها أسئلة بدون حل؟ ممنوع نهائيًا تحل أو تديله الإجابات جاهزة! قول له بالظبط: "جرب تحل الأول وابعتلي إجاباتك (نص أو صورة) وأنا هقارن إجابتك بالإجابة الصحيحة سؤال بسؤال 📝".',
     '- مش عارف يبدأ؟ تلميحة صغيرة واحدة 💡 بدون الإجابة النهائية واطلب منه يحاول تاني.',
-    '- الصورة مش رياضيات؟ ساعده عادي وباختصار.',
+    '- الصورة مش من دراستك؟ ساعده عادي وباختصار.',
     '',
     '## قاعدة الشكاوى والمشاكل التقنية (مهمة جدًا):',
     '- لو الطالب قال أو واضح إن فيه مشكلة في المنصة نفسها — فيديو مش بيفتح أو مش شغال، واجب/امتحان مش باين أو مش نازل، حساب مقفول أو باسورد مش شغال، مشكلة في المشتريات أو الفلوس، أو أي عطل تقني أو شكوى من حاجة — واسيه بجد في كلامك، وقل له إن شكواه اتسجلت للمستر هيشوفها بإذن الله.',
@@ -238,7 +256,7 @@ export async function POST(request: Request) {
           if (result) {
             // تسجيل الشكوى التلقائية لو المساعد اكتشف مشكلة (وسم أو كلمات قوية)
             var complaintInfo = extractComplaint(result.text)
-            result.text = complaintInfo.clean
+            result.text = sanitizeMathText(complaintInfo.clean)
             var autoSummary = complaintInfo.summary || (HARD_ISSUE_RE.test(message) ? ('مشكلة من كلام الطالب: ' + message.slice(0, 120)) : '')
             if (autoSummary) { try { await logAutoComplaint(String(context.studentId || ''), message, autoSummary) } catch (e) {} }
 
@@ -280,7 +298,7 @@ export async function POST(request: Request) {
         var r2 = await engines[ei2]()
         if (r2 && r2.ok && r2.text) {
           var ci = extractComplaint(r2.text)
-          r2.text = ci.clean
+          r2.text = sanitizeMathText(ci.clean)
           var autoSummary2 = ci.summary || (HARD_ISSUE_RE.test(message) ? ('مشكلة من كلام الطالب: ' + message.slice(0, 120)) : '')
           if (autoSummary2) { try { await logAutoComplaint(String(context.studentId || ''), message, autoSummary2) } catch (e) {} }
           return NextResponse.json({ reply: r2.text })

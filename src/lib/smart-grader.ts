@@ -14,6 +14,9 @@
 
 import { callGemini as callGeminiCentral, hasGeminiKey } from '@/lib/gemini'
 import { repairModelJson, repairCorruptMath } from '@/lib/parse-ai-json'
+/* (2026-و33) طلب المستر: التصحيح يوصف بذكاء وببرموز المنصة (كسور رأسية وأُس) —
+   قواعد الرموز بتتحط في البرومبت والرد بيتنقّى من أي $ أو ** خام */
+import { sanitizeMathText, NOTATION_RULES, ENGLISH_TERMS_RULE } from '@/lib/math-sanitize'
 import { exactEquivalent, finalAnswerCandidates, modelFinalCandidates, verifyFinalAnswerEqual } from './ai-image-grader'
 
 export interface WritingAnswer {
@@ -140,6 +143,12 @@ function buildAiPrompt(needAI: WritingAnswer[]): string {
   lines.push('- CORRECT: praise + say exactly WHAT the student did right (the key facts/points he covered and how). Example: «برافو عليك! غطيت أسباب الحدث الأساسية كلها بالترتيب وده اللي خلّى إجابتك صح — كمل كده.»')
   lines.push('- WRONG: (1) point at the EXACT part/key fact where the answer went wrong (the missing/wrong reason, date or term), (2) show the correct idea/way to answer it, (3) give the correct answer. Example: «بص يا بطل، اللي حصل إنك خلطت بين السبب السياسي والاقتصادي — خلي بالك، الصح إن الحدث حصل بسبب كذا والنتيجة كانت كذا. طبّق تاني وجاوب بالأسباب بالترتيب عشان تاخد الدرجة كاملة.»')
   lines.push('- NEVER generic. A bare «إجابة غلط» or «إجابة صح» alone is FORBIDDEN — every note must tell the student where he stands and what to do next. And NEVER write in فصحى (مثلاً «حدث خطأ في الإجابة» ممنوعة — قول «اللي حصل إنك غلطت في السبب ده»).')
+  lines.push('')
+  lines.push('MATH NOTATION IN FEEDBACK (2026-و33 — mandatory, the platform renders these as real symbols for the student):')
+  lines.push(NOTATION_RULES)
+  lines.push('')
+  lines.push('ENGLISH/SUBJECT TERMS IN FEEDBACK (2026-و34 — mandatory, the platform lesson terms):')
+  lines.push(ENGLISH_TERMS_RULE)
   lines.push('')
   lines.push('Return ONE valid JSON array ONLY — no markdown fences, no text before or after:')
   lines.push('[{"index":0,"awardedPoints":5,"isCorrect":true,"feedback":"..."}]')
@@ -303,7 +312,7 @@ export async function gradeWritingSmart(writingAnswers: WritingAnswer[]): Promis
       var awarded = Math.min(Math.max(Math.round(Number(aiRes.awardedPoints) || 0), 0), wa2.points || 1)
       graded[idx].awardedPoints = awarded
       graded[idx].isCorrect = awarded >= Math.ceil((wa2.points || 1) * 0.5) && awarded > 0
-      graded[idx].feedback = String(aiRes.feedback || (awarded > 0 ? 'صحيح' : 'غير صحيح')).slice(0, 300)
+      graded[idx].feedback = sanitizeMathText(String(aiRes.feedback || (awarded > 0 ? 'صحيح' : 'غير صحيح'))).slice(0, 300)
       graded[idx].gradingStatus = 'graded'
       aiVerdictPairs.push({ n: n, idx: idx })
     }
