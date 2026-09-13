@@ -858,7 +858,7 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
 
   const handleSubmit = async () => {
     if (!formTitle.trim() || !formGrade) { toast.error('أدخل العنوان واختر الصف'); return }
-    if (!formUrl && !formFile) { toast.error('أدخل رابط YouTube أو ارفع ملف فيديو'); return }
+    if (!formUrl && !formFile) { toast.error('أدخل رابط فيديو (يوتيوب أو أي موقع) أو ارفع ملف فيديو'); return }
     setSubmitting(true)
     setUploading(true)
     try {
@@ -1033,8 +1033,8 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
 
             {/* YouTube URL */}
             <div className="space-y-1.5">
-              <Label className="text-xs">رابط YouTube (اختياري - أو ارفع ملف فيديو)</Label>
-              <Input value={formUrl} onChange={(e) => setFormUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..." dir="ltr" />
+              <Label className="text-xs">رابط الفيديو — يوتيوب أو أي لينك من أي موقع (Cloudinary / Drive / Dropbox / mp4 مباشر…) — أو ارفع ملف فيديو. للتحكم في الجودات: ارفع على Cloudinary وهتلاقي قايمة جودات في المشغل</Label>
+              <Input value={formUrl} onChange={(e) => setFormUrl(e.target.value)} placeholder="https://youtube.com/watch?v=… أو https://res.cloudinary.com/…/video/upload/v…/name.mp4" dir="ltr" />
               {formUrl && getYouTubeId(formUrl) && (
                 <div className="mt-2 w-40 aspect-video rounded-lg overflow-hidden border relative">
                   <Image src={`https://img.youtube.com/vi/${getYouTubeId(formUrl)}/mqdefault.jpg`} alt="thumbnail" fill className="object-cover" sizes="400px" unoptimized />

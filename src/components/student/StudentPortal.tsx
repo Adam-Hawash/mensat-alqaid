@@ -431,10 +431,15 @@ function ytIdOf(url: string) {
 }
 
 function videoKindOf(v: any): 'youtube' | 'file' | 'link' | 'none' {
-  if (v.kind) return v.kind
+  if (v.kind) {
+    // (و35) أي لينك بيتشغل في المشغل الآمن — مش شرط امتداد مباشر
+    return v.kind === 'link' && (v.url || '').trim() ? 'file' : v.kind
+  }
   if (ytIdOf(v.url || '')) return 'youtube'
   if (v.filePath && /\.(mp4|webm|mov|avi)$/i.test(v.filePath)) return 'file'
-  if (v.url) return 'link'
+  // (و35) أي لينك فيديو من أي موقع بيتشغل في المشغل العادي — يتعامل كملف
+  // (القديم كان بيرجّع 'link' خارجي لأي لينك من غير امتداد فيديو)
+  if (v.url && String(v.url).trim()) return 'file'
   return 'none'
 }
 
