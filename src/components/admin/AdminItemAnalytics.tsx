@@ -27,6 +27,8 @@ type QStat = {
   options: string[]
   correctText: string
   keyless: boolean
+  /* (2026-و39) كل الطلاب غلطوا فيه — بتتخفى من التحليل (طلب المستر) */
+  allWrong: boolean
   attempts: number
   wrong: number
   wrongStudents: WrongStudent[]
@@ -52,7 +54,7 @@ function QuestionRow({ q, top }: { q: QStat; top: boolean }) {
             <div className="flex items-center gap-1.5 flex-wrap mt-1">
               <Badge variant="secondary" className="text-[10px]">{q.kind === 'mcq' ? 'اختيارات' : 'مقالي'}</Badge>
               {q.keyless && <Badge className="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">مفتاح ناقص — محتاج مراجعة</Badge>}
-              <span className="text-[11px] text-muted-foreground">غلط: {q.wrong} من {q.attempts} ({pct}%)</span>
+              <span className="text-[11px] text-muted-foreground">{q.wrong} طلاب غلطوا من {q.attempts} ({pct}%)</span>
             </div>
           </div>
         </div>
@@ -162,12 +164,26 @@ export function AdminItemAnalytics() {
     )
   }
 
-  /* أكتر سؤال غلط = أول سؤال في القايمة (المرتبة) اللي فيه غلطات فعلية */
+  /* (2026-و39) طلب المستر: «ما تجيبليش الأسئلة اللي غلطان فيها كل الطلاب —
+     مش الدرجات — أنا عاوز مثلا 10 طلاب دخلوا منهم 5 غلط في السؤال ده»
+     → أسئلة كل-الطلاب-غلط بتتخفى من التحليل مع ملاحظة صغيرة تحته */
+  var visibleQuestions: QStat[] = []
+  var hiddenAllWrong = 0
+  if (detail) {
+    for (var hi = 0; hi < detail.questions.length; hi++) {
+      var hq = detail.questions[hi]
+      if (hq.allWrong) { hiddenAllWrong++; continue }
+      visibleQuestions.push(hq)
+    }
+  }
+
+  /* أكتر سؤال غلط = أول سؤال في القايمة (المرتبة) اللي فيه غلطات فعلية —
+     (2026-و39) وممنوع يبقى سؤال مفتاحه ناقص أو كل-الطلاب-غلط */
   var topWrong: QStat | null = null
   if (detail) {
-    for (var ti = 0; ti < detail.questions.length; ti++) {
-      var tq = detail.questions[ti]
-      if (!tq.keyless && tq.wrong > 0) { topWrong = tq; break }
+    for (var ti = 0; ti < visibleQuestions.length; ti++) {
+      var tq = visibleQuestions[ti]
+      if (!tq.keyless && !tq.allWrong && tq.wrong > 0) { topWrong = tq; break }
     }
   }
 
@@ -208,14 +224,19 @@ export function AdminItemAnalytics() {
                 <p className="text-[11px] text-muted-foreground mt-1.5">اضغط «اللي غلطوا ({topWrong.wrong})» تحت عشان تشوف أسامي الطلاب اللي غلطت في السؤال ده</p>
               </div>
             )}
-            {detail.questions.length === 0 ? (
+            {visibleQuestions.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">مفيش أسئلة مسجلة للعنصر ده</p>
             ) : (
-              <div className="space-y-2 max-h-[520px] overflow-y-auto custom-scrollbar pr-1">
-                {detail.questions.map(function (qq) {
-                  return <QuestionRow key={qq.idx} q={qq} top={topWrong != null && qq.idx === topWrong.idx} />
-                })}
-              </div>
+              <>
+                <div className="space-y-2 max-h-[520px] overflow-y-auto custom-scrollbar pr-1">
+                  {visibleQuestions.map(function (qq) {
+                    return <QuestionRow key={qq.idx} q={qq} top={topWrong != null && qq.idx === topWrong.idx} />
+                  })}
+                </div>
+                {hiddenAllWrong > 0 && (
+                  <p className="text-[11px] text-muted-foreground text-center pt-2">فيه أسئلة غلط فيها كل الطلاب — اتخفيت من التحليل لأن غالبًا المشكلة في السؤال نفسه أو في التصحيح</p>
+                )}
+              </>
             )}
           </div>
         ) : (

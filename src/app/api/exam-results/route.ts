@@ -320,7 +320,7 @@ export async function GET(request: NextRequest) {
             var hasRealWork = studentText.replace(/\[📷[^\]]*\]/g, '').trim().length > 0
             liveAwarded = hasRealWork ? Math.ceil(wq.points / 2) : 0
             liveIsCorrect = hasRealWork
-            liveFeedback = hasRealWork ? 'صورة الحل اترفعت — المستر هيراجعها ويعادلها' : 'لم يتم الإجابة'
+            liveFeedback = hasRealWork ? 'صورة الحل اترفعت — المستر هيراجعها ويعدّلها' : 'لم يتم الإجابة'
             liveExtracted = ''
           } else {
             try {

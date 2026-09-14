@@ -206,7 +206,7 @@ async function gradeWritingDecisive(writing: QItem[], answers: any): Promise<{ v
         awardedPoints: hasRealWork ? Math.ceil(iw.points / 2) : 0,
         maxPoints: iw.points,
         isCorrect: hasRealWork,
-        feedback: hasRealWork ? 'صورة الحل اترفعت — المستر هيراجعها ويعادلها' : 'لم يتم الإجابة',
+        feedback: hasRealWork ? 'صورة الحل اترفعت — المستر هيراجعها ويعدّلها' : 'لم يتم الإجابة',
         gradingStatus: 'graded',
         needsGrading: false,
         aiExtractedAnswer: '',

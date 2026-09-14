@@ -447,7 +447,7 @@ export async function POST(request) {
           awardedPoints: hasRealWork ? Math.ceil(iw.points / 2) : 0,
           maxPoints: iw.points,
           isCorrect: false,
-          feedback: hasRealWork ? 'صورة الحل اترفعت — درجة مؤقتة والمستر هيراجعها ويعادلها' : 'لم يتم الإجابة',
+          feedback: hasRealWork ? 'صورة الحل اترفعت — درجة مؤقتة والمستر هيراجعها ويعدّلها' : 'لم يتم الإجابة',
           gradingStatus: 'graded',
         }
         imageGraded.push(fbGrade)

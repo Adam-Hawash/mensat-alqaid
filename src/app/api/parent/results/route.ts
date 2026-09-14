@@ -48,8 +48,25 @@ export async function GET(request: NextRequest) {
         student: null,
         homeworks: [],
         exams: [],
+        videos: null,
       })
     }
+
+    // ===== (2026-و39) نسبة فيديوهات الابن — من VideoProgress (نفس بيانات الطالب) =====
+    var videos: any = null
+    try {
+      var vp: any[] = await db.videoProgress.findMany({ where: { studentId: student.id } })
+      var sumW = 0, sumT = 0, done = 0
+      for (var vi = 0; vi < vp.length; vi++) {
+        var row = vp[vi]
+        var t = Math.max(Number(row.totalSeconds) || 0, 0)
+        var w = Math.max(Number(row.watchedSeconds) || 0, 0)
+        if (t > 0 && w > t) w = t
+        if (row.completed === true) { done++; if (t > 0) w = t }
+        sumW += w; sumT += t
+      }
+      videos = { count: vp.length, completed: done, percent: sumT > 0 ? Math.round((sumW / sumT) * 100) : (done > 0 ? 100 : 0) }
+    } catch (vErr) { videos = null }
 
     // ===== واجبات ابنك =====
     var hwResults: any[] = []
@@ -119,6 +136,7 @@ export async function GET(request: NextRequest) {
       },
       homeworks: homeworks,
       exams: exams,
+      videos: videos,
     })
   } catch (err: any) {
     console.error('Parent results error:', err)

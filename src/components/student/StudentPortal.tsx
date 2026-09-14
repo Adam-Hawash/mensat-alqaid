@@ -48,7 +48,7 @@ function shuffleArray(arr: any[], rng: () => number) {
 function cleanQuestionText(text: string) {
   var cleaned = text
   // Remove leading Arabic ordinals: السؤال الأول, etc
-  var ordinals = ['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس', 'السابع', 'الثامن', 'التاسع', 'العاشر', 'الحاديعر', 'الثانيعر']
+  var ordinals = ['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس', 'السابع', 'الثامن', 'التاسع', 'العاشر', 'الحادي عشر', 'الثاني عشر']
   for (var oi = 0; oi < ordinals.length; oi++) {
     cleaned = cleaned.replace(new RegExp('^[\s]*(?:[السؤال]|[سؤال])?\s*' + ordinals[oi] + '[:\s.\)-]*', ''), '')
   }
@@ -1438,7 +1438,7 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                         </div>
                       )}
                       {!writingAns && (
-                        <p className="text-xs text-muted-foreground">إجابتك: (فارغة — ما الإجبتش)</p>
+                        <p className="text-xs text-muted-foreground">إجابتك: (فارغة — ما جاوبتش)</p>
                       )}
                     </CardContent>
                   </Card>

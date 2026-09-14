@@ -55,6 +55,9 @@ type QStat = {
   options: string[]
   correctText: string
   keyless: boolean
+  /* (2026-و39) كل الطلاب اللي حلّوا غلطوا فيه — طلب المستر: دي مش مشكلة طلاب
+     دي غالبًا مشكلة في السؤال نفسه أو في التصحيح فتتخفى من التحليل */
+  allWrong: boolean
   attempts: number
   wrong: number
   wrongStudents: { name: string; phone: string; answerText: string }[]
@@ -151,6 +154,7 @@ export async function GET(request: NextRequest) {
               ? String(q.modelAnswer || q.answer || '').slice(0, 200)
               : (keyless ? '' : String.fromCharCode(65 + correctIdx) + ') ' + String(opts[correctIdx] || '')),
             keyless: keyless,
+            allWrong: false,
             attempts: 0,
             wrong: 0,
             wrongStudents: [],
@@ -208,9 +212,16 @@ export async function GET(request: NextRequest) {
       }
 
       var qlist: QStat[] = Object.keys(stats).map(function (k) { return stats[Number(k)] })
-      /* الترتيب: أكتر سؤال غلط فوق — والأسئلة من غير مفتاح (غلظتهم مش ذنب الطلاب) تحت */
+      /* (2026-و39) سؤال غلط فيه كل الطلاب = غالبًا المشكلة في السؤال نفسه أو في التصحيح */
+      for (var awi = 0; awi < qlist.length; awi++) {
+        var awq = qlist[awi]
+        awq.allWrong = awq.attempts > 0 && awq.wrong === awq.attempts
+      }
+      /* الترتيب: المفاتيح الناقصة تحت، وبعدها أسئلة كل-الطلاب-غلط تحت،
+         وبعدها أكتر سؤال غلط (بالعدد) فوق — طلب المستر و39 */
       qlist.sort(function (a, b) {
         if (a.keyless !== b.keyless) return a.keyless ? 1 : -1
+        if (a.allWrong !== b.allWrong) return a.allWrong ? 1 : -1
         if (b.wrong !== a.wrong) return b.wrong - a.wrong
         return a.idx - b.idx
       })
@@ -252,6 +263,7 @@ export async function GET(request: NextRequest) {
               ? String(q.modelAnswer || q.answer || '').slice(0, 200)
               : (keyless ? '' : String.fromCharCode(65 + correctIdx) + ') ' + String(opts[correctIdx] || '')),
             keyless: keyless,
+            allWrong: false,
             attempts: 0,
             wrong: 0,
             wrongStudents: [],
@@ -306,8 +318,14 @@ export async function GET(request: NextRequest) {
       }
 
       var qlist2: QStat[] = Object.keys(stats2).map(function (k) { return stats2[Number(k)] })
+      /* (2026-و39) نفس حساب كل-الطلاب-غلط والترتيب بتاع الامتحان — الواجب */
+      for (var awi2 = 0; awi2 < qlist2.length; awi2++) {
+        var awq2 = qlist2[awi2]
+        awq2.allWrong = awq2.attempts > 0 && awq2.wrong === awq2.attempts
+      }
       qlist2.sort(function (a, b) {
         if (a.keyless !== b.keyless) return a.keyless ? 1 : -1
+        if (a.allWrong !== b.allWrong) return a.allWrong ? 1 : -1
         if (b.wrong !== a.wrong) return b.wrong - a.wrong
         return a.idx - b.idx
       })

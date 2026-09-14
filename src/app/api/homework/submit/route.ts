@@ -461,7 +461,8 @@ export async function POST(request) {
            (مرادف finalAnswerCandidates هنا: آخر جزء بعد آخر = أو :) */
         var fcParts = String(answerText || '').split(/[=:]/)
         var fc = (fcParts[fcParts.length - 1] || '').trim() || answerText.trim().slice(0, 40)
-        var quickFb = 'برافو عليك ✓ إجابتك صح — الإجابة النهائية (' + String(fc).trim().slice(0, 40) + ') مطابقة للصحيحة'
+        /* (2026-و39) «مطابقة للصحيحة» كانت ناقصة كلمة «الإجابة» — اتصححت */
+        var quickFb = 'برافو عليك ✓ إجابتك صح — الإجابة النهائية (' + String(fc).trim().slice(0, 40) + ') مطابقة للإجابة الصحيحة'
         return Object.assign({}, wa, {
           gradingStatus: 'graded',
           needsGrading: false,

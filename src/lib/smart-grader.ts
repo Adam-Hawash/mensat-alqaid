@@ -141,6 +141,14 @@ function buildAiPrompt(needAI: WritingAnswer[]): string {
   lines.push('- Re-read the student final answer TWICE before deciding. Read every digit/word carefully. Never confuse digits — if the final value or key facts you read equal the model answer, it is CORRECT, full stop.')
   lines.push('- Assume the student MEANT the closest valid interpretation of what they wrote, unless it is clearly a different answer.')
   lines.push('')
+  /* (2026-و39) طلب المستر: التصحيح يفهم الإجابة «كأنها شات» — في الواجب والامتحان:
+     إجابات قصيرة عامية ناقصة من غير رموز («يعني 1952»، «الناتج ٢»…) بتتحكم بالمعنى
+     والقيمة النهائية مش بالصياغة ولا بالفورمات */
+  lines.push('CHAT-LIKE ANSWER UNDERSTANDING (2026-و39 — mandatory):')
+  lines.push('- The student answer may be written like a CHAT MESSAGE: short, colloquial, incomplete, no formal notation ("يعني 1952", "الناتج ٢", "هو 8 صح", "الإجابة الرابعة"). Judge the MEANING and the final VALUE, never the wording or format.')
+  lines.push('- If the wording differs from the model answer but the value/meaning is the same → CORRECT with full points. Colloquial fillers (يعني/بص/تقريبا), missing punctuation, spelling noise or casual phrasing NEVER make a correct value wrong.')
+  lines.push('- If a phrase is ambiguous, pick the most plausible reading that matches the model answer before deciding wrong. Only mark wrong when the value/meaning is truly different.')
+  lines.push('')
   lines.push('FEEDBACK STYLE (2026-و24-c + 2026-و30 — the teacher wants a PERSONAL note on EVERY question, like a teacher sitting with the student):')
   lines.push('- LANGUAGE IS MANDATORY: عامية مصرية بسيطة (Egyptian COLLOQUIAL Arabic) — ممنوع منعاً باتاً الفصحى. لا «حدث/ثم/قمت ب/خطأ في» — استخدم «بص، خلي بالك، اللي حصل إن، طبّق تاني، برافو، مش، ده/دي، عشان». Talk DIRECTLY to the student (استخدم «إنت») — 2-3 short sentences.')
   lines.push('- CORRECT: praise + say exactly WHAT the student did right (the key facts/points he covered and how). Example: «برافو عليك! غطيت أسباب الحدث الأساسية كلها بالترتيب وده اللي خلّى إجابتك صح — كمل كده.»')
