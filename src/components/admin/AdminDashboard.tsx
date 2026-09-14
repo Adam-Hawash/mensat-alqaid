@@ -19,7 +19,7 @@ import {
   BarChart3, RefreshCw, Settings, Upload, MessageSquare,
   Link2, Activity, Eye, ImagePlus, Trophy, UserX, Camera,
   PlayCircle, Pause, Film, Search, FileDown, PictureInPicture2, Save, Sparkles, Wallet,
-  Smartphone, RotateCcw, ShieldCheck, Monitor, Tablet, Flag, GraduationCap, CalendarClock, UsersRound
+  Smartphone, RotateCcw, ShieldCheck, Monitor, Tablet, Flag, GraduationCap, CalendarClock, UsersRound, PieChart
 } from 'lucide-react'
 import { AdminComplaints } from './AdminComplaints'
 import { CMSPanel } from './CMSPanel'
@@ -27,6 +27,7 @@ import { VideoProtectionSettings } from './VideoProtectionSettings'
 import { SocialLinksPanel } from './SocialLinksPanel'
 /* (2026-و29) نظام المجموعات — تاب + منتقيات الاستهداف للمجموعات + جدولة فيديو للمجموعات */
 import { GroupsManager } from './GroupsManager'
+import { AdminItemAnalytics } from './AdminItemAnalytics'
 import { GroupTargetPicker } from './GroupTargetPicker'
 import { VideoGroupScheduleDialog } from './VideoGroupScheduleDialog'
 import { CommunityPanel } from './CommunityPanel'
@@ -346,6 +347,8 @@ export function AdminDashboard() {
             <TabsTrigger value="videos" className="text-xs sm:text-sm gap-1"><Video className="h-4 w-4" /><span className="hidden sm:inline">الفيديوهات</span></TabsTrigger>
             <TabsTrigger value="homework" className="text-xs sm:text-sm gap-1"><ClipboardList className="h-4 w-4" /><span className="hidden sm:inline">الواجبات</span></TabsTrigger>
             <TabsTrigger value="exams" className="text-xs sm:text-sm gap-1"><FileText className="h-4 w-4" /><span className="hidden sm:inline">الامتحانات</span></TabsTrigger>
+            {/* (2026-و38) تحليلات الأسئلة — أكتر سؤال الطلاب غلطت فيه + أساميهم — طلب المستر */}
+            <TabsTrigger value="item-analytics" className="text-xs sm:text-sm gap-1 text-violet-600 dark:text-violet-400"><PieChart className="h-4 w-4" /><span className="hidden sm:inline">تحليلات الأسئلة</span></TabsTrigger>
             <TabsTrigger value="announcements" className="text-xs sm:text-sm gap-1"><Megaphone className="h-4 w-4" /><span className="hidden sm:inline">الإعلانات</span></TabsTrigger>
             <TabsTrigger value="community" className="text-xs sm:text-sm gap-1"><MessageSquare className="h-4 w-4" /><span className="hidden sm:inline">المجتمعات</span></TabsTrigger>
             <TabsTrigger value="activity" className="text-xs sm:text-sm gap-1"><Activity className="h-4 w-4" /><span className="hidden sm:inline">المتابعة</span></TabsTrigger>
@@ -370,6 +373,7 @@ export function AdminDashboard() {
               supportFileUpload fileCategory="homework" acceptedTypes=".pdf,.doc,.docx,image/*" supportAnswerKey supportThumbnail supportMCQ onRefresh={fetchStats} />
           </TabsContent>
           <TabsContent value="exams"><ExamTrackingPanel /></TabsContent>
+          <TabsContent value="item-analytics"><AdminItemAnalytics /></TabsContent>
           <TabsContent value="announcements">
             <ContentManager<Announcement> title="إدارة الإعلانات" apiPath="/api/announcements" itemName="announcements"
               fields={{ title: { label: 'العنوان', type: 'text' }, content: { label: 'المحتوى', type: 'textarea' } }}

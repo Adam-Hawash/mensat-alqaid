@@ -39,6 +39,8 @@ export var SCHEMA_TABLES = [
 
 
 var SCHEMA_COLUMNS = [
+  /* (2026-و38) ميعاد المجموعة — طلب المستر: كل مجموعة لازم ليها وقت */
+  ['StudentGroup', 'meetingTime', 'TEXT', "DEFAULT ''"],
   ['Student', 'password', 'TEXT', "NOT NULL DEFAULT ''"],
   ['Student', 'isPaidAccess', 'INTEGER', 'NOT NULL DEFAULT 0'],
   ['Student', 'parentName', 'TEXT', "NOT NULL DEFAULT ''"],
@@ -153,17 +155,22 @@ export var SCHEMA_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_parent_student ON Parent(studentId)',
 ]
 
-export var CORE_TABLES = ['Admin', 'Student', 'StudentActivity', 'Video', 'Homework', 'Exam', 'ExamResult', 'Announcement', 'Discussion', 'SiteConfig', 'Media', 'VideoProgress', 'GalleryImage', 'Payment', 'VideoAccess', 'Complaint']
+export var CORE_TABLES = ['Admin', 'Student', 'StudentActivity', 'Video', 'Homework', 'Exam', 'ExamResult', 'Announcement', 'Discussion', 'SiteConfig', 'Media', 'VideoProgress', 'GalleryImage', 'Payment', 'VideoAccess', 'Complaint', 'Parent']
 
 /* Returns { missing: string[], repaired: boolean, results: any[] } */
+
+/* (2026-و38) مفتاح البصمة اتبدل — البصمة القديمة كانت اتخزنت على الإنتاج
+ * بعد ما كود و37 نزل (والجدول وقتها مش معمول لسه في CORE_TABLES فالترميم
+ * اتخطى!) — وده كان سبب «حساب ولي أمر — حصلت مشكلة في إنشاء الحساب»:
+ * جدول Parent مش موجود على Turso. بتغيير المفتاح أول ريكوست بعد النشر
+ * بيعمل الفحص الكامل وينشئ أي جدول ناقص (Parent فوق كلهم). */
+var SCHEMA_HASH_KEY = 'schema_heal_hash_v2_w38'
 /* ============================================================
  * 2026-و23 — **إصلاح بطء المنصة**: كل إقلاع سيرفر كان بيشغّل ~70
  * استعلام متسلسل على Turso (ALTERs فاشلة + UPDATEs) — بقى فحص بصمة
  * واحدة، ولو البنية اتغيرت الترميم بيشغّل لوحده.
  * ============================================================ */
 import { createHash } from 'crypto'
-
-var SCHEMA_HASH_KEY = 'schema_heal_hash'
 
 /* ============================================================
  * 2026-و30 — تسريع أول دخول (طلب المستر: «لما يجي يدخل الطفل الأولاني

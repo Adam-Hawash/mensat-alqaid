@@ -121,6 +121,21 @@ export function StudentPortal() {
   const [showFullPortal, setShowFullPortal] = useState(false)
   /* الواجبات اللي الطالب سلّمها — عشان قايمة "اللي ناقصك" ميعرضهالوش تاني (طلب المستر) */
   const [completedHwIds, setCompletedHwIds] = useState<Set<string>>(new Set())
+  /* (2026-و38) الرجوع التلقائي لشاشة الحل بعد أي reload — تكملة علاج
+     «الورقة بتترفع والتات بيتقفل»: الجلسة بترجع (و37) + الإجابات محفوظة
+     في مسودة (و37) + دلوقتي التاب نفسه بيرجع لشاشة الحل اللي الطالب كان فيها
+     (الماركر في sessionStorage — بيفضل مع التاب لو حتى اتخفي ورجع)
+     تكييف القائد: البورتال الكامل (showFullPortal) بيتفتح هنا — وactiveTab
+     بيتظبط جوه FullPortalContent (مالك حالة التاب في بنية القائد) بنفس الماركر */
+  useEffect(function() {
+    try {
+      var rawM = sessionStorage.getItem('mg_active_solve')
+      if (!rawM) return
+      var mM = JSON.parse(rawM)
+      if (mM && (mM.kind === 'hw' || mM.kind === 'exam') && mM.id) setShowFullPortal(true)
+    } catch (eM) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const grade = currentStudent?.grade || ''
   const studentId = currentStudent?.id || ''
@@ -376,6 +391,20 @@ function FullPortalContent({ initialData, onBack }: { initialData: PortalData; o
   const grade = currentStudent?.grade || ''
   const studentId = currentStudent?.id || ''
   const [activeTab, setActiveTab] = useState('videos')
+  /* (2026-و38) الجزء التاني من الرجوع التلقائي: تاب البورتال الكامل بيرجع
+     لوحده لشاشة الحل (homework/exams) — نفس ماركر mg_active_solve بتاع جينيوس.
+     تكييف القائد: جينيوس عنده المستويين في ملف واحد فالإفكت واحد — هنا
+     showFullPortal في StudentPortal وactiveTab هنا فالإفكت مقسوم بنفس الماركر */
+  useEffect(function() {
+    try {
+      var rawM = sessionStorage.getItem('mg_active_solve')
+      if (!rawM) return
+      var mM = JSON.parse(rawM)
+      if (mM && mM.kind === 'hw' && mM.id) setActiveTab('homework')
+      else if (mM && mM.kind === 'exam' && mM.id) setActiveTab('exams')
+    } catch (eM) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="flex-1 py-6 px-4 sm:px-6">
@@ -876,6 +905,57 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
   var clearHwDraft = function (hwId: string) {
     try { localStorage.removeItem(hwDraftKey(hwId)) } catch (e) {}
   }
+  /* ===== (2026-و38) تتبع شاشة حل الواجب النشطة + الرجوع التلقائي ليها =====
+     الطالب كان بيخرج من شاشة الحل نفسها بعد الـ reload (بيرجع لقايمة
+     الواجبات يدور على الواجب بنفسه) — دلوقتي بيرجع للشاشة والإجابات
+     أوتوماتيك من غير ما يلمس حاجة. المسح بس عند الخروج العمدي. */
+  var hwMarkerInit = useRef(false)
+  useEffect(function () {
+    if (!hwMarkerInit.current) { hwMarkerInit.current = true; return }
+    try {
+      if (expandedHw) {
+        sessionStorage.setItem('mg_active_solve', JSON.stringify({ kind: 'hw', id: expandedHw, savedAt: Date.now() }))
+      } else {
+        var rawW = sessionStorage.getItem('mg_active_solve')
+        if (rawW) { var mW = JSON.parse(rawW); if (mW && mW.kind === 'hw') sessionStorage.removeItem('mg_active_solve') }
+      }
+    } catch (e) {}
+  }, [expandedHw])
+  var hwAutoRestoreDone = useRef(false)
+  useEffect(function () {
+    if (hwAutoRestoreDone.current) return
+    if (!homework.length) return
+    hwAutoRestoreDone.current = true
+    try {
+      var rawA = sessionStorage.getItem('mg_active_solve')
+      if (!rawA) return
+      var mA = JSON.parse(rawA)
+      if (!mA || mA.kind !== 'hw' || !mA.id) return
+      var hwA: any = null
+      for (var iA = 0; iA < homework.length; iA++) { if (homework[iA].id === mA.id) { hwA = homework[iA]; break } }
+      /* (تكييف القائد) جينيوس بيفحص completedHwIds (prop جاهزة) — القائد عنده
+         نتايج الواجبات محمّلة جوه التاب نفسه في hwResults */
+      if (!hwA || hwResults[hwA.id]) return
+      var dA: any = null
+      try { var rA = localStorage.getItem(hwDraftKey(hwA.id)); if (rA) dA = JSON.parse(rA) } catch (eA) {}
+      if (dA && dA.answers && Object.keys(dA.answers).length > 0) {
+        /* استرجاع القائد — نفس منطق زرار «كمّل من حيث وقفت» (و37) بالظبط بس أوتوماتيك:
+           أسئلة العرض المخلطة المحفوظة في المسودة (d.questions بـ _origIdx/_optMap)
+           بتترجع لحالة أسئلة العرض والإجابات بمفاتيح العرض نفسها */
+        var baseQsA: any[] = []
+        try { var parsedA = JSON.parse((hwA as any).questions || '[]'); if (Array.isArray(parsedA)) baseQsA = parsedA } catch (eQ) {}
+        var shA = Array.isArray(dA.questions) && dA.questions.length > 0 ? dA.questions : shuffleQuestionsForStudent(baseQsA, studentId, hwA.id)
+        setShuffledHwQ(function (prev) { return { ...prev, [hwA.id]: shA } })
+        setHwAnswers(function (prev) { return { ...prev, [hwA.id]: dA.answers || {} } })
+        setExpandedHw(hwA.id)
+        toast.success('رجّعناك لشاشة الحل وإجاباتك كلها معاك — كمّل من نفس النقطة')
+      } else {
+        /* مفيش مسودة (كان فاتح الواجب وماجاوبش) — فتح عادي بنفس مسار زرار القايمة */
+        handleExpandHw(hwA.id)
+      }
+    } catch (e) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [homework, hwResults])
   // الحفظ الفوري مع كل تعديل إجابة (بيشيل المسودة لو الواجب اتسلم)
   useEffect(function () {
     try {
@@ -1611,6 +1691,49 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
     } catch (e) {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [takingExam, answers, examQuestions])
+
+  /* ===== (2026-و38) تتبع شاشة حل الامتحان النشطة + الرجوع التلقائي ليها =====
+   * أهم حالة: الطالب كان داخل امتحان والعداد بيعدّي — الـ reload كان يرجعه
+   * لقايمة الامتحانات والعداد بيفضل بيعدّي من بره. دلوقتي بيرجع لشاشة
+   * الامتحان أوتوماتيك بنفس الأسئلة والإجابات والعداد من نفس النقطة.
+   * (تكييف القائد) جينيوس بيمنع الاسترجاع في handleStartExam نفسها بفحص
+   * السيرفر — هنا الفحص من نتايج الامتحانات الجاهزة (results prop) زي
+   * شرط زرار «كمّل من حيث وقفت» المحلي بالظبط */
+  var examMarkerInit = useRef(false)
+  useEffect(function () {
+    if (!examMarkerInit.current) { examMarkerInit.current = true; return }
+    try {
+      if (takingExam) {
+        sessionStorage.setItem('mg_active_solve', JSON.stringify({ kind: 'exam', id: takingExam, savedAt: Date.now() }))
+      } else {
+        var rawE = sessionStorage.getItem('mg_active_solve')
+        if (rawE) { var mE = JSON.parse(rawE); if (mE && mE.kind === 'exam') sessionStorage.removeItem('mg_active_solve') }
+      }
+    } catch (e) {}
+  }, [takingExam])
+  var examAutoRestoreDone = useRef(false)
+  useEffect(function () {
+    if (examAutoRestoreDone.current) return
+    if (!exams.length) return
+    examAutoRestoreDone.current = true
+    try {
+      var rawX = sessionStorage.getItem('mg_active_solve')
+      if (!rawX) return
+      var mX = JSON.parse(rawX)
+      if (!mX || mX.kind !== 'exam' || !mX.id) return
+      var exX: any = null
+      for (var iX = 0; iX < exams.length; iX++) { if (exams[iX].id === mX.id) { exX = exams[iX]; break } }
+      if (!exX) return
+      var exResX: any = null
+      for (var rX2 = 0; rX2 < results.length; rX2++) { if (results[rX2].examId === exX.id) { exResX = results[rX2]; break } }
+      if (exResX || submittedExamIds.has(exX.id)) return
+      if (takingExam || submittedMsg) return
+      var drX: any = null
+      try { var rX = localStorage.getItem(examDraftKey(exX.id)); if (rX) drX = JSON.parse(rX) } catch (eX) {}
+      handleStartExam(exX, [], drX || undefined)
+    } catch (e) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exams, results])
 
   /* ===== (2026-و33) نفس الملاحظات في كارت نتيجة الامتحان (مراجعة الاختياري) =====
      بتتجمع من mcqResults لما «إظهار الإجابات» مفعّل — نداء واحد مجمّع للغلطات
