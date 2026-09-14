@@ -9,6 +9,27 @@ export type AppView =
   | 'admin-login'
   | 'admin-dashboard'
   | 'student-payment'
+  | 'parent-login'
+  | 'parent-register'
+  | 'parent-portal'
+
+/* (2026-و37) حساب ولي الأمر — جلسة مستقلة عن الطالب (mg_parent في localStorage)
+   الوالد بيتربط بحساب ابنه بـ studentId وبيشوف متابعة نتايجه من غير ما يسجل دخول بجهاز ابنه */
+export interface ParentStudentInfo {
+  id: string
+  name: string
+  grade: string
+  status: string
+  isPaidAccess?: boolean
+}
+
+export interface ParentInfo {
+  id: string
+  name: string
+  phone: string
+  studentId: string
+  student?: ParentStudentInfo | null
+}
 
 export interface Student {
   id: string
@@ -221,6 +242,8 @@ interface AppState {
 
   currentStudent: Student | null
   setCurrentStudent: (student: Student | null) => void
+  currentParent: ParentInfo | null
+  setCurrentParent: (parent: ParentInfo | null) => void
   currentAdmin: Admin | null
   setCurrentAdmin: (admin: Admin | null) => void
   isAdminLoggedIn: boolean
@@ -278,6 +301,18 @@ export const useAppStore = create<AppState>((set) => ({
   },
   currentAdmin: null,
   setCurrentAdmin: (admin) => set({ currentAdmin: admin }),
+  currentParent: null,
+  // (2026-و37) جلسة ولي الأمر زي جلسة الطالب بالظبط: localStorage حتى ترجع
+  // بعد الـ reload من غير تسجيل دخول من الأول (نفس علاج مشكلة الخروج)
+  setCurrentParent: (parent) => {
+    try {
+      if (typeof window !== 'undefined') {
+        if (parent) localStorage.setItem('mg_parent', JSON.stringify(parent))
+        else localStorage.removeItem('mg_parent')
+      }
+    } catch (e) {}
+    set({ currentParent: parent })
+  },
   isAdminLoggedIn: false,
   setAdminLoggedIn: (v) => set({ isAdminLoggedIn: v }),
 
@@ -318,6 +353,7 @@ export const useAppStore = create<AppState>((set) => ({
   logout: () =>
     set({
       currentStudent: null,
+      currentParent: null,
       currentAdmin: null,
       isAdminLoggedIn: false,
       currentView: 'landing',

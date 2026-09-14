@@ -851,6 +851,68 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
   var [hwMcqNotes, setHwMcqNotes] = useState<Record<string, string>>({})
   var [hwMcqNotesLoading, setHwMcqNotesLoading] = useState(false)
 
+  /* ===== (2026-و37) مسودة الواجب المحفوظة تلقائيًا — زي الامتحان بالظبط:
+     أي reload أثناء كتابة الحل ما يضيعش إجابات الطالب =====
+     تكييف القائد: ترتيب الأسئلة المخلط محفوظ جوه المسودة نفسها (d.questions)
+     — الخلط أصلًا deterministic لكل طالب (seed = studentId+itemId) فالاسترجاع
+     بيرجّع نفس الأسئلة بنفس الترتيب، والإجابات بمفاتيح العرض نفسها */
+  var [hwDrafts, setHwDrafts] = useState<Record<string, any>>({})
+  var hwDraftKey = function (hwId: string) { return 'mg_hw_draft_' + hwId + '_' + studentId }
+  var refreshHwDrafts = function () {
+    var map: Record<string, any> = {}
+    try {
+      homework.forEach(function (hw) {
+        if (hwResults[hw.id]) return
+        var raw = localStorage.getItem(hwDraftKey(hw.id))
+        if (raw) {
+          var d = JSON.parse(raw)
+          if (d && d.answers && Object.keys(d.answers).length > 0) map[hw.id] = d
+        }
+      })
+    } catch (e) {}
+    setHwDrafts(map)
+  }
+  useEffect(function () { refreshHwDrafts() }, [homework, hwResults, expandedHw, submittedHwId])
+  var clearHwDraft = function (hwId: string) {
+    try { localStorage.removeItem(hwDraftKey(hwId)) } catch (e) {}
+  }
+  // الحفظ الفوري مع كل تعديل إجابة (بيشيل المسودة لو الواجب اتسلم)
+  useEffect(function () {
+    try {
+      Object.keys(hwAnswers).forEach(function (hwId) {
+        var a = hwAnswers[hwId]
+        if (!a || Object.keys(a).length === 0) return
+        if (hwResults[hwId]) {
+          try { localStorage.removeItem(hwDraftKey(hwId)) } catch (e) {}
+          return
+        }
+        localStorage.setItem(hwDraftKey(hwId), JSON.stringify({
+          answers: a,
+          questions: shuffledHwQ[hwId] || [],
+          savedAt: Date.now(),
+        }))
+      })
+    } catch (e) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hwAnswers, hwResults, shuffledHwQ])
+  // استرجاع المسودة: نفس ترتيب الأسئلة (الخلط المحفوظ) + نفس الإجابات
+  var restoreHwDraft = function (hw: any) {
+    var d = hwDrafts[hw.id]
+    if (!d) return
+    var baseQs: any[] = []
+    try {
+      var parsed = JSON.parse((hw as any).questions || '[]')
+      if (Array.isArray(parsed)) baseQs = parsed
+    } catch (e) {}
+    var shuffled = Array.isArray(d.questions) && d.questions.length > 0
+      ? d.questions
+      : shuffleQuestionsForStudent(baseQs, studentId, hw.id)
+    setShuffledHwQ(function (prev) { return { ...prev, [hw.id]: shuffled } })
+    setHwAnswers(function (prev) { return { ...prev, [hw.id]: d.answers || {} } })
+    setExpandedHw(hw.id)
+    toast.success('رجّعنا إجاباتك المحفوظة — كمّل من نفس النقطة')
+  }
+
   /* ===== (2026-و33) ملاحظات المصحح الذكي لأسئلة الاختيارات الغلط — الواجب =====
      لما شاشة المراجعة تفتح والأسئلة الغلط موجودة: نداء واحد مجمّع بيجيب
      ملاحظة لكل سؤال (والكاش في الداتابيز بيمنع تكرار النداء)
@@ -1047,8 +1109,7 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
             setHwWritingAnswers(function(prev) { return { ...prev, [hwId]: data.result.writingAnswers } })
           }
         }
-        setSubmittedHwId(hwId)
-        setExpandedHw(null)
+        markHwSubmittedAndClearDraft(hwId)
       } else {
         toast.error(data.error || 'حصل خطأ في التسليم')
       }
@@ -1056,6 +1117,13 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
       toast.error('خطأ في الاتصال')
     }
     setHwSubmitting(null)
+  }
+
+  /* (2026-و37) المسودة خلصت مهمتها بعد التسليم — تنظيف آمن بعد نجاح التسليم */
+  var markHwSubmittedAndClearDraft = function (hwId: string) {
+    clearHwDraft(hwId)
+    setSubmittedHwId(hwId)
+    setExpandedHw(null)
   }
 
   // BLOCK SCREEN — homework already submitted: show score (+ wrong answers if in this session)
@@ -1399,6 +1467,15 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                 {hasQuestions && <ChevronLeft className={"h-4 w-4 text-muted-foreground transition-transform shrink-0 mt-1 " + (isExpanded ? 'rotate-90' : '')} />}
               </div>
 
+              {/* (2026-و37) استكمال واجب من مسودة محفوظة بعد reload */}
+              {!isExpanded && hasQuestions && !isSubmitted && hwDrafts[hw.id] && (
+                <div className="mt-2">
+                  <Button size="sm" variant="outline" className="h-8 border-primary/40 text-primary" title={hwDrafts[hw.id].savedAt ? 'آخر حفظ تلقائي: ' + new Date(hwDrafts[hw.id].savedAt).toLocaleString('ar-EG') : ''} onClick={function () { restoreHwDraft(hw) }}>
+                    كمّل من حيث وقفت
+                  </Button>
+                </div>
+              )}
+
               {isExpanded && hasQuestions && shQ.length > 0 && (
                 <div className="mt-4 pt-4 border-t space-y-4" onClick={function(e) { e.stopPropagation() }}>
                   {shQ.map(function(q: any, qi: number) {
@@ -1487,6 +1564,53 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
   /* (2026-و33) ملاحظات المصحح الذكي لأسئلة الاختيارات (الشوز) الغلط — الامتحانات */
   var [examMcqNotes, setExamMcqNotes] = useState<Record<string, string>>({})
   var [examMcqNotesLoading, setExamMcqNotesLoading] = useState(false)
+
+  /* ===== (2026-و37) مسودة الامتحان المحفوظة تلقائيًا =====
+     شكوى المستر: «لما الطالب بيرفع ورقة الحل بيتخرج من الصفحة ويحل من الأول».
+     السبب: الموبايل بيرمي التاب من الميموري أثناء الحل الطويل → reload →
+     الإجابات كانت في الميموري بس بتضيع. الحل:
+     - كل تعديل إجابة بيتحفظ فورًا في localStorage (بنفس ترتيب الأسئلة)
+     - بعد أي reload زرار «كمّل من حيث وقفت» بيرجّع نفس الأسئلة بنفس الترتيب
+       وبنفس الإجابات — والعداد بيكمل من نفس النقطة (مفتاح وقت البدء زي ما هو)
+     - عند التسليم الناجح المسودة بتتمسح
+     تكييف القائد: مفيش writingAnswers منفصلة هنا (الإجابات المقالية نصوص جوه
+     answers نفسها) — وأسئلة العرض المخلطة (بـ _origIdx/_optMap) بتتحفظ في
+     d.questions فبتؤدي دور questions+shuffleMap بتوع جينيوس */
+  var [examDrafts, setExamDrafts] = useState<Record<string, any>>({})
+  var examDraftKey = function (examId: string) { return 'mg_exam_draft_' + examId + '_' + studentId }
+  var refreshExamDrafts = function () {
+    var map: Record<string, any> = {}
+    try {
+      exams.forEach(function (ex) {
+        var exResult: any = null
+        for (var ri = 0; ri < results.length; ri++) { if (results[ri].examId === ex.id) { exResult = results[ri]; break } }
+        if (exResult || submittedExamIds.has(ex.id)) return
+        var raw = localStorage.getItem(examDraftKey(ex.id))
+        if (raw) {
+          var d = JSON.parse(raw)
+          var hasAny = d && d.answers && Object.keys(d.answers).length > 0
+          if (d && Array.isArray(d.questions) && d.questions.length > 0 && hasAny) map[ex.id] = d
+        }
+      })
+    } catch (e) {}
+    setExamDrafts(map)
+  }
+  useEffect(function () { refreshExamDrafts() }, [exams, results, takingExam, submittedMsg, submittedExamIds])
+  var clearExamDraft = function (examId: string) {
+    try { localStorage.removeItem(examDraftKey(examId)) } catch (e) {}
+  }
+  // الحفظ الفوري أثناء الحل (أسئلة + إجابات مع بعض — الحجم كيلوبايتات بس)
+  useEffect(function () {
+    if (!takingExam || submittedMsg) return
+    try {
+      localStorage.setItem(examDraftKey(takingExam), JSON.stringify({
+        answers: answers,
+        questions: examQuestions,
+        savedAt: Date.now(),
+      }))
+    } catch (e) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [takingExam, answers, examQuestions])
 
   /* ===== (2026-و33) نفس الملاحظات في كارت نتيجة الامتحان (مراجعة الاختياري) =====
      بتتجمع من mcqResults لما «إظهار الإجابات» مفعّل — نداء واحد مجمّع للغلطات
@@ -1577,6 +1701,8 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
     .then(function(data) {
       clearTimeout(submitTimeout)
       try { localStorage.removeItem('mg_exam_start_' + examIdAtSubmit + '_' + studentId) } catch (e) {}
+      /* (2026-و37) المسودة خلصت مهمتها بعد التسليم */
+      clearExamDraft(examIdAtSubmit)
       if (data && typeof data.score === 'number') {
         setLastResult(Object.assign({ examId: examIdAtSubmit }, data))
       }
@@ -1586,10 +1712,31 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
     .catch(function() {
       clearTimeout(submitTimeout)
       try { localStorage.removeItem('mg_exam_start_' + examIdAtSubmit + '_' + studentId) } catch (e) {}
+      /* (2026-و37) المسودة خلصت مهمتها بعد التسليم */
+      clearExamDraft(examIdAtSubmit)
       setSubmittedExamIds(function(prev) { var s = new Set(prev); if (examIdAtSubmit) s.add(examIdAtSubmit); return s })
       setSubmittedMsg(isAuto ? 'انتهى وقت الامتحان — تم تسليم إجاباتك' : 'تم تقديم هذا الامتحان')
     })
     .finally(function() { setSubmitting(false); submitInFlightRef.current = false })
+  }
+
+  /* ===== (2026-و37) بداية/استكمال الامتحان — نفس منطق الزرار الأصلي
+     + استرجاع المسودة (نفس الأسئلة بنفس الترتيب وبنفس الإجابات) ===== */
+  var handleStartExam = function (exam: any, parsedQuestions: any[], draft?: any) {
+    try {
+      if (draft && Array.isArray(draft.questions) && draft.questions.length > 0) {
+        /* استرجاع مسودة الحل — العداد بيكمل من نفس النقطة لأن مفتاح وقت
+           البدء بيتقري من localStorage زي ما هو (مش بيتصفر) */
+        setExamQuestions(draft.questions)
+        setAnswers(draft.answers && typeof draft.answers === 'object' ? draft.answers : {})
+      } else {
+        var shuffled = shuffleQuestionsForStudent(parsedQuestions, studentId, exam.id)
+        setExamQuestions(shuffled)
+        setAnswers({})
+      }
+      setTakingExam(exam.id)
+      setLockedOut(false)
+    } catch { toast.error('خطأ في تحميل الأسئلة') }
   }
 
   /* (و25 نقل 25-b2) العداد التنازلي — يبدأ من أول فتح وبيكمل بعد أي refresh */
@@ -1883,16 +2030,20 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
                         )}
                       </div>
                     ) : hasMCQ ? (
-                      <Button size="sm" onClick={function() {
-                        try {
-                          var parsed = JSON.parse((exam as any).questions)
-                          var shuffled = shuffleQuestionsForStudent(parsed, studentId, exam.id)
-                          setExamQuestions(shuffled)
-                          setTakingExam(exam.id)
-                          setAnswers({})
-                          setLockedOut(false)
-                        } catch { toast.error('خطأ في تحميل الأسئلة') }
-                      }}>ابدأ الامتحان</Button>
+                      <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                        <Button size="sm" onClick={function() {
+                          try {
+                            var parsed = JSON.parse((exam as any).questions)
+                            handleStartExam(exam, parsed)
+                          } catch { toast.error('خطأ في تحميل الأسئلة') }
+                        }}>ابدأ الامتحان</Button>
+                        {/* (2026-و37) استكمال من مسودة محفوظة بعد reload — نفس الأسئلة بنفس الترتيب وبنفس الإجابات */}
+                        {examDrafts[exam.id] && (
+                          <Button size="sm" variant="outline" className="border-primary/40 text-primary" title={examDrafts[exam.id].savedAt ? 'آخر حفظ تلقائي: ' + new Date(examDrafts[exam.id].savedAt).toLocaleString('ar-EG') : ''} onClick={function() { handleStartExam(exam, [], examDrafts[exam.id]) }}>
+                            كمّل من حيث وقفت
+                          </Button>
+                        )}
+                      </div>
                     ) : (
                       <Badge variant="secondary" className="text-xs">لم يتم بعد</Badge>
                     )}

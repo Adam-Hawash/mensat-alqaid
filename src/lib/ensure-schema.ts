@@ -33,6 +33,8 @@ export var SCHEMA_TABLES = [
   // (2026-و29) نظام المجموعات — مجموعات الطلاب + جدولة الفيديوهات للمجموعات
   'CREATE TABLE IF NOT EXISTS StudentGroup (id TEXT PRIMARY KEY, name TEXT NOT NULL, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
   'CREATE TABLE IF NOT EXISTS VideoGroupSchedule (id TEXT PRIMARY KEY, videoId TEXT NOT NULL, groupId TEXT NOT NULL, unlockAt DATETIME, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
+  // (2026-و37) حساب ولي الأمر — مربوط بحساب ابنه بـ studentId (زي ما هو في Student.parentPhone)
+  'CREATE TABLE IF NOT EXISTS Parent (id TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT "", phone TEXT NOT NULL UNIQUE, password TEXT NOT NULL DEFAULT "", studentId TEXT NOT NULL, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
 ]
 
 
@@ -148,6 +150,7 @@ export var SCHEMA_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_activity_created ON StudentActivity(createdAt)',
   // (2026-و29) فهرس مجموعة الطالب — فلترة المجموعات في الامتحانات/الواجبات/الفيديوهات
   'CREATE INDEX IF NOT EXISTS idx_student_group ON Student(groupId)',
+  'CREATE INDEX IF NOT EXISTS idx_parent_student ON Parent(studentId)',
 ]
 
 export var CORE_TABLES = ['Admin', 'Student', 'StudentActivity', 'Video', 'Homework', 'Exam', 'ExamResult', 'Announcement', 'Discussion', 'SiteConfig', 'Media', 'VideoProgress', 'GalleryImage', 'Payment', 'VideoAccess', 'Complaint']

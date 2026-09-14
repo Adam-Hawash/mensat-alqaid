@@ -119,6 +119,9 @@ function buildAiPrompt(needAI: WritingAnswer[]): string {
   lines.push('1. Find the student\'s FINAL answer — usually the last thing they wrote: after the last "=", ":", a boxed/underlined value, or the concluding line. Steps leading to it matter only for partial credit.')
   lines.push('2. Compare the student\'s final answer + key facts with the model answer. The student does NOT need to copy the model word-for-word — if their answer conveys the same correct fact(s), names, dates or reasons in their own words, it is CORRECT (full points).')
   lines.push('- Equivalent forms are CORRECT: ١٩٥٢ = 1952 = 1952م, different Arabic spellings of the same name/term, the same points listed in a different order, numeric forms ٥٠٪ = 50% = 0.5, 3:4 = 3/4, 3,5 = 3.5; units and labels are IGNORED (12 سم = 12 cm = 12).')
+  /* (2026-و37) نفس قاعدة gradeTextAnswer (برومبت الامتحان) — صيغة المعكوس:
+     "1/4 = x" === "x = 1/4" — عشان إعادة التصحيح تبقى مطابقة للتسليم الأول */
+  lines.push('- REVERSED equation forms are the SAME answer: "1/4 = x" === "x = 1/4" — the variable name and its side/position NEVER matter')
   lines.push('- The final value may be CONTAINED in the model answer (the model shows full steps/details, the student wrote only the final result) → still CORRECT.')
   lines.push('- Messy wording, extra details or unusual formatting NEVER make a correct final answer wrong. Understand BOTH sides before deciding.')
   lines.push('- UNDERSTAND the answer like you are talking with the student — never grade by literal string matching. A small slip in a MIDDLE part that the student self-corrected right after does NOT make the answer wrong when they ENDED at the correct final answer — judge where they ENDED.')

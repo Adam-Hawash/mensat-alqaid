@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+/* (2026-و37) نفس قاعدة التسليم: مفتاح ناقص = مراجعة مستر — مش تخمين (A) */
+import { normalizeCorrectKey } from '@/lib/correct-key'
 
 // GET /api/homework-results?studentId=xxx - Student: own results (basic info)
 // GET /api/homework-results?homeworkId=xxx - Admin: all results for a homework with per-student details
@@ -153,18 +155,21 @@ export async function GET(request: NextRequest) {
           var q = item.q
           var qText = q.question || q.q || ''
           var opts = Array.isArray(q.options) ? q.options : []
-          var correctIdx = typeof q.correct === 'number' ? q.correct : 0
-          if (correctIdx < 0 || correctIdx >= opts.length) correctIdx = 0
+          /* (2026-و37) نفس قاعدة التسليم: مفتاح ناقص = مراجعة مستر — مش تخمين (A) */
+          var correctIdx = normalizeCorrectKey(q, opts)
+          var keylessMcq = correctIdx < 0 || correctIdx >= opts.length
 
           var ans = lookupAns(studentAns, item.origIdx)
 
-          var isCorrect = ans !== undefined && ans !== null && Number(ans) === correctIdx
+          var isCorrect = !keylessMcq && ans !== undefined && ans !== null && Number(ans) === correctIdx
           var studentAnswerText = (typeof ans === 'number' && opts[ans] && opts[ans] !== 'N/A')
             ? String.fromCharCode(65 + ans) + ') ' + opts[ans]
             : 'Not answered'
-          var correctAnswerText = (opts[correctIdx] && opts[correctIdx] !== 'N/A')
-            ? String.fromCharCode(65 + correctIdx) + ') ' + opts[correctIdx]
-            : (q.modelAnswer || 'No correct answer stored')
+          var correctAnswerText = keylessMcq
+            ? '⚠ محتاج مراجعة المستر — الإجابة مش مؤكدة في المفتاح'
+            : ((opts[correctIdx] && opts[correctIdx] !== 'N/A')
+              ? String.fromCharCode(65 + correctIdx) + ') ' + opts[correctIdx]
+              : (q.modelAnswer || 'No correct answer stored'))
 
           allQuestions.push({
             type: 'mcq',
