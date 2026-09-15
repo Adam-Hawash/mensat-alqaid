@@ -74,7 +74,8 @@ export async function POST(request) {
       if (isFinite(spN) && spN > 0) ws.sourcePage = spN
       if (q.srcName && String(q.srcName).trim()) ws.srcName = String(q.srcName).trim()
       if (q.table && Array.isArray(q.table.rows)) ws.table = q.table
-      if (q.figure && q.figure.bbox) ws.figure = q.figure
+      /* (و43) figure بـ url بس (رفع يدوي من شاشة المراجعة) بيتحفظ برضه — مش bbox بس */
+      if (q.figure && (q.figure.bbox || q.figure.url)) ws.figure = q.figure
       if (Array.isArray(q.optionFigures)) ws.optionFigures = q.optionFigures
       return ws
     }
@@ -82,7 +83,9 @@ export async function POST(request) {
       var questionText = q.question || q.q || ''
       var isWriting = q.type === 'writing' || q.type === 'essay'
       if (!isWriting && Array.isArray(q.options)) {
-        var allNA = q.options.length > 0 && q.options.every(function(o) { return !o || o === 'N/A' || o === 'لا يوجد' || String(o).trim() === '' })
+        /* (و43) سؤال اختياراته كلها صور (نص فاضي + optionFigures) مش مقالي — ممنع
+           تصنيفه writing عشان الاختيارات والصور بتاعتها تفضل مظبوطة */
+        var allNA = !Array.isArray(q.optionFigures) && q.options.length > 0 && q.options.every(function(o) { return !o || o === 'N/A' || o === 'لا يوجد' || String(o).trim() === '' })
         if (allNA) isWriting = true
       }
       if (!isWriting && (!q.options || q.options.length === 0)) {

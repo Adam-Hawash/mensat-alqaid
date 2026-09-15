@@ -49,11 +49,18 @@ export function BooksTab({ grade }: { grade?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grade])
 
-  var openBook = function (filePath: string) {
-    try { window.open(filePath, '_blank') } catch (e) {}
+  var openBook = function (b: any) {
+    /* (و43) كتب اللينك الخارجي بتفتح من المصدر مباشرة — الباقي من /api/files زي ما هو */
+    var target = (b.sourceUrl && String(b.sourceUrl).trim()) ? String(b.sourceUrl).trim() : b.filePath
+    try { window.open(target, '_blank') } catch (e) {}
   }
-  var downloadBook = function (filePath: string) {
-    var url = filePath + (filePath.indexOf('?') !== -1 ? '&' : '?') + 'dl=1'
+  var downloadBook = function (b: any) {
+    /* (و43) تحميل كتب اللينك = فتح اللينك (المصدر نفسه بيتعامل مع التحميل) — مفيش dl=1 */
+    if (b.sourceUrl && String(b.sourceUrl).trim()) {
+      try { window.open(String(b.sourceUrl).trim(), '_blank') } catch (e) {}
+      return
+    }
+    var url = b.filePath + (b.filePath.indexOf('?') !== -1 ? '&' : '?') + 'dl=1'
     try { window.open(url, '_blank') } catch (e) {}
   }
 
@@ -99,28 +106,32 @@ export function BooksTab({ grade }: { grade?: string }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {books.map(function (b: any) {
+        /* (و43) كتاب لينك خارجي — بيتفتح/يتحمل من المصدر مباشرة (من غير تخزين عندنا) */
+        var isLinkBook = !!(b.sourceUrl && String(b.sourceUrl).trim())
         return (
           <Card key={b.id} className="hover:shadow-md transition-shadow">
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
-                <div className="h-10 w-10 rounded-lg bg-sky-500/10 flex items-center justify-center shrink-0">
-                  <BookOpen className="h-5 w-5 text-sky-500" />
+                <div className={"h-10 w-10 rounded-lg flex items-center justify-center shrink-0 " + (isLinkBook ? 'bg-violet-500/10' : 'bg-sky-500/10')}>
+                  {isLinkBook ? <span className="text-base">🔗</span> : <BookOpen className="h-5 w-5 text-sky-500" />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="font-semibold text-sm break-words">{b.title}</h3>
                   {b.description && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{b.description}</p>}
                   <div className="flex items-center gap-2 flex-wrap mt-1.5">
                     {b.grade && <Badge variant="outline" className="text-[10px]">{b.grade}</Badge>}
-                    <span className="text-[10px] text-muted-foreground">{formatBookSize(b.sizeBytes)}</span>
+                    {isLinkBook
+                      ? <Badge variant="outline" className="text-[10px] border-violet-400/50 text-violet-600 dark:text-violet-400">🔗 لينك خارجي</Badge>
+                      : <span className="text-[10px] text-muted-foreground">{formatBookSize(b.sizeBytes)}</span>}
                     {b.createdAt && <span className="text-[10px] text-muted-foreground">{new Date(b.createdAt).toLocaleDateString('ar-EG')}</span>}
                   </div>
                 </div>
               </div>
               <div className="flex gap-2 mt-3">
-                <Button size="sm" className="flex-1 h-8 gap-1" onClick={function () { openBook(b.filePath) }}>
+                <Button size="sm" className="flex-1 h-8 gap-1" onClick={function () { openBook(b) }}>
                   <ExternalLink className="h-3.5 w-3.5" />فتح
                 </Button>
-                <Button size="sm" variant="outline" className="flex-1 h-8 gap-1" onClick={function () { downloadBook(b.filePath) }}>
+                <Button size="sm" variant="outline" className="flex-1 h-8 gap-1" onClick={function () { downloadBook(b) }}>
                   <FileDown className="h-3.5 w-3.5" />تحميل
                 </Button>
               </div>

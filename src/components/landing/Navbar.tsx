@@ -15,7 +15,7 @@ import {
   X,
   LayoutDashboard,
   Youtube,
-  Heart,
+  /* (و43) Heart اتشال — الشريط بقى نص عادي من غير أيقونات */
   CalendarClock,
   Trophy,
 } from 'lucide-react'
@@ -78,17 +78,16 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full">
-      {/* Top bar - Developed by Adam Hawash (centered, above navbar) */}
+      {/* (و43) Top bar - Developed by Adam Hawash (نص عادي — من غير قلب ولا أيقونات ولا لون مميز) */}
       {currentView === 'landing' && (
-        <div className="w-full bg-[#0a2e2f] text-white/90 border-b border-white/10">
+        <div className="w-full border-b border-border/50 bg-background/95">
           <a
             href={portfolioUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-1.5 py-1.5 text-[11px] hover:text-yellow-300 transition-colors group"
+            className="flex items-center justify-center py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:underline underline-offset-2 transition-colors group"
           >
-            <span className="font-semibold group-hover:underline underline-offset-2">{madeByLabel}</span>
-            <Heart className="h-2.5 w-2.5 text-red-400" />
+            <span className="group-hover:underline underline-offset-2">{madeByLabel}</span>
           </a>
         </div>
       )}
@@ -132,15 +131,7 @@ export function Navbar() {
             <Trophy className="h-4 w-4" />
             أوائل الطلبة
           </button>
-          {/* (24-e) رابط مواعيد السنتر — صفحة مستقلة /schedule */}
-          <a
-            href="/schedule"
-            className="inline-flex items-center min-h-[44px] px-3 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
-            title="مواعيد السنتر"
-          >
-            <CalendarClock className="h-4 w-4 ml-1" />
-            مواعيد السنتر
-          </a>
+          {/* (و43) رابط مواعيد السنتر اتشال من نافبار الديسكتوب بس — فاضل في قايمة الموبايل وصفحة /schedule زي ما هي */}
           {currentStudent ? (
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted-foreground">

@@ -93,11 +93,17 @@ export async function POST(request) {
     lines.push('- TABLES: if the question shows a printed table, return "table" reproducing it EXACTLY: {"headers":["السنّة","الحدث"],"rows":[[{"t":"1922"},{"t":"","blank":true}]]}.')
     lines.push('  * Printed cells → {"t":"<exact printed text>"}. Cells the STUDENT must fill → {"t":"","blank":true}.')
     lines.push('  * Do NOT blank printed cells, and do NOT fill the blank cells — the student writes inside them.')
-    lines.push('- GRAPHS/DIAGRAMS/MAPS: if the question contains a graph, map, image or diagram, NEVER flatten it into text: return "figure":{"page":<page number>,"bbox":{"x":..,"y":..,"w":..,"h":..}} where bbox is the bounding rectangle of the figure as FRACTIONS of the WHOLE page image (each value 0..1, x/y = top-left corner, w/h = size).')
+    /* (و43) قاعدة الرسومات الصارمة — بديل سطر GRAPHS القديم (ترقية مش تكرار):
+       أي رسم/منحنى/شكل هندسي/خريطة لازم يرجع figure/optionFigures — ممنوع تحويله لنص */
+    lines.push('HARD RULE — FIGURES: for EVERY question (and every MCQ option) that contains or depends on any drawing, graph, plotted curve, geometric shape, diagram, chart, map, or image-based table: you MUST return figure/optionFigures data: question-level "figure":{"page":N,"bbox":{"x":..,"y":..,"w":..,"h":..}} and option-level "optionFigures":[{"page":N,"bbox":{...}} or null, ...] aligned with the options array.')
+    lines.push('  * bbox = tight rectangle around the drawing INCLUDING its axes/labels, as FRACTIONS of the whole page image (0..1, x/y = top-left).')
+    lines.push('  * NEVER convert a drawing into text: do NOT describe the graph, do NOT write coordinate tables or step-by-step plotting inside question text or modelAnswer. modelAnswer = concise final results only (example: "axis of symmetry: x = 3, maximum value = 4").')
+    lines.push('  * If unsure whether something is a figure, treat it AS a figure. Options that are pure images get empty string text plus their optionFigures entry.')
     lines.push('- modelAnswer must include the expected table values when applicable (مثال: «الجدول: صف 2: 1922، إعلان استقلال مصر»).')
     lines.push('')
     lines.push('JSON فقط من غير أي كلام زائد:')
-    lines.push('{"title":"...","questions":[{"type":"mcq","question":"...","options":["أ","ب","ج","د"],"correct":0,"points":1,"sourcePage":1},{"type":"writing","question":"...","options":[],"correct":-1,"points":5,"modelAnswer":"...","sourcePage":1,"table":{"headers":["السنّة","الحدث"],"rows":[[{"t":"1922"},{"t":"","blank":true}]]},"figure":{"page":1,"bbox":{"x":0.05,"y":0.3,"w":0.4,"h":0.35}}}],"answerKey":""}')
+    /* (و43) مثال الـ JSON بقى فيه optionFigures عشان الموديل يتعلم الشكل المتوازي مع options */
+    lines.push('{"title":"...","questions":[{"type":"mcq","question":"...","options":["أ","ب","ج","د"],"correct":0,"points":1,"sourcePage":1,"optionFigures":[null,null,null,null]},{"type":"writing","question":"...","options":[],"correct":-1,"points":5,"modelAnswer":"...","sourcePage":1,"table":{"headers":["السنّة","الحدث"],"rows":[[{"t":"1922"},{"t":"","blank":true}]]},"figure":{"page":1,"bbox":{"x":0.05,"y":0.3,"w":0.4,"h":0.35}}}],"answerKey":""}')
     var prompt = lines.join('\n')
 
     var parts = [{ text: prompt }]
@@ -142,7 +148,8 @@ export async function POST(request) {
       if (isFinite(spN) && spN > 0) wsFields.sourcePage = spN
       if (q.srcName && String(q.srcName).trim()) wsFields.srcName = String(q.srcName).trim()
       if (q.table && Array.isArray(q.table.rows)) wsFields.table = q.table
-      if (q.figure && q.figure.bbox) wsFields.figure = q.figure
+      /* (و43) figure بـ url بس (رفع يدوي من شاشة المراجعة) بيتقبل برضه — مش bbox بس */
+      if (q.figure && (q.figure.bbox || q.figure.url)) wsFields.figure = q.figure
       if (Array.isArray(q.optionFigures)) wsFields.optionFigures = q.optionFigures
       if (isWriting) {
         return Object.assign({

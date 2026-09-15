@@ -1787,6 +1787,11 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                                             )}
                                           >
                                             <span className="ml-2">{String.fromCharCode(65 + oi)})</span>{opt}
+                                            {/* (و43) صورة الاختيار (optionFigures[i]) — الاختيار اللي هو رسمة/شكل في الملف */}
+                                            {q.optionFigures && q.optionFigures[oi] && q.optionFigures[oi].url && (
+                                              /* eslint-disable-next-line @next/next/no-img-element */
+                                              <img src={q.optionFigures[oi].url} alt={'صورة الاختيار ' + String.fromCharCode(65 + oi)} className="mt-2 block max-h-24 rounded border bg-white object-contain" />
+                                            )}
                                           </button>
                                         )
                                       })}
@@ -1841,6 +1846,11 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                                 )}
                               >
                                 <span className="ml-2">{String.fromCharCode(65 + oi)})</span>{opt}
+                                {/* (و43) صورة الاختيار (optionFigures[i]) — الاختيار اللي هو رسمة/شكل في الملف */}
+                                {q.optionFigures && q.optionFigures[oi] && q.optionFigures[oi].url && (
+                                  /* eslint-disable-next-line @next/next/no-img-element */
+                                  <img src={q.optionFigures[oi].url} alt={'صورة الاختيار ' + String.fromCharCode(65 + oi)} className="mt-2 block max-h-24 rounded border bg-white object-contain" />
+                                )}
                               </button>
                             )
                           })}
@@ -2427,6 +2437,11 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
                                   className={"w-full text-right p-3 rounded-lg border text-sm transition-colors " + (answers[displayIdx] === oi ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border hover:bg-muted/50')}
                                 >
                                   <span className="ml-2 font-bold">{String.fromCharCode(65 + oi)}.</span> {opt}
+                                  {/* (و43) صورة الاختيار (optionFigures[i]) — الاختيار اللي هو رسمة/شكل في الملف */}
+                                  {q.optionFigures && q.optionFigures[oi] && q.optionFigures[oi].url && (
+                                    /* eslint-disable-next-line @next/next/no-img-element */
+                                    <img src={q.optionFigures[oi].url} alt={'صورة الاختيار ' + String.fromCharCode(65 + oi)} className="mt-2 block max-h-24 rounded border bg-white object-contain" />
+                                  )}
                                 </button>
                               )
                             })}
@@ -2465,6 +2480,11 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
                           className={"w-full text-right p-3 rounded-lg border text-sm transition-colors " + (answers[qi] === oi ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border hover:bg-muted/50')}
                         >
                           <span className="ml-2 font-bold">{String.fromCharCode(65 + oi)}.</span> {opt}
+                          {/* (و43) صورة الاختيار (optionFigures[i]) — الاختيار اللي هو رسمة/شكل في الملف */}
+                          {q.optionFigures && q.optionFigures[oi] && q.optionFigures[oi].url && (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img src={q.optionFigures[oi].url} alt={'صورة الاختيار ' + String.fromCharCode(65 + oi)} className="mt-2 block max-h-24 rounded border bg-white object-contain" />
+                          )}
                         </button>
                       )
                     })}

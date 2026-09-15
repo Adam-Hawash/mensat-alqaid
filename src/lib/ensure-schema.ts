@@ -36,7 +36,8 @@ export var SCHEMA_TABLES = [
   // (2026-و37) حساب ولي الأمر — مربوط بحساب ابنه بـ studentId (زي ما هو في Student.parentPhone)
   'CREATE TABLE IF NOT EXISTS Parent (id TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT "", phone TEXT NOT NULL UNIQUE, password TEXT NOT NULL DEFAULT "", studentId TEXT NOT NULL, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
   // (2026-و40) الكتب والملازم — مكتبة PDF للطالب (تاب أدمن + تاب طالب)
-  'CREATE TABLE IF NOT EXISTS Book (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT \'\', filePath TEXT NOT NULL DEFAULT \'\', fileName TEXT NOT NULL DEFAULT \'\', fileType TEXT NOT NULL DEFAULT \'application/pdf\', sizeBytes INTEGER NOT NULL DEFAULT 0, grade TEXT NOT NULL DEFAULT \'\', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL)',
+  // (و43) sourceUrl: لينك خارجي للكتب الكبيرة — بنحفظ اللينك بس (filePath فاضي) بدل تخزين الملف في قاعدة البيانات
+  'CREATE TABLE IF NOT EXISTS Book (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT \'\', filePath TEXT NOT NULL DEFAULT \'\', fileName TEXT NOT NULL DEFAULT \'\', fileType TEXT NOT NULL DEFAULT \'application/pdf\', sourceUrl TEXT NOT NULL DEFAULT \'\', sizeBytes INTEGER NOT NULL DEFAULT 0, grade TEXT NOT NULL DEFAULT \'\', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL)',
 ]
 
 
@@ -106,6 +107,8 @@ var SCHEMA_COLUMNS = [
   ['Payment', 'note', 'TEXT', "DEFAULT ''"],
   ['Payment', 'reviewedAt', 'DATETIME', ''],
   ['Payment', 'reviewedBy', 'TEXT', "DEFAULT ''"],
+  // (و43) لينك خارجي للكتب — الكتب القديمة (من قبل و43) بتاخد '' يعني كتاب ملف عادي
+  ['Book', 'sourceUrl', 'TEXT', "NOT NULL DEFAULT ''"],
 ]
 
 var SCHEMA_FIXES = [
@@ -169,7 +172,10 @@ export var CORE_TABLES = ['Admin', 'Student', 'StudentActivity', 'Video', 'Homew
 /* (2026-و40) مفتاح البصمة اتبدّل — جدول Book الجديد (الكتب والملازم) دخل
  * SCHEMA_TABLES + CORE_TABLES، وتغيير المفتاح بيضمن إن أول ريكوست بعد النشر
  * يعمل الفحص الكامل وينشئ الجدول على Turso (درس حادثة و38). */
-var SCHEMA_HASH_KEY = 'schema_heal_hash_v2_w40'
+/* (و43) المفتاح اتبدّل تاني — عمود Book.sourceUrl (لينك خارجي للكتب الكبيرة)
+ * اضاف في SCHEMA_COLUMNS، ومن غير تغيير المفتاح الترميم بيتسكّب بالبصمة
+ * القديمة والعمود عمره ما ينفعّل على Turso (نفس درس و38/و40) */
+var SCHEMA_HASH_KEY = 'schema_heal_hash_v2_w43'
 /* ============================================================
  * 2026-و23 — **إصلاح بطء المنصة**: كل إقلاع سيرفر كان بيشغّل ~70
  * استعلام متسلسل على Turso (ALTERs فاشلة + UPDATEs) — بقى فحص بصمة

@@ -157,20 +157,30 @@ export async function POST(request: NextRequest) {
       if (isFinite(spN) && spN > 0) ws.sourcePage = spN
       if (q.srcName && String(q.srcName).trim()) ws.srcName = String(q.srcName).trim()
       if (q.table && Array.isArray(q.table.rows)) ws.table = q.table
-      if (q.figure && q.figure.bbox) {
-        var fig: any = { page: parseInt(String(q.figure.page || 1), 10) || 1, bbox: q.figure.bbox }
+      /* (و43) figure بـ url بس (رفع يدوي من شاشة المراجعة) بيتقبل برضه — مش bbox بس.
+         figure.url لازم يكون مسار ملفات المنصة (/api/files/<id>) — أي قيمة تانية بترمى */
+      if (q.figure && (q.figure.bbox || q.figure.url)) {
+        var fig: any = { page: parseInt(String(q.figure.page || 1), 10) || 1 }
+        if (q.figure.bbox) fig.bbox = q.figure.bbox
         if (typeof q.figure.url === 'string' && /^\/api\/files\//.test(q.figure.url)) fig.url = q.figure.url
         ws.figure = fig
       }
+      /* (و43) optionFigures — الاتساق مع options محفوظ (null مكانه) حتى لو دخلة واحدة بس فيها url */
       if (Array.isArray(q.optionFigures)) {
         var ofs: any[] = []
+        var anyOf = false
         q.optionFigures.forEach(function (ofg: any) {
-          if (!ofg || !ofg.bbox) return
-          var o: any = { bbox: ofg.bbox }
-          if (typeof ofg.url === 'string' && /^\/api\/files\//.test(ofg.url)) o.url = ofg.url
+          var o: any = null
+          var hasUrl = ofg && typeof ofg.url === 'string' && /^\/api\/files\//.test(ofg.url)
+          if (ofg && (ofg.bbox || hasUrl)) {
+            o = {}
+            if (ofg.bbox) o.bbox = ofg.bbox
+            if (hasUrl) o.url = ofg.url
+            anyOf = true
+          }
           ofs.push(o)
         })
-        if (ofs.length > 0) ws.optionFigures = ofs
+        if (anyOf) ws.optionFigures = ofs
       }
       return ws
     }

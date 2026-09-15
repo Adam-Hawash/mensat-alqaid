@@ -349,6 +349,8 @@ model Book {
   filePath    String   @default("")
   fileName    String   @default("")
   fileType    String   @default("application/pdf")
+  // (و43) لينك خارجي للكتب الكبيرة — بنحفظ اللينك بس من غير الملف (توفير مساحة DB)
+  sourceUrl   String   @default("")
   sizeBytes   Int      @default(0)
   grade       String   @default("")
   createdAt   DateTime @default(now())
