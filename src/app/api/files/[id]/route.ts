@@ -30,6 +30,17 @@ export async function GET(
     const contentType = media.fileType || 'application/octet-stream'
     const fileName = media.filename || 'download'
 
+    /* (2026-و40) تحميل بدل عرض داخلي: ?dl=1 → Content-Disposition: attachment
+       — بتاع «الكتب والملازم» زرار تحميل. اسم الملف من Media.filename
+       (بتتنضف من علامات اقتباس/سطر جديد) + filename*=UTF-8'' للأسامي العربي */
+    const wantDownload = searchParams.get('dl') === '1'
+    const safeFileName = (fileName || 'download').replace(/[\r\n"\\]/g, '_')
+    const asciiFallback = safeFileName.replace(/[^\x20-\x7E]/g, '_') || 'download'
+    var disposition = (wantDownload ? 'attachment' : 'inline') + '; filename="' + asciiFallback + '"'
+    if (safeFileName !== asciiFallback) {
+      try { disposition += "; filename*=UTF-8''" + encodeURIComponent(safeFileName) } catch (e) {}
+    }
+
     // ===== بوابة الفيديو: ملفات الفيديو محمية دايماً =====
     if (contentType.startsWith('video/')) {
       const token = searchParams.get('token')
@@ -73,7 +84,7 @@ export async function GET(
           status: 206,
           headers: {
             'Content-Type': contentType,
-            'Content-Disposition': 'inline; filename="' + fileName + '"',
+            'Content-Disposition': disposition,
             'Content-Range': 'bytes ' + start + '-' + end + '/' + total,
             'Accept-Ranges': 'bytes',
             'Content-Length': String(slice.length),
@@ -87,7 +98,7 @@ export async function GET(
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': 'inline; filename="' + fileName + '"',
+        'Content-Disposition': disposition,
         // الفيديو محمي فمفيش كاش عام عليه — الصور تنكاش عادي
         'Cache-Control': contentType.startsWith('video/')
           ? 'private, no-store'

@@ -61,6 +61,23 @@ export async function POST(request) {
     }
 
     // Convert to DB format — preserve type/writing/modelAnswer/points
+    /* (2026-و40-w) ورقة العمل؟ أي سؤال فيه جدول/رسمة/صفحة مصدر — السيت ده
+       بيتحفظ **بالترتيب الأصل** من غير خلط (خلط الترتيب/الاختيارات بيكسر
+       تجميع صفحات المصدر وترتيب ورقة العمل) + حقول ورقة العمل بتعدي pass-through */
+    var isWorksheetSet = extractedQuestions.some(function(q: any) {
+      return !!(q && (q.table || q.figure || q.optionFigures || (q.srcName && String(q.srcName).trim()) || (q.sourcePage !== undefined && q.sourcePage !== null && parseInt(String(q.sourcePage), 10) > 0)))
+    })
+    /* (2026-و40-w) pass-through حقول ورقة العمل (sourcePage/srcName/table/figure/optionFigures) */
+    var worksheetFields = function (q: any): any {
+      var ws: any = {}
+      var spN = parseInt(String(q.sourcePage), 10)
+      if (isFinite(spN) && spN > 0) ws.sourcePage = spN
+      if (q.srcName && String(q.srcName).trim()) ws.srcName = String(q.srcName).trim()
+      if (q.table && Array.isArray(q.table.rows)) ws.table = q.table
+      if (q.figure && q.figure.bbox) ws.figure = q.figure
+      if (Array.isArray(q.optionFigures)) ws.optionFigures = q.optionFigures
+      return ws
+    }
     var dbQuestions = extractedQuestions.map(function(q) {
       var questionText = q.question || q.q || ''
       var isWriting = q.type === 'writing' || q.type === 'essay'
@@ -73,7 +90,7 @@ export async function POST(request) {
       }
       if (isWriting) {
         var wPts = (typeof q.points === 'number' && q.points > 0) ? q.points : 5
-        return {
+        return Object.assign({
           type: 'writing',
           question: questionText,
           options: [],
@@ -81,7 +98,7 @@ export async function POST(request) {
           points: wPts,
           modelAnswer: q.modelAnswer || q.answer || '',
           acceptedAnswers: Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers : [],
-        }
+        }, worksheetFields(q))
       }
       var pts = (typeof q.points === 'number' && q.points > 0) ? q.points : 1
 
@@ -92,31 +109,38 @@ export async function POST(request) {
       var correctIdx = typeof q.correct === 'number' ? q.correct : 0
       if (correctIdx < 0 || correctIdx >= opts.length) { correctIdx = 0 }
       var correctText = opts[correctIdx]
+      /* (2026-و40-w) ورقة العمل: من غير خلط اختيارات — الاختيارات مرة أصلية */
       var shuffled = opts.slice()
-      for (var oi = shuffled.length - 1; oi > 0; oi--) {
-        var oj = Math.floor(Math.random() * (oi + 1))
-        var otemp = shuffled[oi]
-        shuffled[oi] = shuffled[oj]
-        shuffled[oj] = otemp
+      if (!isWorksheetSet) {
+        for (var oi = shuffled.length - 1; oi > 0; oi--) {
+          var oj = Math.floor(Math.random() * (oi + 1))
+          var otemp = shuffled[oi]
+          shuffled[oi] = shuffled[oj]
+          shuffled[oj] = otemp
+        }
       }
       var newCorrect = shuffled.indexOf(correctText)
       if (newCorrect < 0) newCorrect = 0
-      return {
+      return Object.assign({
         type: 'mcq',
         question: questionText,
         options: shuffled,
         correct: newCorrect,
         points: pts,
         modelAnswer: q.modelAnswer || '',
-      }
+      }, worksheetFields(q))
     })
 
     // Shuffle overall question order (MCQs and writing mixed)
-    for (var si = dbQuestions.length - 1; si > 0; si--) {
-      var sj = Math.floor(Math.random() * (si + 1))
-      var stemp = dbQuestions[si]
-      dbQuestions[si] = dbQuestions[sj]
-      dbQuestions[sj] = stemp
+    /* (2026-و40-w) ورقة العمل: من غير خلط ترتيب — الترتيب الأصلي هو اللي بيحافظ
+       على تجميع أسئلة كل صفحة مع بعض (شيب «صفحة N» بيعبّر عن أسئلته بالظبط) */
+    if (!isWorksheetSet) {
+      for (var si = dbQuestions.length - 1; si > 0; si--) {
+        var sj = Math.floor(Math.random() * (si + 1))
+        var stemp = dbQuestions[si]
+        dbQuestions[si] = dbQuestions[sj]
+        dbQuestions[sj] = stemp
+      }
     }
 
     var questionsStr = JSON.stringify(dbQuestions)

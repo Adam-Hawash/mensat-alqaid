@@ -147,16 +147,58 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'لم يتم استخراج أي أسئلة. تأكد أن الملف يحتوي على أسئلة واضحة.' }, { status: 400 })
     }
 
+    /* (2026-و40-w) حقول ورقة العمل — pass-through: sourcePage/srcName/table/
+       figure/optionFigures بتتحفظ جنب الحقول القانونية زي ما هي (كلها اختيارية
+       والأسئلة القديمة من غيرها بتشتغل عادي). figure.url لازم يكون مسار
+       ملفات المنصة (/api/files/<id>) — أي قيمة تانية بترمى (حماية من حشرات) */
+    function worksheetFields(q: any) {
+      var ws: any = {}
+      var spN = parseInt(String(q.sourcePage), 10)
+      if (isFinite(spN) && spN > 0) ws.sourcePage = spN
+      if (q.srcName && String(q.srcName).trim()) ws.srcName = String(q.srcName).trim()
+      if (q.table && Array.isArray(q.table.rows)) ws.table = q.table
+      if (q.figure && q.figure.bbox) {
+        var fig: any = { page: parseInt(String(q.figure.page || 1), 10) || 1, bbox: q.figure.bbox }
+        if (typeof q.figure.url === 'string' && /^\/api\/files\//.test(q.figure.url)) fig.url = q.figure.url
+        ws.figure = fig
+      }
+      if (Array.isArray(q.optionFigures)) {
+        var ofs: any[] = []
+        q.optionFigures.forEach(function (ofg: any) {
+          if (!ofg || !ofg.bbox) return
+          var o: any = { bbox: ofg.bbox }
+          if (typeof ofg.url === 'string' && /^\/api\/files\//.test(ofg.url)) o.url = ofg.url
+          ofs.push(o)
+        })
+        if (ofs.length > 0) ws.optionFigures = ofs
+      }
+      return ws
+    }
+    /* (2026-و40-w) ورقة العمل؟ أي سؤال فيه جدول/رسمة/صفحة مصدر — السيت ده
+       بيتحفظ **بالترتيب الأصل** من غير خلط (خلط الترتيب/الاختيارات بيكسر
+       تجميع صفحات المصدر وترتيب ورقة العمل) */
+    var isWorksheetSet = extractedQuestions.some(function(q: any) {
+      return !!(q && (q.table || q.figure || q.optionFigures || (q.srcName && String(q.srcName).trim()) || (q.sourcePage !== undefined && q.sourcePage !== null && parseInt(String(q.sourcePage), 10) > 0)))
+    })
+
     // ===== Shuffle questions and options =====
     // Shuffle question order
-    for (var si = extractedQuestions.length - 1; si > 0; si--) {
-      var sj = Math.floor(Math.random() * (si + 1))
-      var stemp = extractedQuestions[si]
-      extractedQuestions[si] = extractedQuestions[sj]
-      extractedQuestions[sj] = stemp
+    // (2026-و40-w) ورقة العمل: من غير خلط ترتيب — الترتيب الأصلي هو اللي بيحافظ
+    // على تجميع أسئلة كل صفحة مع بعض (شيب «صفحة N» بيعبّر عن أسئلته بالظبط)
+    if (!isWorksheetSet) {
+      for (var si = extractedQuestions.length - 1; si > 0; si--) {
+        var sj = Math.floor(Math.random() * (si + 1))
+        var stemp = extractedQuestions[si]
+        extractedQuestions[si] = extractedQuestions[sj]
+        extractedQuestions[sj] = stemp
+      }
     }
     // Shuffle options for each question and update correct index
     extractedQuestions = extractedQuestions.map(function(q) {
+      if (isWorksheetSet) {
+        // (2026-و40-w) ورقة العمل: الاختيارات مرة أصلية + حقول الورقة بتعد زي ما هي
+        return Object.assign({}, q, worksheetFields(q))
+      }
       var correctText = q.options[q.correct]
       var shuffled = q.options.slice()
       for (var oi = shuffled.length - 1; oi > 0; oi--) {
@@ -166,26 +208,27 @@ export async function POST(request: NextRequest) {
         shuffled[oj] = otemp
       }
       var newCorrect = shuffled.indexOf(correctText)
-      return { question: q.question, options: shuffled, correct: newCorrect }
+      return Object.assign({ question: q.question, options: shuffled, correct: newCorrect }, worksheetFields(q))
     })
 
     // Convert to the format stored in DB (MCQ format for Exam/Homework)
     // Homework uses: { question, options, correct }
     // Exam uses: { q, options, correct, points }
+    /* (2026-و40-w) حقول ورقة العمل بتعد pass-through جنب الحقول القانونية */
     var dbQuestions = extractedQuestions.map(function(q, i) {
       if (type === 'exam') {
-        return {
+        return Object.assign({
           q: q.question,
           options: q.options,
           correct: q.correct,
           points: Math.max(1, Math.floor(100 / extractedQuestions.length))
-        }
+        }, worksheetFields(q))
       }
-      return {
+      return Object.assign({
         question: q.question,
         options: q.options,
         correct: q.correct
-      }
+      }, worksheetFields(q))
     })
 
     // Save to database

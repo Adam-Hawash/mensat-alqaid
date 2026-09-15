@@ -18,6 +18,9 @@ import { normalizeCorrectKey } from '@/lib/correct-key'
    لكل الأسئلة المقالية: أي 429/timeout/JSON مقطوع = فولباك للدفعة كلها = «كله غلط».
    دلوقتي تصحيح متسلسل سؤال-بسؤال (نفس إصلاح الواجب و25) — فشل سؤال ما يأثرش على غيره. */
 import { parseQuestions, resolveQuestionsForStudent } from '@/lib/exam-models'
+/* (2026-و40) حارس الترتيب التسلسلي — الامتحان مينفعش يتقدّم غير لما اللي قبله يتقدّم
+   (نفس نظام الفيديوهات بالظبط — سلسلة مطابقة لقايمة الطالب + fail-open) */
+import { checkExamSequential } from '@/lib/sequential-guard'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -101,6 +104,14 @@ export async function POST(request) {
     } catch (e) {
       console.error('Check existing exam result error:', e)
     }
+
+    // (2026-و40) الترتيب التسلسلي (نفس نظام الفيديوهات — طلب المستر)
+    try {
+      var seqCheck = await checkExamSequential(examId, studentId)
+      if (!seqCheck.ok) {
+        return NextResponse.json({ error: seqCheck.reason, sequentialLocked: true }, { status: seqCheck.code || 423 })
+      }
+    } catch (e) {}
 
     // Fetch exam
     var exam = null
@@ -267,7 +278,18 @@ export async function POST(request) {
     var resultId = 'exr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
     var answersJson = ''
     if (answers !== undefined && answers !== null) {
-      try { answersJson = JSON.stringify(answers) } catch(e) { answersJson = '' }
+      /* (2026-و40-w) قيم جداول ورقة العمل بتيجي في body.tableAnswers
+         (مفتاح: الفهرس الأصلي للسؤال → مصفوفة مصفوفات) — بتتخزن جوه
+         JSON الإجابات نفسه تحت مفتاح مميز __tableAnswers عشان شاشات
+         المراجعة تعرض الجدول معبى — مفيش أي تأثير على التصحيح
+         (التصحيح بيقرأ الفهارس الرقمية بس) */
+      var storedAnswers: any = answers
+      try {
+        if (body && body.tableAnswers && typeof body.tableAnswers === 'object' && !Array.isArray(body.tableAnswers) && Object.keys(body.tableAnswers).length > 0) {
+          storedAnswers = Object.assign({}, answers, { __tableAnswers: body.tableAnswers })
+        }
+      } catch (eTa) {}
+      try { answersJson = JSON.stringify(storedAnswers) } catch(e) { answersJson = '' }
     }
 
     // early INSERT — الصف موجود من دلوقتي بمقالي pending ودرجة الاختياري بس

@@ -25,26 +25,29 @@
 // ============================================================
 import { useEffect, useRef, useState } from 'react'
 
-/* الكارت المشترك (الاسم الكامل + الرقم) — نفس الشكل في الفوق والتحت */
+/* الكارت المشترك (الاسم الكامل + الرقم) — نفس الشكل في الفوق والتحت
+   (2026-و40-w — أصغر ~35% وأخف ~30% بطلب المستر: «بتشوش الطلاب» —
+   بس لسه ظاهرة ومقروءة للإثبات) */
 function WmCard({ nm, num }: { nm: string; num: string }) {
   return (
     <div
       style={{
         display: 'inline-block',
-        background: 'rgba(0,0,0,0.72)',
-        border: '1px solid rgba(255,255,255,0.28)',
+        background: 'rgba(0,0,0,0.5)',
+        border: '1px solid rgba(255,255,255,0.24)',
         color: '#fff',
-        borderRadius: 14,
-        padding: '7px 18px',
+        borderRadius: 10,
+        padding: '4px 11px',
         textAlign: 'center',
         direction: 'rtl',
-        boxShadow: '0 8px 26px rgba(0,0,0,0.55)',
+        opacity: 0.7,
+        boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
       }}
     >
       <span
         style={{
           display: 'block',
-          fontSize: 'clamp(11px, 1.5vw, 15px)',
+          fontSize: 'clamp(8px, 1vw, 10.5px)',
           fontWeight: 800,
           unicodeBidi: 'plaintext',
           letterSpacing: 0,
@@ -58,7 +61,7 @@ function WmCard({ nm, num }: { nm: string; num: string }) {
         <span
           style={{
             display: 'block',
-            fontSize: 'clamp(9.5px, 1.2vw, 12px)',
+            fontSize: 'clamp(7px, 0.8vw, 8.5px)',
             fontWeight: 700,
             direction: 'ltr',
             unicodeBidi: 'plaintext',
@@ -74,26 +77,28 @@ function WmCard({ nm, num }: { nm: string; num: string }) {
   )
 }
 
-/* الكارت الصغير (تحت الشمال) — بمقاس أصغر يناسب الركن (طلب المستر 2026-ح) */
+/* الكارت الصغير (تحت الشمال) — بمقاس أصغر يناسب الركن (طلب المستر 2026-ح)
+   (2026-و40-w — نفس التصغير/التشفيف: أصغر وأخف زي باقي الكروت) */
 function WmCardSmall({ nm, num }: { nm: string; num: string }) {
   return (
     <div
       style={{
         display: 'inline-block',
-        background: 'rgba(0,0,0,0.72)',
-        border: '1px solid rgba(255,255,255,0.28)',
+        background: 'rgba(0,0,0,0.5)',
+        border: '1px solid rgba(255,255,255,0.24)',
         color: '#fff',
-        borderRadius: 10,
-        padding: '4px 12px',
+        borderRadius: 8,
+        padding: '3px 9px',
         textAlign: 'center',
         direction: 'rtl',
-        boxShadow: '0 6px 18px rgba(0,0,0,0.5)',
+        opacity: 0.7,
+        boxShadow: '0 3px 10px rgba(0,0,0,0.4)',
       }}
     >
       <span
         style={{
           display: 'block',
-          fontSize: 'clamp(9.5px, 1.15vw, 12px)',
+          fontSize: 'clamp(7px, 0.85vw, 9px)',
           fontWeight: 800,
           unicodeBidi: 'plaintext',
           letterSpacing: 0,
@@ -107,7 +112,7 @@ function WmCardSmall({ nm, num }: { nm: string; num: string }) {
         <span
           style={{
             display: 'block',
-            fontSize: 'clamp(8.5px, 1vw, 10.5px)',
+            fontSize: 'clamp(6.5px, 0.72vw, 8px)',
             fontWeight: 700,
             direction: 'ltr',
             unicodeBidi: 'plaintext',
@@ -155,14 +160,15 @@ export function VideoWatermark({ name, phone }: { name?: string; phone?: string 
           وبنفس الشفافية الخفيفة عشان مش يغطي كلام الفيديو */}
       <div
         className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-        style={{ opacity: 0.5 }}
+        style={{ opacity: 0.4 }}
       >
         <div
           className="text-center font-black"
           style={{
             direction: 'rtl',
             maxWidth: '94%',
-            fontSize: 'clamp(20px, 5.6vw, 72px)',
+            /* 2026-و40-w — الكارت المركزي أصغر ~20% وأشفّ (ذروة .5 → .4) */
+            fontSize: 'clamp(16px, 4.5vw, 58px)',
             letterSpacing: 0,
           }}
         >
@@ -171,12 +177,12 @@ export function VideoWatermark({ name, phone }: { name?: string; phone?: string 
             className="leading-tight"
             style={{
               whiteSpace: 'nowrap',
-              color: 'rgba(0,0,0,0.10)',
-              WebkitTextStroke: '1.3px rgba(0,0,0,0.42)',
+              color: 'rgba(0,0,0,0.08)',
+              WebkitTextStroke: '1.1px rgba(0,0,0,0.34)',
               paintOrder: 'stroke',
               unicodeBidi: 'plaintext',
               // هالة بيضاء خفيفة جدًا عشان الحواف السودة تبان حتى على مشهد غامق
-              textShadow: '0 0 16px rgba(255,255,255,0.16)',
+              textShadow: '0 0 16px rgba(255,255,255,0.14)',
             }}
           >
             {shortName}
@@ -191,10 +197,10 @@ export function VideoWatermark({ name, phone }: { name?: string; phone?: string 
                 marginTop: '0.12em',
                 lineHeight: 1.15,
                 whiteSpace: 'nowrap',
-                color: 'rgba(0,0,0,0.10)',
-                WebkitTextStroke: '1px rgba(0,0,0,0.40)',
+                color: 'rgba(0,0,0,0.08)',
+                WebkitTextStroke: '0.9px rgba(0,0,0,0.32)',
                 paintOrder: 'stroke',
-                textShadow: '0 0 12px rgba(255,255,255,0.16)',
+                textShadow: '0 0 12px rgba(255,255,255,0.14)',
               }}
             >
               {num}

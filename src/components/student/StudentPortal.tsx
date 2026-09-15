@@ -17,9 +17,17 @@ import Image from 'next/image'
 import { toast } from 'sonner'
 import { SecurePlayerModal } from '@/components/student/SecurePlayerModal'
 import { StudentComplaints } from '@/components/student/StudentComplaints'
+/* (2026-و40) الكتب والملازم — تاب مكتبة الكتب للطالب */
+import { BooksTab } from '@/components/student/BooksTab'
 /* (2026-و33) عارض رموز المنصة + تطبيع مفتاح الإجابة المشترك (سيرفر + عميل نفس الدالة) */
 import { FractionText } from '@/components/FractionText'
 import { normalizeCorrectKey } from '@/lib/correct-key'
+/* (2026-و40-w) ورقة العمل: جداول قابلة للكتابة + رسومات مقصوصة + تجميع صفحات المصدر */
+import {
+  WorksheetQuestionBadge, WorksheetPageChip, WorksheetTableEditable, WorksheetTableReadonly,
+  WorksheetFigure, isWorksheetQuestionSet, groupWorksheetPages, emptyTableValues,
+  tableValuesAreEmpty, buildAnswerWithTable, parseTableValuesFromText,
+} from '@/components/worksheet/WorksheetParts'
 import type { Video as VideoType, Homework, Exam, Announcement, Discussion, ExamResult } from '@/stores/app-store'
 
 /* ========== SHUFFLE UTILITIES (per-student) ========== */
@@ -174,12 +182,33 @@ export function StudentPortal() {
           watchedIds: new Set<string>((results[5] && results[5].activities || []).map(function(a) { return (a.details || '').replace('Watched: ', '') })),
         })
         /* الواجبات المسلّمة → تختفي من قايمة المطلوب فورًا */
-        var doneHw: string[] = []
-        ;((results[6] && results[6].results) || []).forEach(function(r: any) {
-          if (r && r.homeworkId) doneHw.push(r.homeworkId)
-        })
-        if (doneHw.length > 0) {
-          setCompletedHwIds(function(prev) { var n = new Set(prev); doneHw.forEach(function(id) { n.add(id) }); return n })
+        /* (2026-و40) رد {results:[], error:'retry'} = السيرفر نفسه مش متأكد (خطأ DB حقيقي)
+           — بنفضل «مش عارفين» (مفيش واجب بيتشال من المطلوب) + معاودة واحدة بعد 2.5 ثانية
+           — same fail-open semantics: القايمة ما بتتعدلش غير من رد مؤكد */
+        var hwResPayload = (results[6] && typeof results[6] === 'object') ? results[6] : { results: [] }
+        if (hwResPayload && (hwResPayload as any).error === 'retry') {
+          setTimeout(function () {
+            if (cancelled) return
+            fetch('/api/homework-results?studentId=' + encodeURIComponent(studentId))
+              .then(function (r) { return r.json() })
+              .then(function (d: any) {
+                if (cancelled || !d || d.error === 'retry' || !Array.isArray(d.results)) return
+                var doneRetry: string[] = []
+                ;(d.results || []).forEach(function (r: any) { if (r && r.homeworkId) doneRetry.push(r.homeworkId) })
+                if (doneRetry.length > 0) {
+                  setCompletedHwIds(function (prev) { var n = new Set(prev); doneRetry.forEach(function (id) { n.add(id) }); return n })
+                }
+              })
+              .catch(function () {})
+          }, 2500)
+        } else {
+          var doneHw: string[] = []
+          ;((hwResPayload && hwResPayload.results) || []).forEach(function(r: any) {
+            if (r && r.homeworkId) doneHw.push(r.homeworkId)
+          })
+          if (doneHw.length > 0) {
+            setCompletedHwIds(function(prev) { var n = new Set(prev); doneHw.forEach(function(id) { n.add(id) }); return n })
+          }
         }
       } catch { /* silent */ }
       if (!cancelled) setLoading(false)
@@ -423,6 +452,8 @@ function FullPortalContent({ initialData, onBack }: { initialData: PortalData; o
             { key: 'videos', icon: Video, label: 'الدروس' },
             { key: 'homework', icon: ClipboardList, label: 'الواجبات' },
             { key: 'exams', icon: FileText, label: 'الامتحانات' },
+            /* (2026-و40) الكتب والملازم — مكتبة PDF الطالب يفتحها/يحملها */
+            { key: 'books', icon: BookOpen, label: 'الكتب والملازم' },
             { key: 'announcements', icon: Megaphone, label: 'الإعلانات' },
             { key: 'discussions', icon: MessageSquare, label: 'النقاشات' },
             { key: 'complaints', icon: Flag, label: 'الشكاوي' },
@@ -443,6 +474,8 @@ function FullPortalContent({ initialData, onBack }: { initialData: PortalData; o
         {activeTab === 'videos' && <VideosTab videos={initialData.videos} watchedIds={initialData.watchedIds} studentId={studentId} grade={grade} />}
         {activeTab === 'homework' && <HomeworkTab homework={initialData.homework} studentId={studentId} />}
         {activeTab === 'exams' && <ExamsTab exams={initialData.exams} results={initialData.examResults} studentId={studentId} />}
+        {/* (2026-و40) الكتب والملازم — بنفس صف الطالب زي الواجبات */}
+        {activeTab === 'books' && <BooksTab grade={grade} />}
         {activeTab === 'announcements' && <AnnouncementsTab announcements={initialData.announcements} />}
         {activeTab === 'discussions' && <DiscussionsTab grade={grade} studentId={studentId} studentName={currentStudent?.name || ''} />}
         {activeTab === 'complaints' && <StudentComplaints studentId={studentId} studentName={currentStudent?.name || ''} studentPhone={currentStudent?.phone || ''} grade={grade} />}
@@ -869,6 +902,9 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
   var [hwAllQuestions, setHwAllQuestions] = useState<Record<string, any[]>>({})
   var [hwWritingAnswers, setHwWritingAnswers] = useState<Record<string, any[]>>({})
   var [shuffledHwQ, setShuffledHwQ] = useState<Record<string, any[]>>({})
+  /* (2026-و40-w) جداول ورقة العمل: قيم الطالب في الخانات — مفتاحها displayIdx
+     (وضع ورقة العمل بيتعرض بالترتيب الأصلي — displayIdx = origIdx) */
+  var [hwTableAnswers, setHwTableAnswers] = useState<Record<string, Record<number, string[][]>>>({})
   var hwPollTimers = useRef<Record<string, any>>({})
   /* (2026-و25 نقل 25-a) مراجعة الواجب المسلّم: resultId في hwResults + جلب ملاحظات
      المصحح من /api/homework/result/[id] مرة واحدة عند الفتح + تحديث تلقائي واحد
@@ -895,7 +931,8 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
         var raw = localStorage.getItem(hwDraftKey(hw.id))
         if (raw) {
           var d = JSON.parse(raw)
-          if (d && d.answers && Object.keys(d.answers).length > 0) map[hw.id] = d
+          /* (2026-و40-w) مسودة ورقة العمل ممكن تكون قيم جداول بس */
+          if (d && ((d.answers && Object.keys(d.answers).length > 0) || (d.tableAnswers && Object.keys(d.tableAnswers).length > 0))) map[hw.id] = d
         }
       })
     } catch (e) {}
@@ -947,6 +984,10 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
         var shA = Array.isArray(dA.questions) && dA.questions.length > 0 ? dA.questions : shuffleQuestionsForStudent(baseQsA, studentId, hwA.id)
         setShuffledHwQ(function (prev) { return { ...prev, [hwA.id]: shA } })
         setHwAnswers(function (prev) { return { ...prev, [hwA.id]: dA.answers || {} } })
+        /* (2026-و40-w) استرجاع قيم جداول ورقة العمل كمان */
+        if (dA.tableAnswers && Object.keys(dA.tableAnswers).length > 0) {
+          setHwTableAnswers(function (prev) { return { ...prev, [hwA.id]: dA.tableAnswers } })
+        }
         setExpandedHw(hwA.id)
         toast.success('رجّعناك لشاشة الحل وإجاباتك كلها معاك — كمّل من نفس النقطة')
       } else {
@@ -969,12 +1010,14 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
         localStorage.setItem(hwDraftKey(hwId), JSON.stringify({
           answers: a,
           questions: shuffledHwQ[hwId] || [],
+          /* (2026-و40-w) قيم جداول ورقة العمل جزء من المسودة */
+          tableAnswers: hwTableAnswers[hwId] || {},
           savedAt: Date.now(),
         }))
       })
     } catch (e) {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hwAnswers, hwResults, shuffledHwQ])
+  }, [hwAnswers, hwTableAnswers, hwResults, shuffledHwQ])
   // استرجاع المسودة: نفس ترتيب الأسئلة (الخلط المحفوظ) + نفس الإجابات
   var restoreHwDraft = function (hw: any) {
     var d = hwDrafts[hw.id]
@@ -989,6 +1032,8 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
       : shuffleQuestionsForStudent(baseQs, studentId, hw.id)
     setShuffledHwQ(function (prev) { return { ...prev, [hw.id]: shuffled } })
     setHwAnswers(function (prev) { return { ...prev, [hw.id]: d.answers || {} } })
+    /* (2026-و40-w) استرجاع قيم الجداول كمان */
+    setHwTableAnswers(function (prev) { return { ...prev, [hw.id]: (d && d.tableAnswers) || {} } })
     setExpandedHw(hw.id)
     toast.success('رجّعنا إجاباتك المحفوظة — كمّل من نفس النقطة')
   }
@@ -1070,18 +1115,37 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
   }, [])
 
   // Load my past results: which homeworks are submitted + their scores (+ resultId for review)
+  /* (2026-و40) حارس نتايج الواجب على العميل: رد {results:[], error:'retry'} أو فشل شبكة
+     = "مش عارفين" — معاودة واحدة بعد 2.5 ثانية، والقايمة ما بتتعدلش غير من رد مؤكد
+     (fail-open — نفس ضمانة السيرفر؛ تكييف القائد: القائد مفيهوش خريطة أقفال hwLockMap
+     فالضمانة هنا هي إن hwResults ما يترجعش فاضي غلط يخبي واجب مسلّم من طالبه) */
   useEffect(function() {
     if (!studentId) return
-    fetch('/api/homework-results?studentId=' + studentId)
-      .then(function(r) { return r.json() })
-      .then(function(data) {
-        var map: Record<string, { score: number; maxScore: number; resultId?: string }> = {}
-        ;(data.results || []).forEach(function(r: any) {
-          map[r.homeworkId] = { score: r.score, maxScore: r.maxScore, resultId: r.id }
+    var cancelled = false
+    var retryTimer: any = null
+    var loadOnce = function(isRetry: boolean) {
+      fetch('/api/homework-results?studentId=' + studentId)
+        .then(function(r) { return r.json() })
+        .then(function(data) {
+          if (cancelled) return
+          if (data && data.error === 'retry') {
+            if (!isRetry) retryTimer = setTimeout(function() { loadOnce(true) }, 2500)
+            return
+          }
+          var map: Record<string, { score: number; maxScore: number; resultId?: string }> = {}
+          ;(data.results || []).forEach(function(r: any) {
+            map[r.homeworkId] = { score: r.score, maxScore: r.maxScore, resultId: r.id }
+          })
+          setHwResults(map)
         })
-        setHwResults(map)
-      })
-      .catch(function() {})
+        .catch(function() {
+          if (cancelled) return
+          if (!isRetry) retryTimer = setTimeout(function() { loadOnce(true) }, 2500)
+        })
+    }
+    loadOnce(false)
+    return function() { cancelled = true; if (retryTimer) clearTimeout(retryTimer) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId])
 
   /* (2026-و25 نقل 25-a) refreshHwReview — جلب تصحيح المقالي من /api/homework/result/[id]
@@ -1123,6 +1187,29 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
     }
   }
 
+  /* ===== (2026-و40-w) أدوات عرض ورقة العمل في شاشات المراجعة =====
+     - hwQuestionsById: أسئلة الواجب الكاملة (من الكاش أو من الـ JSON) — فيها table/figure
+     - reviewTableVals: قيم الجدول من tableAnswers المحفوظة أو من نص الإجابة (fallback) */
+  var hwQuestionsById = function(hwId: string): any[] {
+    var cached = hwAllQuestions[hwId]
+    if (Array.isArray(cached) && cached.length > 0) return cached
+    var hwX = homework.find(function(h) { return h.id === hwId })
+    if (!hwX) return []
+    try {
+      var pX = JSON.parse((hwX as any).questions || '[]')
+      return Array.isArray(pX) ? pX : []
+    } catch (e) { return [] }
+  }
+  var reviewTableVals = function(hwId: string, q: any, origIdx: number | undefined, answerText: string): string[][] | null {
+    var t = q && q.table
+    if (!t) return null
+    if (typeof origIdx === 'number') {
+      var stored = (hwTableAnswers[hwId] || {})[origIdx]
+      if (stored && !tableValuesAreEmpty(stored)) return stored
+    }
+    return parseTableValuesFromText(String(answerText || ''), t)
+  }
+
   var handleExpandHw = function(hwId: string) {
     if (blockedHwId) { setBlockedHwId(null); return }
     if (submittedHwId) { setSubmittedHwId(null); setExpandedHw(null); return }
@@ -1133,8 +1220,15 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
     try {
       var qs = (hw as any).questions ? JSON.parse((hw as any).questions) : []
       if (Array.isArray(qs) && qs.length > 0) {
-        var shuffled = shuffleQuestionsForStudent(qs, studentId, hwId)
-        setShuffledHwQ(function(prev) { var a = { ...prev }; a[hwId] = shuffled; return a })
+        /* (2026-و40-w) ورقة العمل: من غير خلط ولا تنظيف نصوص — الترتيب الأصلي هو اللي
+           بيحافظ على تجميع أسئلة كل صفحة مع بعض (displayIdx = origIdx بـ _origIdx) */
+        if (isWorksheetQuestionSet(qs)) {
+          var wsQs = qs.map(function(q: any, i: number) { return Object.assign({}, q, { _origIdx: i }) })
+          setShuffledHwQ(function(prev) { var a = { ...prev }; a[hwId] = wsQs; return a })
+        } else {
+          var shuffled = shuffleQuestionsForStudent(qs, studentId, hwId)
+          setShuffledHwQ(function(prev) { var a = { ...prev }; a[hwId] = shuffled; return a })
+        }
       }
     } catch { /* ignore */ }
     setExpandedHw(hwId)
@@ -1166,10 +1260,28 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
           mappedAnswers[String(dq._origIdx)] = val
         }
       }
+      /* (2026-و40-w) جداول ورقة العمل: نص المقالي بيتزوّد عليه سطر «الجدول: صف i: قيمة، قيمة»
+         عشان المصحح الذكي يقراه مع modelAnswer — والقيم الخام بتتبعت في tableAnswers
+         (مفتاح الفهرس الأصلي) عشان شاشات المراجعة تعرضها معباية.
+         ملاحظة: أسئلة الاختيارات إجابتها رقم مفهرس فمش بنلمسها (الجدول بيتخزن في tableAnswers بس) */
+      var hwTablePayload: Record<string, string[][]> = {}
+      var hwTableMapAll = hwTableAnswers[hwId] || {}
+      try {
+        allQs.forEach(function(q: any, i: number) {
+          var t = q && q.table
+          if (!t) return
+          var vals = hwTableMapAll[i]
+          if (!vals || tableValuesAreEmpty(vals)) return
+          hwTablePayload[String(i)] = vals
+          if (typeof mappedAnswers[String(i)] === 'string') {
+            mappedAnswers[String(i)] = buildAnswerWithTable(String(mappedAnswers[String(i)]), t, vals)
+          }
+        })
+      } catch (eT) {}
       var res = await fetch('/api/homework/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId: studentId, homeworkId: hwId, answers: mappedAnswers }),
+        body: JSON.stringify({ studentId: studentId, homeworkId: hwId, answers: mappedAnswers, tableAnswers: hwTablePayload }),
       })
       var data = await res.json()
       if (res.ok || data.alreadySubmitted) {
@@ -1209,6 +1321,8 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
   // BLOCK SCREEN — homework already submitted: show score (+ wrong answers if in this session)
   if (blockedHwId) {
     var blockedHw = homework.find(function(h) { return h.id === blockedHwId })
+    /* (2026-و40-w) أسئلة الواجب كاملة — عشان نجيب الجدول/الرسمة لكل سؤال */
+    var bAllQs = hwQuestionsById(blockedHwId)
     var bScore = hwResults[blockedHwId]
     var bWrong = hwWrongQuestions[blockedHwId] || []
     var bWriting = hwWritingAnswers[blockedHwId] || []
@@ -1236,10 +1350,16 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
           <div className="space-y-2">
             <p className="text-sm font-semibold text-red-600">الإجابات الخاطئة ({bWrong.length}):</p>
             {bWrong.map(function(wq, wi) {
+              /* (2026-و40-w) الجدول/الرسمة بتاعة السؤال — بالمطابقة بالفهرس الأصلي (والنص احتياط) */
+              var bQMatch = (typeof wq.origIdx === 'number' && bAllQs[wq.origIdx]) ? bAllQs[wq.origIdx] : bAllQs.find(function(qq: any) { return String(qq.question || qq.q || '') === String(wq.question || '') })
               return (
                 <Card key={wi} className="border-red-200 dark:border-red-900/40">
                   <CardContent className="p-3 space-y-2">
                     <p className="text-sm font-medium whitespace-pre-wrap break-words">{wi + 1}. {wq.question}</p>
+                    {bQMatch && bQMatch.table && (
+                      <WorksheetTableReadonly table={bQMatch.table} values={reviewTableVals(blockedHwId || '', bQMatch, typeof wq.origIdx === 'number' ? wq.origIdx : undefined, wq.studentAnswer || '')} />
+                    )}
+                    {bQMatch && bQMatch.figure && <WorksheetFigure figure={bQMatch.figure} />}
                     <div className="space-y-1">
                       <p className="text-xs text-red-600">إجابتك: <span dir="auto">{wq.studentAnswer}</span></p>
                       <p className="text-xs text-emerald-600">الإجابة الصحيحة: <span dir="auto">{wq.correctAnswer}</span></p>
@@ -1299,6 +1419,17 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                       <p className="text-xs font-medium min-w-0 whitespace-pre-wrap break-words">{wa.question}</p>
                       <Badge className={'text-[10px] shrink-0 ' + badgeCls}>{badgeText}</Badge>
                     </div>
+                    {/* (2026-و40-w) جدول السؤال معبى + رسمته — عرض فقط */}
+                    {(function() {
+                      var bqw = (typeof wa.origIdx === 'number' && bAllQs[wa.origIdx]) ? bAllQs[wa.origIdx] : bAllQs.find(function(qq: any) { return String(qq.question || qq.q || '') === String(wa.question || '') })
+                      if (!bqw || (!bqw.table && !bqw.figure)) return null
+                      return (
+                        <div>
+                          {bqw.table && <WorksheetTableReadonly table={bqw.table} values={reviewTableVals(blockedHwId || '', bqw, typeof wa.origIdx === 'number' ? wa.origIdx : undefined, wa.answer || '')} />}
+                          {bqw.figure && <WorksheetFigure figure={bqw.figure} />}
+                        </div>
+                      )
+                    })()}
                     {/* (2026-و30) طلب المستر: «الملاحظات بتاعة الـ AI تبقى هي التانية» —
                         الملاحظة بعد السؤال مباشرة قبل إجابتك والدرجة وقراءة الـ AI */}
                     {(wa.aiFeedback || wa.feedback) && !waPending && (
@@ -1389,6 +1520,17 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                         <Badge variant="outline" className="text-[9px] border-amber-500/40 text-amber-600 shrink-0 mt-0.5">مقالي</Badge>
                         <p className="font-medium text-sm flex-1 whitespace-pre-wrap break-words">{qi + 1}. {qText}</p>
                       </div>
+                      {/* (2026-و40-w) جدول السؤال معبى بقيم الطالب + رسمته — عرض فقط */}
+                      {(function() {
+                        if (!q.table && !q.figure) return null
+                        var tvals = reviewTableVals(submittedHwId || '', q, qi, (writingAns && writingAns.answer) || '')
+                        return (
+                          <div>
+                            {q.table && <WorksheetTableReadonly table={q.table} values={tvals} />}
+                            {q.figure && <WorksheetFigure figure={q.figure} />}
+                          </div>
+                        )
+                      })()}
                       {/* (2026-و30) طلب المستر: «الملاحظات بتاعة الـ AI تبقى هي التانية» —
                           الملاحظة بقت **تاني عنصر في الكارت** بعد السؤال مباشرة (كانت آخر حاجة)،
                           وبتتكتب بالمصري العامي من برومبت المصحح نفسه */}
@@ -1458,6 +1600,12 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                 <Card key={qi} className={wrongEntry ? 'border-red-200 dark:border-red-900/40' : 'border-emerald-200 dark:border-emerald-900/40'}>
                   <CardContent className="p-3 space-y-2">
                     <p className="font-medium text-sm whitespace-pre-wrap break-words">{qi + 1}. {qText}</p>
+                    {/* (2026-و40-w) جدول السؤال معبى بقيم الطالب + رسمته — عرض فقط */}
+                    {q.table && (function() {
+                      var tvals = reviewTableVals(submittedHwId || '', q, qi, (wrongEntry && wrongEntry.studentAnswer) || '')
+                      return <WorksheetTableReadonly table={q.table} values={tvals} />
+                    })()}
+                    {q.figure && <WorksheetFigure figure={q.figure} />}
                     <div className="space-y-1 text-xs">
                       {wrongEntry ? (
                         <>
@@ -1520,6 +1668,11 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
         var isExpanded = expandedHw === hw.id && !isSubmitted
         var myAnswers = hwAnswers[hw.id] || {}
         var shQ = shuffledHwQ[hw.id] || []
+        /* (2026-و40-w) ورقة العمل: أسئلة فيها جدول/رسمة/صفحة مصدر → عرض بالترتيب
+           الأصلي مجمّع حسب صفحة المصدر (من غير خلط — الخلط بيكسر تجميع الصفحات)
+           والإجابات بتتخزن بفهرس أصلي مباشر (displayIdx = origIdx) */
+        var isWorksheetHw = isWorksheetQuestionSet(shQ)
+        var hwTableMap = (isWorksheetHw && hwTableAnswers[hw.id]) || {}
 
         return (
           <Card key={hw.id} className={isSubmitted ? 'border-emerald-500/30' : (hasQuestions ? 'cursor-pointer' : '')}>
@@ -1558,7 +1711,88 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
 
               {isExpanded && hasQuestions && shQ.length > 0 && (
                 <div className="mt-4 pt-4 border-t space-y-4" onClick={function(e) { e.stopPropagation() }}>
-                  {shQ.map(function(q: any, qi: number) {
+                  {/* ===== (2026-و40-w) ورقة العمل: صفحات المصدر مجمعة — بادج دائري
+                      + جدول يكتب فيه الطالب + رسمة السؤال — زي الورقة بالظبط ===== */}
+                  {isWorksheetHw ? (
+                    <div className="space-y-4">
+                      <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">📝 ورقة عمل — اكتب جوه الجداول وخانات الإجابة تحت كل سؤال</p>
+                      {groupWorksheetPages(shQ).map(function(g, gi) {
+                        return (
+                          <div key={g.key || gi} className="rounded-xl border border-amber-200/80 dark:border-amber-800/50 bg-amber-50/60 dark:bg-amber-950/20 p-3 space-y-3">
+                            <WorksheetPageChip srcName={g.srcName} page={g.page} />
+                            {g.items.map(function(item, ii) {
+                              var q = item.q
+                              var displayIdx = item.idx
+                              var qIsWriting = isWritingQuestion(q)
+                              var pts = (typeof q.points === 'number' && q.points > 0) ? q.points : (qIsWriting ? 5 : 1)
+                              var tVals = hwTableMap[displayIdx] || (q.table ? emptyTableValues(q.table) : undefined)
+                              return (
+                                <div key={'ws-' + displayIdx} className="rounded-lg bg-white/80 dark:bg-white/5 border border-amber-200/60 dark:border-amber-900/40 p-3 space-y-2">
+                                  <div className="flex items-start gap-2.5">
+                                    <WorksheetQuestionBadge n={displayIdx + 1} />
+                                    <p className="font-medium text-sm flex-1 whitespace-pre-wrap break-words">
+                                      <FractionText text={q.question || q.q} />
+                                      <span className="text-muted-foreground text-xs"> ({pts} {pts === 1 ? 'درجة' : 'درجات'})</span>
+                                      {qIsWriting && <Badge variant="outline" className="text-[9px] ml-2 border-amber-500/40 text-amber-600">مقالي</Badge>}
+                                    </p>
+                                  </div>
+                                  {q.table && tVals && (
+                                    <WorksheetTableEditable
+                                      table={q.table}
+                                      values={tVals}
+                                      onChange={function(r: number, c: number, v: string) {
+                                        setHwTableAnswers(function(prev) {
+                                          var perHw = { ...(prev[hw.id] || {}) }
+                                          var vals = perHw[displayIdx] ? perHw[displayIdx].map(function(row: string[]) { return row.slice() }) : emptyTableValues(q.table)
+                                          if (!vals[r]) vals[r] = []
+                                          vals[r][c] = v
+                                          perHw[displayIdx] = vals
+                                          return { ...prev, [hw.id]: perHw }
+                                        })
+                                      }}
+                                    />
+                                  )}
+                                  {q.figure && <WorksheetFigure figure={q.figure} />}
+                                  {qIsWriting ? (
+                                    <WritingAnswerBox
+                                      value={typeof myAnswers[displayIdx] === 'string' ? (myAnswers[displayIdx] as string) : ''}
+                                      onChange={function(val: string) {
+                                        setHwAnswers(function(prev) {
+                                          var a = { ...prev }
+                                          a[hw.id] = { ...(a[hw.id] || {}), [displayIdx]: val }
+                                          return a
+                                        })
+                                      }}
+                                      disabled={hwSubmitting === hw.id}
+                                    />
+                                  ) : (
+                                    <div className="space-y-1.5">
+                                      {(q.options || []).map(function(opt: string, oi: number) {
+                                        var isSelected = myAnswers[displayIdx] === oi
+                                        return (
+                                          <button
+                                            key={oi}
+                                            onClick={function() { setHwAnswers(function(prev) { var a = { ...prev }; a[hw.id] = { ...(a[hw.id] || {}), [displayIdx]: oi }; return a }) }}
+                                            className={"w-full text-right p-3 rounded-lg border text-sm transition-colors " + (
+                                              isSelected ? 'border-primary bg-primary/10 text-primary font-medium' :
+                                              'border-border hover:bg-muted/50'
+                                            )}
+                                          >
+                                            <span className="ml-2">{String.fromCharCode(65 + oi)})</span>{opt}
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                  shQ.map(function(q: any, qi: number) {
                     var writing = isWritingQuestion(q)
                     var pts = (typeof q.points === 'number' && q.points > 0) ? q.points : (writing ? 5 : 1)
                     if (writing) {
@@ -1605,7 +1839,8 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                         </div>
                       </div>
                     )
-                  })}
+                  })
+                  )}
                   <Button size="sm" onClick={function() { handleHwSubmit(hw.id) }} disabled={Object.keys(myAnswers).length === 0 || hwSubmitting === hw.id}>
                     {hwSubmitting === hw.id ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : null}
                     تسليم الإجابات ({Object.keys(myAnswers).length}/{shQ.length})
@@ -1628,6 +1863,8 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
   var [answers, setAnswers] = useState<Record<number, number | string>>({})
   var [submitting, setSubmitting] = useState(false)
   var [examQuestions, setExamQuestions] = useState<any[]>([])
+  /* (2026-و40-w) جداول ورقة العمل — مفتاحها displayIdx (وضع الورقة بالترتيب الأصلي) */
+  var [examTableAnswers, setExamTableAnswers] = useState<Record<number, string[][]>>({})
   var [submittedMsg, setSubmittedMsg] = useState<string | null>(null)
   var [submittedExamIds, setSubmittedExamIds] = useState<Set<string>>(new Set())
   var [lockedOut, setLockedOut] = useState(false)
@@ -1668,7 +1905,8 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
         var raw = localStorage.getItem(examDraftKey(ex.id))
         if (raw) {
           var d = JSON.parse(raw)
-          var hasAny = d && d.answers && Object.keys(d.answers).length > 0
+          /* (2026-و40-w) مسودة ورقة العمل ممكن تكون قيم جداول بس */
+          var hasAny = d && ((d.answers && Object.keys(d.answers).length > 0) || (d.tableAnswers && Object.keys(d.tableAnswers).length > 0))
           if (d && Array.isArray(d.questions) && d.questions.length > 0 && hasAny) map[ex.id] = d
         }
       })
@@ -1686,11 +1924,13 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
       localStorage.setItem(examDraftKey(takingExam), JSON.stringify({
         answers: answers,
         questions: examQuestions,
+        /* (2026-و40-w) قيم جداول ورقة العمل جزء من مسودة الامتحان */
+        tableAnswers: examTableAnswers,
         savedAt: Date.now(),
       }))
     } catch (e) {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [takingExam, answers, examQuestions])
+  }, [takingExam, answers, examQuestions, examTableAnswers])
 
   /* ===== (2026-و38) تتبع شاشة حل الامتحان النشطة + الرجوع التلقائي ليها =====
    * أهم حالة: الطالب كان داخل امتحان والعداد بيعدّي — الـ reload كان يرجعه
@@ -1812,12 +2052,28 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
       }
     }
     // Client-side timeout (120s — التصحيح المتزامن بيكمل أثناء التسليم)
+    /* (2026-و40-w) جداول ورقة العمل: نص المقالي بيتزوّد عليه سطر «الجدول: …»
+       عشان المصحح الذكي يقراه — والقيم الخام في tableAnswers (مفتاح الفهرس
+       الأصلي). إجابات الاختيارات الرقمية مش بتتلمس */
+    var examTablePayload: Record<string, string[][]> = {}
+    Object.keys(examTableAnswers).forEach(function(di) {
+      var displayIdx = parseInt(di)
+      var q = examQuestions[displayIdx]
+      var vals = examTableAnswers[displayIdx]
+      if (!q || !q.table || !vals || tableValuesAreEmpty(vals)) return
+      var origIdx = (typeof q._origIdx === 'number') ? q._origIdx : displayIdx
+      examTablePayload[String(origIdx)] = vals
+      var saKey = String(origIdx)
+      if (typeof serverAnswers[saKey] === 'string') {
+        serverAnswers[saKey] = buildAnswerWithTable(String(serverAnswers[saKey]), q.table, vals)
+      }
+    })
     var submitController = new AbortController()
     var submitTimeout = setTimeout(function() { submitController.abort() }, 120000)
     fetch('/api/exams/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId: studentId, examId: examIdAtSubmit, answers: serverAnswers }),
+      body: JSON.stringify({ studentId: studentId, examId: examIdAtSubmit, answers: serverAnswers, tableAnswers: examTablePayload }),
       signal: submitController.signal,
     })
     .then(function(r) { return r.json() })
@@ -1852,10 +2108,22 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
            البدء بيتقري من localStorage زي ما هو (مش بيتصفر) */
         setExamQuestions(draft.questions)
         setAnswers(draft.answers && typeof draft.answers === 'object' ? draft.answers : {})
+        /* (2026-و40-w) استرجاع قيم جداول ورقة العمل */
+        setExamTableAnswers(draft.tableAnswers && typeof draft.tableAnswers === 'object' ? draft.tableAnswers : {})
       } else {
-        var shuffled = shuffleQuestionsForStudent(parsedQuestions, studentId, exam.id)
-        setExamQuestions(shuffled)
-        setAnswers({})
+        /* (2026-و40-w) ورقة العمل: من غير خلط — الترتيب الأصلي هو اللي بيحافظ
+           على تجميع أسئلة كل صفحة مع بعض (displayIdx = origIdx بـ _origIdx) */
+        if (isWorksheetQuestionSet(parsedQuestions)) {
+          var wsQs = parsedQuestions.map(function(q: any, i: number) { return Object.assign({}, q, { _origIdx: i }) })
+          setExamQuestions(wsQs)
+          setAnswers({})
+          setExamTableAnswers({})
+        } else {
+          var shuffled = shuffleQuestionsForStudent(parsedQuestions, studentId, exam.id)
+          setExamQuestions(shuffled)
+          setAnswers({})
+          setExamTableAnswers({})
+        }
       }
       setTakingExam(exam.id)
       setLockedOut(false)
@@ -1935,6 +2203,18 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
                           {mOk ? 'صح ✓' : 'غلط ✗'}
                         </Badge>
                       </div>
+                      {/* (2026-و40-w) جدول السؤال معبى + رسمته — عرض فقط */}
+                      {(function() {
+                        var qMatch = (typeof m.origIdx === 'number' && examQuestions[m.origIdx]) ? examQuestions[m.origIdx] : examQuestions.find(function(qq: any) { return String(qq.question || qq.q || '') === String(m.question || '') })
+                        if (!qMatch || (!qMatch.table && !qMatch.figure)) return null
+                        var tv = (typeof m.origIdx === 'number' && examTableAnswers[m.origIdx] && !tableValuesAreEmpty(examTableAnswers[m.origIdx])) ? examTableAnswers[m.origIdx] : (qMatch.table ? parseTableValuesFromText(m.studentAnswer || '', qMatch.table) : null)
+                        return (
+                          <div>
+                            {qMatch.table && <WorksheetTableReadonly table={qMatch.table} values={tv} />}
+                            {qMatch.figure && <WorksheetFigure figure={qMatch.figure} />}
+                          </div>
+                        )
+                      })()}
                       <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                         {mOk ? <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" /> : <XCircle className="h-3 w-3 text-red-500 shrink-0" />}
                         إجابتك: {m.studentAnswer || 'لم يتم الإجابة'}
@@ -1985,6 +2265,18 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
                       <p className="text-xs font-medium min-w-0">{g.question || ''}</p>
                       <Badge className={'text-[10px] shrink-0 ' + (gOk ? 'bg-emerald-500 text-white' : gHalf ? 'bg-amber-500 text-white' : 'bg-red-500 text-white')} dir="ltr">{g.awardedPoints}/{g.maxPoints}</Badge>
                     </div>
+                    {/* (2026-و40-w) جدول السؤال معبى + رسمته — عرض فقط */}
+                    {(function() {
+                      var qwMatch = examQuestions.find(function(qq: any) { return String(qq.question || qq.q || '') === String(g.question || '') })
+                      if (!qwMatch || (!qwMatch.table && !qwMatch.figure)) return null
+                      var tw = qwMatch.table ? parseTableValuesFromText(g.answer || g.aiExtractedAnswer || '', qwMatch.table) : null
+                      return (
+                        <div>
+                          {qwMatch.table && <WorksheetTableReadonly table={qwMatch.table} values={tw} />}
+                          {qwMatch.figure && <WorksheetFigure figure={qwMatch.figure} />}
+                        </div>
+                      )
+                    })()}
                     {g.feedback && <p className="text-[10px] text-muted-foreground">🤖 <FractionText text={g.feedback} /></p>}
                     {g.modelAnswer && (
                       <p className="text-[10px] text-emerald-600">الإجابة النموذجية: {g.modelAnswer}</p>
@@ -1995,7 +2287,7 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
             })}
           </div>
         )}
-        <Button variant="outline" className="mt-2 gap-2" onClick={function() { setSubmittedMsg(null); setTakingExam(null); setAnswers({}); setExamQuestions([]); setLockedOut(false) }}>
+        <Button variant="outline" className="mt-2 gap-2" onClick={function() { setSubmittedMsg(null); setTakingExam(null); setAnswers({}); setExamQuestions([]); setExamTableAnswers({}); setLockedOut(false) }}>
           <ChevronLeft className="h-4 w-4" />
           العودة إلى صفحتك
         </Button>
@@ -2019,15 +2311,19 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
           </div>
           <h2 className="text-2xl font-bold">تم إلغاء الامتحان</h2>
           <p className="text-sm text-muted-foreground">لقد غادرت صفحة الامتحان</p>
-          <Button variant="outline" onClick={function() { setTakingExam(null); setAnswers({}); setExamQuestions([]); setLockedOut(false) }}>رجوع للامتحانات</Button>
+          <Button variant="outline" onClick={function() { setTakingExam(null); setAnswers({}); setExamQuestions([]); setExamTableAnswers({}); setLockedOut(false) }}>رجوع للامتحانات</Button>
         </div>
       )
     }
+    /* (2026-و40-w) ورقة العمل؟ أسئلة فيها جدول/رسمة/صفحة مصدر — بتتعرض مجمعة
+       بالصفحات بالترتيب الأصلي (الخلط متقفل في handleStartExam للامتحانات دي) */
+    var isWorksheetExam = isWorksheetQuestionSet(examQuestions)
+    var examPageGroups = isWorksheetExam ? groupWorksheetPages(examQuestions) : []
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-bold">{exam.title}</h3>
-          <Button variant="outline" size="sm" onClick={function() { setTakingExam(null); setAnswers({}); setExamQuestions([]); setLockedOut(false) }}>رجوع</Button>
+          <Button variant="outline" size="sm" onClick={function() { setTakingExam(null); setAnswers({}); setExamQuestions([]); setExamTableAnswers({}); setLockedOut(false) }}>رجوع</Button>
         </div>
 
         {/* (و25 نقل 25-b2) العداد التنازلي — الامتحانات المحددة ليها وقت من الأدمن */}
@@ -2066,7 +2362,77 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
             <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70" />
           </a>
         )}
-        {examQuestions.map(function(q, qi) {
+        {/* ===== (2026-و40-w) ورقة العمل: صفحات المصدر مجمعة — بادج دائري + جدول
+            يكتب فيه الطالب + رسمة السؤال — زي الورقة بالظبط ===== */}
+        {isWorksheetExam && (
+          <div className="space-y-4">
+            <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">📝 ورقة عمل — اكتب جوه الجداول وخانات الإجابة تحت كل سؤال</p>
+            {examPageGroups.map(function(g, gi) {
+              return (
+                <div key={g.key || gi} className="rounded-xl border border-amber-200/80 dark:border-amber-800/50 bg-amber-50/60 dark:bg-amber-950/20 p-3 space-y-3">
+                  <WorksheetPageChip srcName={g.srcName} page={g.page} />
+                  {g.items.map(function(item, ii) {
+                    var q = item.q
+                    var displayIdx = item.idx
+                    var qIsWriting = isWritingQuestion(q)
+                    var pts = (typeof q.points === 'number' && q.points > 0) ? q.points : (qIsWriting ? 5 : 1)
+                    var tVals = examTableAnswers[displayIdx] || (q.table ? emptyTableValues(q.table) : undefined)
+                    return (
+                      <div key={'wsx-' + displayIdx} className="rounded-lg bg-white/80 dark:bg-white/5 border border-amber-200/60 dark:border-amber-900/40 p-3 space-y-2">
+                        <div className="flex items-start gap-2.5">
+                          <WorksheetQuestionBadge n={displayIdx + 1} />
+                          <p className="font-medium text-sm flex-1 whitespace-pre-wrap break-words">
+                            <FractionText text={q.question || q.q} />
+                            <span className="text-muted-foreground text-xs"> ({pts} {pts === 1 ? 'درجة' : 'درجات'})</span>
+                            {qIsWriting && <Badge variant="outline" className="text-[9px] ml-2 border-amber-500/40 text-amber-600">مقالي</Badge>}
+                          </p>
+                        </div>
+                        {q.table && tVals && (
+                          <WorksheetTableEditable
+                            table={q.table}
+                            values={tVals}
+                            disabled={submitting}
+                            onChange={function(r: number, c: number, v: string) {
+                              setExamTableAnswers(function(prev) {
+                                var vals = prev[displayIdx] ? prev[displayIdx].map(function(row: string[]) { return row.slice() }) : emptyTableValues(q.table)
+                                if (!vals[r]) vals[r] = []
+                                vals[r][c] = v
+                                return { ...prev, [displayIdx]: vals }
+                              })
+                            }}
+                          />
+                        )}
+                        {q.figure && <WorksheetFigure figure={q.figure} />}
+                        {qIsWriting ? (
+                          <WritingAnswerBox
+                            value={typeof answers[displayIdx] === 'string' ? (answers[displayIdx] as string) : ''}
+                            onChange={function(val: string) { setAnswers(function(prev) { var a = { ...prev }; a[displayIdx] = val; return a }) }}
+                            disabled={submitting}
+                          />
+                        ) : (
+                          <div className="space-y-2">
+                            {(q.options || []).map(function(opt: string, oi: number) {
+                              return (
+                                <button
+                                  key={oi}
+                                  onClick={function() { setAnswers(function(prev) { var a = { ...prev }; a[displayIdx] = oi; return a }) }}
+                                  className={"w-full text-right p-3 rounded-lg border text-sm transition-colors " + (answers[displayIdx] === oi ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border hover:bg-muted/50')}
+                                >
+                                  <span className="ml-2 font-bold">{String.fromCharCode(65 + oi)}.</span> {opt}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+        )}
+        {!isWorksheetExam && examQuestions.map(function(q, qi) {
           var isWriting = isWritingQuestion(q)
           return (
             <Card key={qi}>
@@ -2187,6 +2553,18 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
                           <p className="text-xs font-medium min-w-0">{g.question || ''}</p>
                           <Badge className={'text-[10px] shrink-0 ' + (gOk ? 'bg-emerald-500 text-white' : gHalf ? 'bg-amber-500 text-white' : 'bg-red-500 text-white')} dir="ltr">{g.awardedPoints}/{g.maxPoints}</Badge>
                         </div>
+                        {/* (2026-و40-w) جدول السؤال معبى + رسمته — عرض فقط */}
+                        {(function() {
+                          var qwMatch2 = examQuestions.find(function(qq: any) { return String(qq.question || qq.q || '') === String(g.question || '') })
+                          if (!qwMatch2 || (!qwMatch2.table && !qwMatch2.figure)) return null
+                          var tw2 = qwMatch2.table ? parseTableValuesFromText(g.answer || '', qwMatch2.table) : null
+                          return (
+                            <div>
+                              {qwMatch2.table && <WorksheetTableReadonly table={qwMatch2.table} values={tw2} />}
+                              {qwMatch2.figure && <WorksheetFigure figure={qwMatch2.figure} />}
+                            </div>
+                          )
+                        })()}
                         {/* (2026-و30) طلب المستر: «الملاحظات بتاعة الـ AI تبقى هي التانية» — الملاحظة بعد السؤال مباشرة */}
                         {g.feedback && <p className="text-[10px] text-muted-foreground">🤖 <FractionText text={g.feedback} /></p>}
                         {g.answer && (

@@ -13,6 +13,9 @@
 
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
+/* (2026-و40) حارس الترتيب التسلسلي — الواجب مينفعش يتسلّم غير لما اللي قبله يتسلّم
+   (نفس نظام الفيديوهات بالظبط — سلسلة مطابقة لقايمة الطالب + fail-open) */
+import { checkHwSequential } from '@/lib/sequential-guard'
 import { gradeImageAnswer, gradeTextAnswer, extractImageMediaIds } from '@/lib/ai-image-grader'
 /* (2026-و33) مصدر واحد لمفتاح الإجابة — نفس الدالة اللي شاشة المراجعة بتستخدمها على العميل */
 import { normalizeCorrectKey } from '@/lib/correct-key'
@@ -139,6 +142,15 @@ export async function POST(request) {
     } catch (e) {
       console.error('Check existing hw error:', e)
     }
+
+    // (2026-و40) الترتيب التسلسلي (نفس نظام الفيديوهات — طلب المستر):
+    // الواجب مينفعش يتسلّم غير لما الواجب اللي قبله يكون متسلّم
+    try {
+      var seqCheck = await checkHwSequential(homeworkId, studentId)
+      if (!seqCheck.ok) {
+        return NextResponse.json({ error: seqCheck.reason, sequentialLocked: true }, { status: seqCheck.code || 423 })
+      }
+    } catch (e) {}
 
     // Fetch homework questions
     var homework = null
@@ -302,7 +314,18 @@ export async function POST(request) {
     var resultId = 'hwr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
     var answersJson = ''
     if (answers !== undefined && answers !== null) {
-      try { answersJson = JSON.stringify(answers) } catch(e) { answersJson = '' }
+      /* (2026-و40-w) قيم جداول ورقة العمل بتيجي في body.tableAnswers
+         (مفتاح: الفهرس الأصلي للسؤال → مصفوفة مصفوفات) — بتتخزن جوه
+         JSON الإجابات نفسه تحت مفتاح مميز __tableAnswers عشان شاشات
+         المراجعة تعرض الجدول معبى — مفيش أي تأثير على التصحيح
+         (التصحيح بيقرأ الفهارس الرقمية بس) */
+      var storedAnswers: any = answers
+      try {
+        if (body && body.tableAnswers && typeof body.tableAnswers === 'object' && !Array.isArray(body.tableAnswers) && Object.keys(body.tableAnswers).length > 0) {
+          storedAnswers = Object.assign({}, answers, { __tableAnswers: body.tableAnswers })
+        }
+      } catch (eTa) {}
+      try { answersJson = JSON.stringify(storedAnswers) } catch(e) { answersJson = '' }
     }
 
     var inserted = false

@@ -86,8 +86,18 @@ export async function POST(request) {
     lines.push('- التواريخ والأسماء والأماكن تتكتب زي ما هي بالظبط.')
     lines.push('- الصف: ' + grade + ' | النوع: ' + type)
     lines.push('')
+    /* (2026-و40-w) بنية ورقة العمل — جداول قابلة للكتابة + رسومات مقصوصة:
+       دمج القسم الجديد مع سطور المنصة الخاصة بالدراسات (ممنوع استبدالها) */
+    lines.push('WORKSHEET STRUCTURE (very important — many worksheet questions contain TABLES and GRAPHS):')
+    lines.push('- For EVERY question include "sourcePage": the 1-based page number of the source document where the question appears (a single-page document → 1).')
+    lines.push('- TABLES: if the question shows a printed table, return "table" reproducing it EXACTLY: {"headers":["السنّة","الحدث"],"rows":[[{"t":"1922"},{"t":"","blank":true}]]}.')
+    lines.push('  * Printed cells → {"t":"<exact printed text>"}. Cells the STUDENT must fill → {"t":"","blank":true}.')
+    lines.push('  * Do NOT blank printed cells, and do NOT fill the blank cells — the student writes inside them.')
+    lines.push('- GRAPHS/DIAGRAMS/MAPS: if the question contains a graph, map, image or diagram, NEVER flatten it into text: return "figure":{"page":<page number>,"bbox":{"x":..,"y":..,"w":..,"h":..}} where bbox is the bounding rectangle of the figure as FRACTIONS of the WHOLE page image (each value 0..1, x/y = top-left corner, w/h = size).')
+    lines.push('- modelAnswer must include the expected table values when applicable (مثال: «الجدول: صف 2: 1922، إعلان استقلال مصر»).')
+    lines.push('')
     lines.push('JSON فقط من غير أي كلام زائد:')
-    lines.push('{"title":"...","questions":[{"type":"mcq","question":"...","options":["أ","ب","ج","د"],"correct":0,"points":1},{"type":"writing","question":"...","options":[],"correct":-1,"points":5,"modelAnswer":"..."}],"answerKey":""}')
+    lines.push('{"title":"...","questions":[{"type":"mcq","question":"...","options":["أ","ب","ج","د"],"correct":0,"points":1,"sourcePage":1},{"type":"writing","question":"...","options":[],"correct":-1,"points":5,"modelAnswer":"...","sourcePage":1,"table":{"headers":["السنّة","الحدث"],"rows":[[{"t":"1922"},{"t":"","blank":true}]]},"figure":{"page":1,"bbox":{"x":0.05,"y":0.3,"w":0.4,"h":0.35}}}],"answerKey":""}')
     var prompt = lines.join('\n')
 
     var parts = [{ text: prompt }]
@@ -125,28 +135,37 @@ export async function POST(request) {
       var qText = q.question || q.q || ''
       var isWriting = q.type === 'writing' || q.type === 'essay'
       if (!isWriting && (!Array.isArray(q.options) || q.options.length === 0)) isWriting = true
+      /* (2026-و40-w) حقول ورقة العمل — pass-through (sourcePage/srcName/table/figure/optionFigures)
+         بتتحفظ جنب الحقول القانونية — مع تطبيع خفيف */
+      var wsFields: any = {}
+      var spN = parseInt(String(q.sourcePage), 10)
+      if (isFinite(spN) && spN > 0) wsFields.sourcePage = spN
+      if (q.srcName && String(q.srcName).trim()) wsFields.srcName = String(q.srcName).trim()
+      if (q.table && Array.isArray(q.table.rows)) wsFields.table = q.table
+      if (q.figure && q.figure.bbox) wsFields.figure = q.figure
+      if (Array.isArray(q.optionFigures)) wsFields.optionFigures = q.optionFigures
       if (isWriting) {
-        return {
+        return Object.assign({
           type: 'writing',
           question: qText,
           options: [],
           correct: -1,
           points: (typeof q.points === 'number' && q.points > 0) ? q.points : 5,
           modelAnswer: q.modelAnswer || q.answer || '',
-        }
+        }, wsFields)
       }
       var opts = Array.isArray(q.options) ? q.options.slice() : ['N/A', 'N/A', 'N/A', 'N/A']
       while (opts.length < 4) { opts.push('N/A') }
       var c = typeof q.correct === 'number' ? q.correct : 0
       if (c < 0 || c > 3) { c = 0 }
-      return {
+      return Object.assign({
         type: 'mcq',
         question: qText,
         options: opts.slice(0, 4),
         correct: c,
         points: (typeof q.points === 'number' && q.points > 0) ? q.points : 1,
         modelAnswer: q.modelAnswer || '',
-      }
+      }, wsFields)
     }).filter(function(q) { return q.question.trim().length > 0 })
 
     if (questions.length === 0) {

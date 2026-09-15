@@ -35,6 +35,8 @@ export var SCHEMA_TABLES = [
   'CREATE TABLE IF NOT EXISTS VideoGroupSchedule (id TEXT PRIMARY KEY, videoId TEXT NOT NULL, groupId TEXT NOT NULL, unlockAt DATETIME, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
   // (2026-و37) حساب ولي الأمر — مربوط بحساب ابنه بـ studentId (زي ما هو في Student.parentPhone)
   'CREATE TABLE IF NOT EXISTS Parent (id TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT "", phone TEXT NOT NULL UNIQUE, password TEXT NOT NULL DEFAULT "", studentId TEXT NOT NULL, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+  // (2026-و40) الكتب والملازم — مكتبة PDF للطالب (تاب أدمن + تاب طالب)
+  'CREATE TABLE IF NOT EXISTS Book (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT \'\', filePath TEXT NOT NULL DEFAULT \'\', fileName TEXT NOT NULL DEFAULT \'\', fileType TEXT NOT NULL DEFAULT \'application/pdf\', sizeBytes INTEGER NOT NULL DEFAULT 0, grade TEXT NOT NULL DEFAULT \'\', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL)',
 ]
 
 
@@ -155,7 +157,7 @@ export var SCHEMA_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_parent_student ON Parent(studentId)',
 ]
 
-export var CORE_TABLES = ['Admin', 'Student', 'StudentActivity', 'Video', 'Homework', 'Exam', 'ExamResult', 'Announcement', 'Discussion', 'SiteConfig', 'Media', 'VideoProgress', 'GalleryImage', 'Payment', 'VideoAccess', 'Complaint', 'Parent']
+export var CORE_TABLES = ['Admin', 'Student', 'StudentActivity', 'Video', 'Homework', 'Exam', 'ExamResult', 'Announcement', 'Discussion', 'SiteConfig', 'Media', 'VideoProgress', 'GalleryImage', 'Payment', 'VideoAccess', 'Complaint', 'Parent', 'Book']
 
 /* Returns { missing: string[], repaired: boolean, results: any[] } */
 
@@ -164,7 +166,10 @@ export var CORE_TABLES = ['Admin', 'Student', 'StudentActivity', 'Video', 'Homew
  * اتخطى!) — وده كان سبب «حساب ولي أمر — حصلت مشكلة في إنشاء الحساب»:
  * جدول Parent مش موجود على Turso. بتغيير المفتاح أول ريكوست بعد النشر
  * بيعمل الفحص الكامل وينشئ أي جدول ناقص (Parent فوق كلهم). */
-var SCHEMA_HASH_KEY = 'schema_heal_hash_v2_w38'
+/* (2026-و40) مفتاح البصمة اتبدّل — جدول Book الجديد (الكتب والملازم) دخل
+ * SCHEMA_TABLES + CORE_TABLES، وتغيير المفتاح بيضمن إن أول ريكوست بعد النشر
+ * يعمل الفحص الكامل وينشئ الجدول على Turso (درس حادثة و38). */
+var SCHEMA_HASH_KEY = 'schema_heal_hash_v2_w40'
 /* ============================================================
  * 2026-و23 — **إصلاح بطء المنصة**: كل إقلاع سيرفر كان بيشغّل ~70
  * استعلام متسلسل على Turso (ALTERs فاشلة + UPDATEs) — بقى فحص بصمة

@@ -175,13 +175,22 @@ export async function GET(request: NextRequest) {
           }
           if (!isWriting && (!q.options || q.options.length === 0)) isWriting = true
           if (isWriting) {
-            out.push({
+            /* (2026-و40-w) حقول ورقة العمل بتعد مع السؤال (جدول/رسمة/مصدر) —
+               عشان شاشات المراجعة تعرض الجدول والرسمة جنب إجابة الطالب */
+            out.push(Object.assign({
               origIdx: idx,
               question: q.question || q.q || '',
               modelAnswer: q.modelAnswer || q.answer || '',
               acceptedAnswers: Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers : [],
               points: (typeof q.points === 'number' && q.points > 0) ? q.points : 5,
-            })
+            }, (function () {
+              var ws: any = {}
+              if (q.table) ws.table = q.table
+              if (q.figure) ws.figure = q.figure
+              if (q.srcName) ws.srcName = q.srcName
+              if (q.sourcePage !== undefined) ws.sourcePage = q.sourcePage
+              return ws
+            })()))
           }
         })
       } catch (e) {}
@@ -199,6 +208,26 @@ export async function GET(request: NextRequest) {
         }
       } catch (e) {}
       return undefined
+    }
+
+    /* (2026-و40-w) حقول ورقة العمل لكل سؤال في المراجعة: الجدول/الرسمة/المصدر
+       + قيم الجدول اللي كتبها الطالب (المفتاح المميز __tableAnswers جوه
+       إجابات التسليم — مش بيتخبط في أي مفتاح رقمي بيقراه التصحيح) */
+    function wsReviewFields(q: any, origIdx: number, studentAns: any): any {
+      var out: any = { origIdx: origIdx }
+      if (q) {
+        if (q.table) out.table = q.table
+        if (q.figure) out.figure = q.figure
+        if (q.srcName) out.srcName = q.srcName
+        if (q.sourcePage !== undefined) out.sourcePage = q.sourcePage
+      }
+      try {
+        if (studentAns && !Array.isArray(studentAns) && typeof studentAns === 'object' && studentAns.__tableAnswers && typeof studentAns.__tableAnswers === 'object') {
+          var ta = studentAns.__tableAnswers[String(origIdx)] !== undefined ? studentAns.__tableAnswers[String(origIdx)] : studentAns.__tableAnswers[origIdx]
+          if (ta) out.tableAnswers = ta
+        }
+      } catch (e) {}
+      return out
     }
 
     const results = await Promise.all(rawResults.map(async function(r: any) {
@@ -241,7 +270,7 @@ export async function GET(request: NextRequest) {
           var storedAwarded = Math.min(Math.max(Math.round(Number(stored.awardedPoints) || 0), 0), wq.points)
           var storedIsCorrect = stored.isCorrect === true || (storedAwarded >= Math.ceil(wq.points * 0.5) && storedAwarded > 0)
           var storedAnsText = String(stored.answer || '')
-          writingAnswers.push({
+          writingAnswers.push(Object.assign({
             question: wq.question,
             answer: storedAnsText,
             points: wq.points,
@@ -260,7 +289,7 @@ export async function GET(request: NextRequest) {
             imageGraded: /\[📷/.test(storedAnsText),
             textGraded: !/\[📷/.test(storedAnsText),
             isGraded: true,
-          })
+          }, wsReviewFields(wq, wq.origIdx, storedAnswers)))
           continue
         }
         // LEGACY: verdicts stored by the old background grader — matched by question text
@@ -273,13 +302,13 @@ export async function GET(request: NextRequest) {
         var lookedUp = lookupAns(storedAnswers, wq.origIdx)
         var studentText = lookedUp !== undefined && lookedUp !== null ? String(lookedUp) : ''
         if (!studentText || studentText === '[📷 صورة مرفقة]' || studentText.trim() === '') {
-          writingAnswers.push({
+          writingAnswers.push(Object.assign({
             question: wq.question, answer: studentText, points: wq.points, maxPoints: wq.points,
             modelAnswer: wq.modelAnswer, acceptedAnswers: wq.acceptedAnswers,
             gradingStatus: 'graded', needsGrading: false, isCorrect: false, awardedPoints: 0,
             feedback: 'لم يجب الطالب', aiExtractedAnswer: '(فارغ)', aiIsCorrect: false,
             aiFeedback: 'لم يجب الطالب', aiAwardedPoints: 0, isGraded: true,
-          })
+          }, wsReviewFields(wq, wq.origIdx, storedAnswers)))
           continue
         }
         var mediaIds = extractImageMediaIds(studentText)
@@ -335,7 +364,7 @@ export async function GET(request: NextRequest) {
             }
           }
         }
-        writingAnswers.push({
+        writingAnswers.push(Object.assign({
           question: wq.question, answer: studentText, points: wq.points, maxPoints: wq.points,
           modelAnswer: wq.modelAnswer, acceptedAnswers: wq.acceptedAnswers,
           gradingStatus: 'graded', needsGrading: false,
@@ -343,7 +372,7 @@ export async function GET(request: NextRequest) {
           feedback: liveFeedback, aiExtractedAnswer: liveExtracted,
           aiIsCorrect: liveIsCorrect, aiFeedback: liveFeedback, aiAwardedPoints: liveAwarded,
           imageGraded: mediaIds.length > 0, textGraded: mediaIds.length === 0, isGraded: true,
-        })
+        }, wsReviewFields(wq, wq.origIdx, storedAnswers)))
       }
 
       return {
