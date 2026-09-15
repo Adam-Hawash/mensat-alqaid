@@ -1273,9 +1273,10 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
           var vals = hwTableMapAll[i]
           if (!vals || tableValuesAreEmpty(vals)) return
           hwTablePayload[String(i)] = vals
-          if (typeof mappedAnswers[String(i)] === 'string') {
-            mappedAnswers[String(i)] = buildAnswerWithTable(String(mappedAnswers[String(i)]), t, vals)
-          }
+          /* (2026-و40-w2) المقالي اللي إجابته جدول بس (الصندوق فاضي) — بنبني النص
+             من قيم الجدول على أي حال عشان المصحح الذكي يحسبه إجابة مش «لم يتم الإجابة» */
+          if (typeof mappedAnswers[String(i)] === 'number') return
+          mappedAnswers[String(i)] = buildAnswerWithTable(String(mappedAnswers[String(i)] || ''), t, vals)
         })
       } catch (eT) {}
       var res = await fetch('/api/homework/submit', {
@@ -1673,6 +1674,13 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
            والإجابات بتتخزن بفهرس أصلي مباشر (displayIdx = origIdx) */
         var isWorksheetHw = isWorksheetQuestionSet(shQ)
         var hwTableMap = (isWorksheetHw && hwTableAnswers[hw.id]) || {}
+        /* (2026-و40-w2) عدّاد التسليم بيتحسب معاه أسئلة الجداول المعباية */
+        var hwAnsweredSet = new Set(Object.keys(myAnswers))
+        if (isWorksheetHw) {
+          allQs.forEach(function(q: any, i: number) {
+            if (q && q.table && hwTableMap[i] && !tableValuesAreEmpty(hwTableMap[i])) hwAnsweredSet.add(String(i))
+          })
+        }
 
         return (
           <Card key={hw.id} className={isSubmitted ? 'border-emerald-500/30' : (hasQuestions ? 'cursor-pointer' : '')}>
@@ -1841,9 +1849,9 @@ function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId:
                     )
                   })
                   )}
-                  <Button size="sm" onClick={function() { handleHwSubmit(hw.id) }} disabled={Object.keys(myAnswers).length === 0 || hwSubmitting === hw.id}>
+                  <Button size="sm" onClick={function() { handleHwSubmit(hw.id) }} disabled={(isWorksheetHw ? hwAnsweredSet.size : Object.keys(myAnswers).length) === 0 || hwSubmitting === hw.id}>
                     {hwSubmitting === hw.id ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : null}
-                    تسليم الإجابات ({Object.keys(myAnswers).length}/{shQ.length})
+                    تسليم الإجابات ({(isWorksheetHw ? hwAnsweredSet.size : Object.keys(myAnswers).length)}/{shQ.length})
                   </Button>
                 </div>
               )}
@@ -2064,9 +2072,9 @@ function ExamsTab({ exams, results, studentId }: { exams: Exam[]; results: ExamR
       var origIdx = (typeof q._origIdx === 'number') ? q._origIdx : displayIdx
       examTablePayload[String(origIdx)] = vals
       var saKey = String(origIdx)
-      if (typeof serverAnswers[saKey] === 'string') {
-        serverAnswers[saKey] = buildAnswerWithTable(String(serverAnswers[saKey]), q.table, vals)
-      }
+      /* (2026-و40-w2) نفس قاعدة الواجب: بناء النص من الجدول حتى لو الصندوق فاضي */
+      if (typeof serverAnswers[saKey] === 'number') return
+      serverAnswers[saKey] = buildAnswerWithTable(String(serverAnswers[saKey] || ''), q.table, vals)
     })
     var submitController = new AbortController()
     var submitTimeout = setTimeout(function() { submitController.abort() }, 120000)
