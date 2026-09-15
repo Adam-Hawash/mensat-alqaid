@@ -23,6 +23,7 @@ import { useAppStore } from '@/stores/app-store'
 import { UserCheck, Loader2, RefreshCw, LogOut, BookOpenCheck, ClipboardList, AlertCircle, TrendingUp, MonitorPlay, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import FractionText, { hasMathMarkup } from '@/components/FractionText'
+import BidiText from '@/components/BidiText'
 
 interface ResultRow {
   id: string
@@ -136,7 +137,7 @@ function ResultList({ rows, icon, emptyMsg, type, answersOpen, openId, detailFor
                           {qq.kind === 'writing' && qq.feedback && (
                             <div className="rounded-lg bg-muted/60 p-2 mt-1">
                               <p className="text-[11px] font-bold mb-0.5 flex items-center gap-1"><span>📝</span> ملاحظة المصحح الذكي:</p>
-                              <p className="text-xs text-foreground whitespace-pre-wrap break-words" dir="auto">{qq.feedback}</p>
+                              <p className="text-xs text-foreground whitespace-pre-wrap break-words"><BidiText text={qq.feedback} /></p>
                             </div>
                           )}
                         </div>
@@ -165,8 +166,11 @@ export function ParentPortal() {
   var loading = ld[0]
   var setLoading = ld[1]
 
-  /* (2026-و39) حالة إجابات الابن: التوجل + الصف المفتوح + كاش التفاصيل */
-  var saState = useState(false)
+  /* (2026-و39) حالة إجابات الابن: التوجل + الصف المفتوح + كاش التفاصيل
+     (2026-و44) طلب المستر: «لو داس على اسم الامتحان أو الواجب يشوف درجته
+     كاملة والإجابات بتاعته» — الصروف بقت قابلة للفتح **على طول** من غير
+     ما يدوس اسم الابن الأول */
+  var saState = useState(true)
   var showAnswers = saState[0]
   var setShowAnswers = saState[1]
   var openState = useState('')

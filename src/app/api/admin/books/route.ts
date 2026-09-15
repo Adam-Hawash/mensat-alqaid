@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
 import { isAdmin } from '@/lib/video-guard'
+import { notifyStudents } from '@/lib/notify'
 
 export const runtime = 'nodejs'
 
@@ -96,6 +97,9 @@ export async function POST(request: NextRequest) {
         },
       })
     })
+
+    /* (و44) إشعار للطلاب: كتاب جديد اتضاف — المسارين (لينك خارجي + ملف) بيمروا من هنا */
+    notifyStudents({ grade: String(grade || ''), type: 'book', title: '📕 كتاب جديد اتضاف: ' + String(title).trim(), body: String(description || '').slice(0, 200) || 'تقدر تفتحه أو تحمله من تاب الكتب والملازم' }).catch(function () {})
 
     return NextResponse.json({ message: 'تم إضافة الكتاب', book }, { status: 201 })
   } catch (error: any) {

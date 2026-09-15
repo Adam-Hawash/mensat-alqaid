@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { notifyStudents } from '@/lib/notify'
 import { isAdmin } from '@/lib/video-guard'
 import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
 
@@ -134,6 +135,13 @@ export async function POST(request: NextRequest) {
     const homework = await db.homework.create({
       data: { title, content: content || '', grade, filePath: filePath || '', fileType: fileType || '', thumbnail: thumbnail || '', answerKeyPath: answerKeyPath || '', answerKeyType: answerKeyType || '', questions: questions || '', scheduledAt, targetStudentIds: targetIds, targetGroupIds: targetGids },
     })
+
+    /* (و44) إشعار للطلاب المستهدفين: واجب جديد */
+    try {
+      var nIds: string[] = []
+      try { var nTp2 = JSON.parse(targetIds); if (Array.isArray(nTp2)) nIds = nTp2.filter(Boolean) } catch (e) {}
+      notifyStudents({ studentIds: nIds, grade: String(grade || ''), type: 'homework', title: '📚 واجب جديد: ' + String(title), body: 'دخل من تاب الواجبات وسلّمه قبل ميعاده' }).catch(function () {})
+    } catch (nE) {}
 
     return NextResponse.json({ message: 'Homework added', homework }, { status: 201 })
   } catch (error: any) {

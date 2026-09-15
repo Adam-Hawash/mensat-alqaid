@@ -129,6 +129,7 @@ export function LoginView() {
   var store = useAppStore()
   var setView = store.setView
   var setCurrentStudent = store.setCurrentStudent
+  var setCurrentParent = store.setCurrentParent
   var phoneState = useState('')
   var phone = phoneState[0]
   var setPhone = phoneState[1]
@@ -194,6 +195,32 @@ export function LoginView() {
       var student: any = null
       for (var i = 0; i < students.length; i++) { if (normPhoneClient(students[i].phone) === typedPhone) { student = students[i]; break } }
       if (!student) {
+        /* (2026-و44) طلب المستر: «تسجيل ولي الأمر يبقى في نفس صفحة تسجيل الدخول —
+           لو كتب رقم التليفون والباسورد بتاعه يخش على طول» — الدخول كطالب بيتجرب
+           الأول، ولو فشل بنجرب الدخول كولي أمر من نفس الصفحة */
+        try {
+          var pRes = await fetch('/api/parents/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: phone.trim(), password: normPasswordInput(password) }),
+          })
+          var pData = await pRes.json()
+          if (pRes.ok && pData && pData.success && pData.parent && pData.parent.id) {
+            var pStu = pData.parent.student
+            setCurrentParent({
+              id: pData.parent.id,
+              name: pData.parent.name || 'ولي أمر',
+              phone: pData.parent.phone,
+              studentId: pData.parent.studentId,
+              student: pStu ? { id: pStu.id, name: pStu.name, grade: pStu.grade, status: pStu.status, isPaidAccess: !!pStu.isPaidAccess } : null,
+            })
+            setView('parent-portal')
+            toast.success('أهلاً بيك 👋 — بتتابع حساب ' + ((pStu && pStu.name) || 'ابنك'))
+            setPassword('')
+            setLoading(false)
+            return
+          }
+        } catch (pErr) { /* مش ولي أمر — نكمل برسالة الخطأ العادية */ }
         /* (2026-و37) رسالة مفصولة حسب السبب الحقيقي — بدل «الباسورد أو الرقم غلط»
            الموحّدة اللي كانت بتلخبط الطالب الصح: مين فيهم الغلط؟ */
         if (data && data.reason === 'not_found') {

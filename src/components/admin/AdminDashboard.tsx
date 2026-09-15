@@ -19,7 +19,7 @@ import {
   BarChart3, RefreshCw, Settings, Upload, MessageSquare,
   Link2, Activity, Eye, ImagePlus, Trophy, UserX, Camera,
   PlayCircle, Pause, Film, Search, FileDown, PictureInPicture2, Save, Sparkles, Wallet,
-  Smartphone, RotateCcw, ShieldCheck, Monitor, Tablet, Flag, GraduationCap, CalendarClock, UsersRound, PieChart, BookOpen
+  Smartphone, RotateCcw, ShieldCheck, Monitor, Tablet, Flag, GraduationCap, CalendarClock, UsersRound, PieChart, BookOpen, ChevronDown
 } from 'lucide-react'
 import { AdminComplaints } from './AdminComplaints'
 import { CMSPanel } from './CMSPanel'
@@ -3143,6 +3143,11 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
      (ممنوع الاستبدال) مع srcName «الملف الثاني/الثالث/…» على الدفعة الجديدة */
   const [appendingFile, setAppendingFile] = useState(false)
   const [fileBatchCount, setFileBatchCount] = useState(0)
+  /* (2026-و44) الكتب المحفوظة في وضع الكتاب — طلب المستر: «الكتاب المضاف باللينك
+     يبقى ثابت في كل مرة — علامة/سهم، لو دوست عليه تظهر صفحات الكتاب» */
+  const [savedBooks, setSavedBooks] = useState<any[]>([])
+  const [savedBooksLoading, setSavedBooksLoading] = useState(false)
+  const [showSavedBooks, setShowSavedBooks] = useState(false)
 
   var resetAll = function() {
     setStep(1); setExtractType('exam'); setGrade(''); setTitle('')
@@ -3183,7 +3188,13 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
      3) لو أول ملف → استبدال عادي من غير srcName (سؤال بمصدر واحد بيتعرض «صفحة N» بس) */
   var finishExtraction = async function (newQs: any[], cropSource: { file?: File | null; doc?: any | null }) {
     try {
-      var needCrop = newQs.filter(function (q: any) { return q && q.figure && q.figure.bbox && !q.figure.url }).length
+      /* (و44) العدّاد بيشمل رسومات الاختيارات كمان (optionFigures) */
+      var needCrop = 0
+      newQs.forEach(function (q: any) {
+        if (!q) return
+        if (q.figure && q.figure.bbox && !q.figure.url) needCrop++
+        if (Array.isArray(q.optionFigures)) q.optionFigures.forEach(function (of: any) { if (of && of.bbox && !of.url) needCrop++ })
+      })
       if (needCrop > 0) {
         setStatusMsg('جهز الرسومات 0 من ' + needCrop + '…')
         await ensureFigureUrls(newQs, cropSource || {}, function (done: number, total: number) {
@@ -3602,6 +3613,53 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
     setExtracting(false)
   }
 
+  /* (2026-و44) قايمة الكتب المحفوظة (من تاب الكتب والملازم — ملف أو لينك خارجي)
+     اللينك الخارجي بيمر من /api/books/proxy (pdf.js مش بيوصل للينكات بسبب CORS) */
+  var loadSavedBooks = async function () {
+    setSavedBooksLoading(true)
+    try {
+      var r = await fetch('/api/books', { cache: 'no-store' })
+      var j = await r.json()
+      setSavedBooks(j.books || [])
+    } catch (e) { /* صامت */ }
+    setSavedBooksLoading(false)
+  }
+  var openSavedBook = async function (b: any) {
+    if (bookPdfLoading) return
+    setBookPdfLoading(true)
+    try {
+      var blob: Blob | null = null
+      if (b.sourceUrl) {
+        var res = await fetch('/api/books/proxy?url=' + encodeURIComponent(b.sourceUrl), { cache: 'no-store' })
+        if (!res.ok) {
+          var je: any = null
+          try { je = await res.json() } catch (e) {}
+          throw new Error((je && je.error) || 'مقدرتش أجيب الكتاب من اللينك — اتأكد إن اللينك شغال')
+        }
+        blob = await res.blob()
+      } else if (b.filePath) {
+        var res2 = await fetch(b.filePath, { cache: 'no-store' })
+        if (!res2.ok) throw new Error('مقدرتش أجيب ملف الكتاب')
+        blob = await res2.blob()
+      } else {
+        throw new Error('الكتاب ده من غير ملف ولا لينك')
+      }
+      var file = new File([blob], (b.title || 'book') + '.pdf', { type: 'application/pdf' })
+      setBookFile(file)
+      setBookName(b.title || '')
+      var opened = await openPdf(file)
+      bookDocRef.current = opened.doc
+      setBookNumPages(opened.numPages)
+      setBookFrom(1)
+      setBookTo(Math.min(opened.numPages, 30))
+      toast.success('اتفتح «' + (b.title || 'الكتاب') + '» — ' + opened.numPages + ' صفحة — حدد الصفحات واضغط استخراج من الصفحات')
+      setShowSavedBooks(false)
+    } catch (e: any) {
+      toast.error(e && e.message ? e.message : 'حصلت مشكلة في فتح الكتاب')
+    }
+    setBookPdfLoading(false)
+  }
+
   var renderStep2 = function() {
     return (
       <div className="space-y-4">
@@ -3701,6 +3759,31 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
                 {bookPdfLoading ? <Loader2 className="h-4 w-4 ml-2 animate-spin" /> : <BookOpen className="h-4 w-4 ml-2" />}
                 {bookFile ? bookFile.name : 'اختر ملف الكتاب (PDF)'}
               </Button>
+            </div>
+            {/* (2026-و44) الكتب المحفوظة — سهم يفتح قايمة الكتب المضافة من تاب
+               «الكتب والملازم» (ملف أو لينك) — دوست على الكتاب يفتح وتحدد صفحاته */}
+            <div className="space-y-1.5">
+              <button type="button" onClick={function () { var next = !showSavedBooks; setShowSavedBooks(next); if (next && savedBooks.length === 0 && !savedBooksLoading) loadSavedBooks() }} className="w-full flex items-center justify-between rounded-md border border-sky-300/60 bg-white/70 dark:bg-transparent px-3 py-2 text-sm font-bold text-sky-700 dark:text-sky-300 hover:bg-sky-100/60 dark:hover:bg-sky-900/30 transition-colors cursor-pointer">
+                <span>📚 الكتب المحفوظة {savedBooks.length > 0 ? '(' + savedBooks.length + ')' : ''} — دوس على الكتاب يفتح على طول</span>
+                <ChevronDown className={'h-4 w-4 transition-transform' + (showSavedBooks ? ' rotate-180' : '')} />
+              </button>
+              {showSavedBooks && (
+                <div className="max-h-60 overflow-y-auto custom-scrollbar rounded-md border border-border">
+                  {savedBooksLoading ? (
+                    <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
+                  ) : savedBooks.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4 px-3">مفيش كتب محفوظة — ضيف الكتب من تاب «الكتب والملازم» بالملف أو باللينك وهتلاقيها هنا ثابتة</p>
+                  ) : savedBooks.map(function (b: any) {
+                    var srcLabel = b.sourceUrl ? '🔗 لينك خارجي' : (b.filePath ? '📄 ملف محفوظ' : '')
+                    return (
+                      <button key={b.id} type="button" onClick={function () { openSavedBook(b) }} className="w-full text-right px-3 py-2 border-b border-border/50 last:border-0 hover:bg-muted/60 transition-colors cursor-pointer">
+                        <p className="text-xs font-bold truncate">📕 {b.title}</p>
+                        <p className="text-[10px] text-muted-foreground">{srcLabel}{b.grade ? ' — ' + b.grade : ''}</p>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
             {bookFile && <p className="text-xs text-muted-foreground text-center">{(bookFile.size / 1024 / 1024).toFixed(1)} MB</p>}
             {bookNumPages > 0 && <p className="text-xs text-center font-medium text-sky-600 dark:text-sky-400">عدد صفحات الكتاب: {bookNumPages}</p>}
@@ -3956,15 +4039,21 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
                     {q.options.map(function(opt: string, oi: number) {
                       /* (و43) صورة الاختيار: optionFigures[i] = { url } — مصفوفة متوازية مع options */
                       var optFigUrl = (q.optionFigures && q.optionFigures[oi] && q.optionFigures[oi].url) || ''
+                      /* (و44) الاختيار ده فيه رسمة من الملف (bbox) ولسه متلقطتش → تنبيه واضح */
+                      var ofMissing = !!(q.optionFigures && q.optionFigures[oi] && q.optionFigures[oi].bbox && !q.optionFigures[oi].url)
                       return (
                         <div key={oi} className="space-y-1">
                           <div className="flex items-center gap-1.5">
                             <button type="button" className={"w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] transition-colors shrink-0 " + (q.correct === oi ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/30 hover:border-primary/50')} onClick={function() { updateQuestion(qi, 'correct', oi) }}>{["أ","ب","ت","ث"][oi]}</button>
                             <Input value={opt} onChange={function(e) { updateQuestion(qi, 'option_' + oi, e.target.value) }} placeholder={"الخيار " + (oi + 1)} className="h-8 text-xs" />
-                            {/* (و43) رفع صورة للاختيار — الاختيارات اللي هي صور في الملف الأصلي */}
+                            {/* (و43) رفع صورة للاختيار — الاختيارات اللي هي صور في الملف الأصلي
+                               (و44) الاختيار الناقص رسمته بيبقى كهرماني بنبض عشان المستر يشوفه فورًا */}
                             <input ref={function (el) { figureInputRefs.current['q' + qi + '_' + oi] = el }} type="file" accept="image/*" className="hidden" onChange={function (e) { var f = e.target.files && e.target.files[0]; e.target.value = ''; handleOptionFigureUpload(qi, oi, f || null) }} />
-                            <button type="button" title="ارفع صورة للاختيار" className="text-[11px] leading-none px-1 py-1 rounded border border-border hover:bg-muted shrink-0" onClick={function () { var el = figureInputRefs.current['q' + qi + '_' + oi]; if (el) el.click() }}>📷</button>
+                            <button type="button" title={ofMissing ? 'الاختيار ده صورة في الملف الأصلي — ارفع صورته عشان تظهر للطالب' : 'ارفع صورة للاختيار'} className={"text-[11px] leading-none px-1 py-1 rounded border shrink-0 transition-colors " + (ofMissing ? 'border-amber-500 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 animate-pulse font-bold' : 'border-border hover:bg-muted')} onClick={function () { var el = figureInputRefs.current['q' + qi + '_' + oi]; if (el) el.click() }}>📷</button>
                           </div>
+                          {ofMissing && (
+                            <p className="text-[10px] font-bold text-amber-700 dark:text-amber-400">⚠ الاختيار ده صورة في الملف الأصلي — دوس 📷 وارفع صورته</p>
+                          )}
                           {optFigUrl && (
                             <div className="flex items-center gap-1">
                               {/* eslint-disable-next-line @next/next/no-img-element */}

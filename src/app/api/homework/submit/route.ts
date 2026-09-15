@@ -17,6 +17,8 @@ import { db } from '@/lib/db'
    (نفس نظام الفيديوهات بالظبط — سلسلة مطابقة لقايمة الطالب + fail-open) */
 import { checkHwSequential } from '@/lib/sequential-guard'
 import { gradeImageAnswer, gradeTextAnswer, extractImageMediaIds } from '@/lib/ai-image-grader'
+/* (2026-و44) تسريع التصحيح — توازي محدود (اتنين) بمرحلة بداية متدرجة */
+import { runGradePool } from '@/lib/grade-pool'
 /* (2026-و33) مصدر واحد لمفتاح الإجابة — نفس الدالة اللي شاشة المراجعة بتستخدمها على العميل */
 import { normalizeCorrectKey } from '@/lib/correct-key'
 import { quickSmartMatch, gradeFallbackDecisive } from '@/lib/smart-grader'
@@ -406,6 +408,8 @@ export async function POST(request) {
             modelAnswer: wa.modelAnswer,
             acceptedAnswers: wa.acceptedAnswers,
             maxPoints: wa.points,
+            /* (و44) النص الكامل — الجدول المكتوب بالكيبورد يتحسب مع الرسمة */
+            studentText: answerText,
           })
           if (gradeData && !gradeData.needsGrading) {
             return Object.assign({}, wa, {
@@ -558,9 +562,10 @@ export async function POST(request) {
       /* (2026-و25 نقل 25-a) — إصلاح جذري لشكوى «بيديه كله غلط»: النداءات المتوازية
          (Promise.all) كانت بتبعت N طلبات Gemini في نفس اللحظة على مفتاح واحد
          مجاني ← 429 rate limit لكل النداءات ← فولباك حاسم ← أصفار جماعية.
-         الحل: تسلسل النداءات (نداء واحد في المرة) — callGemini نفسها بتتداول
-         المفاتيح/الموديلز على 429، وcallGrader بقى له backoff صريح (1.5s ثم 4s)
-         — فالتسلسل بيخلي النداءات متباعدة ومتشبعلش حد الـ RPM.
+         الحل كان التسلسل.
+         (2026-و44) طلب المستر «تسرّع التصحيح»: رجعنا للتوازي **بحد أقصى اتنين**
+         مع تأخير بداية متدرج (runGradePool) — بيسرّع التصحيح ~1.8x من غير ما
+         يندفع على المفتاح، وفشل أي سؤال بيفضل معزول زي ما هو.
          + partial persist: كل سؤال يتصحح يتحفظ فورًا في writingResults (والدرجة
          تتحديث) — لو التسليم الخلفي اتقطع (serverless timeout) اللي اتصحح
          مش بيضيع، والباقي بيفضل pending لحد الإصلاح الذاتي (sweep/self-heal)
@@ -569,6 +574,11 @@ export async function POST(request) {
       var writingScore = 0
       var persistPartial = async function() {
         try {
+          /* (و44) إعادة الحساب من القايمة كلها — مش حساسة لترتيب الاكتمال */
+          writingScore = 0
+          for (var s = 0; s < gradedList.length; s++) {
+            writingScore += Number((gradedList[s] && gradedList[s].awardedPoints) || 0)
+          }
           await db.$executeRawUnsafe(
             'UPDATE HomeworkResult SET score = ?, writingResults = ? WHERE id = ?',
             mcqScore + writingScore, JSON.stringify(gradedList), resultId
@@ -583,16 +593,18 @@ export async function POST(request) {
           } catch (pErr2) {}
         }
       }
-      for (var gi = 0; gi < writingAnswers.length; gi++) {
-        try {
-          var gOne = await gradeOneWriting(writingAnswers[gi])
-          gradedList[gi] = gOne
-          writingScore += (gOne.awardedPoints || 0)
-        } catch (oneErr) {
-          console.error('[HW BG] grade one writing error:', oneErr)
+      var hwTasks = writingAnswers.map(function (wa: any, gi: number) {
+        return async function () {
+          try {
+            var gOne = await gradeOneWriting(wa)
+            gradedList[gi] = gOne
+          } catch (oneErr) {
+            console.error('[HW BG] grade one writing error:', oneErr)
+          }
+          await persistPartial()
         }
-        await persistPartial()
-      }
+      })
+      await runGradePool(hwTasks, 2, 400)
       console.log('[HW BG] Grading done for', resultId, '— final score', (mcqScore + writingScore) + '/' + maxScore)
     }
 
