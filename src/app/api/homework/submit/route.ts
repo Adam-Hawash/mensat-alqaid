@@ -22,6 +22,8 @@ import { runGradePool } from '@/lib/grade-pool'
 /* (2026-و33) مصدر واحد لمفتاح الإجابة — نفس الدالة اللي شاشة المراجعة بتستخدمها على العميل */
 import { normalizeCorrectKey } from '@/lib/correct-key'
 import { quickSmartMatch, gradeFallbackDecisive } from '@/lib/smart-grader'
+/* (و45) تصنيف موحّد اختياري/مقالي — سؤال له اختيارات صور = اختياري مش مقالي */
+import { isWritingQuestion } from '@/lib/question-figures'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -204,14 +206,8 @@ export async function POST(request) {
         var raw = typeof homework.questions === 'string' ? JSON.parse(homework.questions) : homework.questions
         if (Array.isArray(raw)) {
           raw.forEach(function(q, oi) {
-            var isWriting = q.type === 'writing' || q.type === 'essay'
-            if (!isWriting && Array.isArray(q.options)) {
-              var allNA = q.options.length > 0 && q.options.every(function(o) { return !o || o === 'N/A' || o === 'لا يوجد' || String(o).trim() === '' })
-              if (allNA) isWriting = true
-            }
-            if (!isWriting && (!q.options || q.options.length === 0)) {
-              isWriting = true
-            }
+            /* (و45) تصنيف موحّد: سؤال له اختيارات (نص أو صور/رسومات) = اختياري دايمًا */
+            var isWriting = isWritingQuestion(q)
             if (isWriting) {
               writingQuestions.push({ q: q, origIdx: oi })
             } else {
@@ -605,6 +601,41 @@ export async function POST(request) {
         }
       })
       await runGradePool(hwTasks, 2, 400)
+      /* (و45) شبكة أمان نهائية — زي الامتحان بالظبط: أي سؤال مافيش له حكم
+         نهائي بعد الـ pool (فشل شبكة/انقطاع) بياخد فولباك حاسم فورًا —
+         ممنوع يفضل معلق «جاري التصحيح» للأبد */
+      for (var fi = 0; fi < gradedList.length; fi++) {
+        var fg = gradedList[fi]
+        if (fg && fg.gradingStatus === 'graded') continue
+        var fAns = String((fg && fg.answer) || '')
+        var fPts = Number((fg && fg.points) || 1)
+        if (/\[📷/.test(fAns)) {
+          var hasWorkF = fAns.replace(/\[📷[^\]]*\]/g, '').trim().length > 0
+          gradedList[fi] = Object.assign({}, fg, {
+            gradingStatus: 'graded', needsGrading: false, isCorrect: false,
+            awardedPoints: hasWorkF ? Math.ceil(fPts / 2) : 0,
+            feedback: hasWorkF ? 'صورة الحل اترفعت — درجة مؤقتة لحد مراجعة المستر (يقدر يعدلها من لوحته)' : 'لم يتم الإجابة',
+          })
+        } else if (!fAns.trim() || fAns.trim() === '[📷 صورة مرفقة]') {
+          gradedList[fi] = Object.assign({}, fg, {
+            gradingStatus: 'graded', needsGrading: false, isCorrect: false,
+            awardedPoints: 0, feedback: 'لم يتم الإجابة',
+          })
+        } else {
+          var fbF = gradeFallbackDecisive({
+            question: (fg && fg.question) || '',
+            answer: fAns,
+            modelAnswer: (fg && fg.modelAnswer) || '',
+            acceptedAnswers: (fg && fg.acceptedAnswers) || [],
+            points: fPts,
+          })
+          gradedList[fi] = Object.assign({}, fg, {
+            gradingStatus: 'graded', needsGrading: false,
+            isCorrect: fbF.isCorrect, awardedPoints: fbF.awardedPoints, feedback: fbF.feedback,
+          })
+        }
+      }
+      await persistPartial()
       console.log('[HW BG] Grading done for', resultId, '— final score', (mcqScore + writingScore) + '/' + maxScore)
     }
 

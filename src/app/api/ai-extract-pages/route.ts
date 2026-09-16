@@ -26,6 +26,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { callGemini as callGeminiCentral, hasGeminiKey } from '@/lib/gemini'
 import { repairModelJson, repairCorruptMath } from '@/lib/math-text'
+/* (و45) تصنيف موحّد اختياري/مقالي — سؤال له اختيارات صور = اختياري مش مقالي */
+import { isWritingQuestion } from '@/lib/question-figures'
 
 export const runtime = 'nodejs'
 export const maxDuration = 180
@@ -139,6 +141,7 @@ function buildPagesPrompt(pageNumbers: number[], mode: 'all' | 'top', count: num
   lines.push('  * bbox = tight rectangle around the drawing INCLUDING its axes/labels, as FRACTIONS of the whole page image (0..1, x/y = top-left).')
   lines.push('  * NEVER convert a drawing into text: do NOT describe the graph, do NOT write coordinate tables or step-by-step plotting inside question text or modelAnswer. modelAnswer = concise final results only (example: "axis of symmetry: x = 3, maximum value = 4").')
   lines.push('  * If unsure whether something is a figure, treat it AS a figure. Options that are pure images get empty string text plus their optionFigures entry.')
+  lines.push('IMAGE-CHOICE RULE (2026-W45 — mandatory): a question whose choices are PICTURES / FIGURES (not text) is STILL "mcq" — NEVER "writing". Return "options" as empty strings with the SAME length as the picture-choices and put each picture in "optionFigures" aligned by index.')
   lines.push('- modelAnswer must include the expected table values when applicable (e.g. "f(-1)=5, f(0)=3 → points (-1,5), (0,3)").')
   lines.push('- MATH FORMAT (the platform renders it as real math): powers as x^2; EVERY fraction as \\frac{numerator}{denominator} (NEVER a/b, and do NOT wrap the whole numerator/denominator in parentheses); square root √, cube root ∛, × ÷ π ≤ ≥ ≠ ≈ ∠ °. No $ signs, no other LaTeX, no markdown.')
   lines.push('- ALL output text in English (same as the rest of the platform).')
@@ -184,8 +187,8 @@ function finalizeQuestion(q: any): any | null {
   /* (و43) figure بـ url بس (رفع يدوي من شاشة المراجعة) بيتقبل برضه — مش bbox بس */
   if (q.figure && (q.figure.bbox || q.figure.url)) ws.figure = q.figure
   if (Array.isArray(q.optionFigures)) ws.optionFigures = q.optionFigures
-  var isWriting = q.type === 'writing' || q.type === 'essay'
-  if (!isWriting && (!Array.isArray(q.options) || q.options.length === 0)) isWriting = true
+  /* (و45) سؤال له اختيارات (نص أو صور/رسومات) = اختياري دايمًا — ممنوع يتحول مقالي */
+  var isWriting = isWritingQuestion(q)
   if (isWriting) {
     return Object.assign({
       type: 'writing',
@@ -199,10 +202,12 @@ function finalizeQuestion(q: any): any | null {
     }, ws)
   }
   /* (و43) الاختيارات اللي هي صور بتطلع بنص فاضي — ممنوع نفلترها لو فيه optionFigures
-     عشان الاتساق مع options يفضل سليم (optionFigures[i] = الاختيار i) */
+     عشان الاتساق مع options يفضل سليم (optionFigures[i] = الاختيار i)
+     (و45) ولو مفيش نص أصلًا بنملأ نص فاضي بنفس عدد رسومات الاختيارات */
   var hasOptionFigures = Array.isArray(q.optionFigures) && q.optionFigures.length > 0
   var opts = (q.options || []).map(function (o: any) { return normalizeMath(String(o == null ? '' : o)) })
   if (!hasOptionFigures) opts = opts.filter(function (o: string) { return o.trim() !== '' })
+  if (opts.length === 0 && hasOptionFigures) { for (var oiE = 0; oiE < q.optionFigures.length && oiE < 4; oiE++) opts.push('') }
   opts = opts.slice(0, 4)
   var correct = typeof q.correct === 'number' ? q.correct : (parseInt(String(q.correct), 10) || -1)
   if (correct >= opts.length) correct = -1

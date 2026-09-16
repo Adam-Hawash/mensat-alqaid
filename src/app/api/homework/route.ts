@@ -140,7 +140,8 @@ export async function POST(request: NextRequest) {
     try {
       var nIds: string[] = []
       try { var nTp2 = JSON.parse(targetIds); if (Array.isArray(nTp2)) nIds = nTp2.filter(Boolean) } catch (e) {}
-      notifyStudents({ studentIds: nIds, grade: String(grade || ''), type: 'homework', title: '📚 واجب جديد: ' + String(title), body: 'دخل من تاب الواجبات وسلّمه قبل ميعاده' }).catch(function () {})
+      /* (و45) await — الإشعار بيتكتب قبل الرد */
+        try { await notifyStudents({ studentIds: nIds, grade: String(grade || ''), type: 'homework', title: '📚 واجب جديد: ' + String(title), body: 'دخل من تاب الواجبات وسلّمه قبل ميعاده' }) } catch (nE) {}
     } catch (nE) {}
 
     return NextResponse.json({ message: 'Homework added', homework }, { status: 201 })

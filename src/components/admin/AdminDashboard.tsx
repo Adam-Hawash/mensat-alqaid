@@ -19,7 +19,8 @@ import {
   BarChart3, RefreshCw, Settings, Upload, MessageSquare,
   Link2, Activity, Eye, ImagePlus, Trophy, UserX, Camera,
   PlayCircle, Pause, Film, Search, FileDown, PictureInPicture2, Save, Sparkles, Wallet,
-  Smartphone, RotateCcw, ShieldCheck, Monitor, Tablet, Flag, GraduationCap, CalendarClock, UsersRound, PieChart, BookOpen, ChevronDown
+  /* (و45) LinkIcon — زرار «أو ضع رابط PDF» في وضع الكتاب */
+  LinkIcon, Smartphone, RotateCcw, ShieldCheck, Monitor, Tablet, Flag, GraduationCap, CalendarClock, UsersRound, PieChart, BookOpen, ChevronDown
 } from 'lucide-react'
 import { AdminComplaints } from './AdminComplaints'
 import { CMSPanel } from './CMSPanel'
@@ -37,8 +38,9 @@ import { PaymentsPanel } from '@/components/PaymentsPanel'
 import { StudentTargetPicker, parseTargetStudentIds } from '@/components/admin/StudentTargetPicker'
 /* (2026-و40) استخراج من صفحات كتاب PDF — تصوير الصفحات على المتصفح بـ pdf.js */
 import { openPdf, renderPageToJpeg } from '@/lib/pdf-pages'
-/* (2026-و40-w) ورقة العمل: قص رسومات الأسئلة + عرض الجداول/الرسومات في المراجعة */
-import { ensureFigureUrls } from '@/lib/question-figures'
+/* (2026-و40-w) ورقة العمل: قص رسومات الأسئلة + عرض الجداول/الرسومات في المراجعة
+   (و45) isWritingQuestion — تصنيف موحّد: سؤال له اختيارات (حتى لو صور) = اختياري */
+import { ensureFigureUrls, isWritingQuestion } from '@/lib/question-figures'
 import { WorksheetTableReadonly, WorksheetFigure } from '@/components/worksheet/WorksheetParts'
 /* (2026-و40) الكتب والملازم — تاب مكتبة الكتب للطالب */
 import { BooksManager } from './BooksManager'
@@ -825,6 +827,10 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
   const [formFile, setFormFile] = useState<File | null>(null)
   const [formThumbnail, setFormThumbnail] = useState<File | null>(null)
   const [formThumbnailUrl, setFormThumbnailUrl] = useState('')
+  /* (و45) قيمة الصورة المصغرة الأوتوماتيكية الأخيرة — عشان الكتابة اليدوية للأدمن
+     ما تتبدلش غلط: أوتوماتيك بيبدّل أوتوماتيك، واليدوي محترم */
+  const [autoThumbRef, setAutoThumbRef] = useState('')
+  const [thumbCapturing, setThumbCapturing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploading, setUploading] = useState(false)
@@ -915,14 +921,18 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
         toast.success('تم إضافة الفيديو بنجاح! سيظهر للصف ' + formGrade)
         setShowForm(false)
         setFormTitle(''); setFormUrl(''); setFormGrade(''); setFormPrice('')
-        setFormFile(null); setFormThumbnail(null); setFormThumbnailUrl('')
+        setFormFile(null); setFormThumbnail(null); setFormThumbnailUrl(''); setAutoThumbRef('')
         loadVideos(false)
         onStatsRefresh()
       } else {
-        try { const d = await res.json(); toast.error(d.error || 'خطأ في الإضافة', { duration: 8000 }) } catch { toast.error('خطأ في السيرفر - حاول تاني', { duration: 8000 }) }
+        /* (و45) رسالة الخطأ الحقيقية بتوصل للمستر — مفيش «في مشكلة» من غير سبب */
+        var errDetail = ''
+        try { const d = await res.json(); errDetail = String(d.error || d.detail || '') } catch { errDetail = 'السيرفر رجّع كود ' + res.status }
+        toast.error(errDetail ? 'الفيديو ما اتضافش: ' + errDetail : 'الفيديو ما اتضافش — حصلت مشكلة في السيرفر، حاول تاني', { duration: 10000 })
       }
     } catch (err: any) {
-      toast.error('خطأ في الاتصال: ' + (err.message || ''), { duration: 8000 })
+      var netMsg = String(err && err.message ? err.message : '')
+      toast.error('الفيديو ما اتضافش — مشكلة اتصال بالسيرفر: ' + (netMsg || 'الشبكة مقطوعة'), { duration: 10000 })
     }
     setSubmitting(false)
     setUploading(false)
@@ -1003,8 +1013,88 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
   }
 
   const getYouTubeId = (url: string) => {
-    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/))([\w-]{11})/)
+    /* (و45) دعم كل صيغ يوتيوب: watch?v= و youtu.be و shorts و live و embed */
+    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/|live\/))([\w-]{11})/)
     return match ? match[1] : null
+  }
+
+  /* ===== (و45) الصورة المصغرة الأوتوماتيكية — طلب المستر =====
+     يوتيوب → نفس صورة الفيديو من i.ytimg.com (hqdefault)
+     ملف مرفوع → لقطة حقيقية من الفيديو نفسه (canvas عند ~1 ثانية أو 10% من المدة)
+     والأدمن دايمًا يقدر يعمّل override بصورة من عنده */
+  const applyAutoThumb = function (val: string) {
+    setAutoThumbRef(val)
+    setFormThumbnailUrl(val)
+  }
+
+  const handleVideoUrlChange = function (val: string) {
+    setFormUrl(val)
+    var ytId = getYouTubeId(val)
+    var nextAuto = ytId ? 'https://i.ytimg.com/vi/' + ytId + '/hqdefault.jpg' : ''
+    if (nextAuto) {
+      applyAutoThumb(nextAuto)
+    } else if (autoThumbRef && formThumbnailUrl === autoThumbRef) {
+      /* اللينك بقي مش يوتيوب والصورة الحالية أوتوماتيك قديمة → نفرغها */
+      applyAutoThumb('')
+    }
+  }
+
+  /* لقطة من ملف الفيديو: بنحمّل أول ثانية (أو 10% من المدة) ونرسمها على canvas 640px */
+  const captureVideoFrame = async function (file: File): Promise<string> {
+    return new Promise(function (resolve) {
+      var url = ''
+      try { url = URL.createObjectURL(file) } catch (e) { resolve(''); return }
+      var v = document.createElement('video')
+      v.preload = 'metadata'; v.muted = true
+      var settled = false
+      var done = function (val: string) {
+        if (settled) return
+        settled = true
+        try { URL.revokeObjectURL(url) } catch (e) {}
+        resolve(val)
+      }
+      var timer = setTimeout(function () { done('') }, 10000)
+      v.onloadedmetadata = function () {
+        try {
+          var t = isFinite(v.duration) && v.duration > 0 ? Math.min(Math.max(v.duration * 0.1, 0.5), 3) : 1
+          v.onseeked = function () {
+            try {
+              var w = 640
+              var ratio = (v.videoWidth && v.videoHeight) ? (v.videoHeight / v.videoWidth) : 0.5625
+              var canvas = document.createElement('canvas')
+              canvas.width = w
+              canvas.height = Math.max(1, Math.round(w * ratio))
+              var ctx = canvas.getContext('2d')
+              if (!ctx) { clearTimeout(timer); done(''); return }
+              ctx.drawImage(v, 0, 0, canvas.width, canvas.height)
+              var dataUrl = canvas.toDataURL('image/jpeg', 0.82)
+              clearTimeout(timer)
+              done(dataUrl)
+            } catch (e) { clearTimeout(timer); done('') }
+          }
+          v.currentTime = t
+        } catch (e) { clearTimeout(timer); done('') }
+      }
+      v.onerror = function () { clearTimeout(timer); done('') }
+      v.src = url
+    })
+  }
+
+  const handleVideoFilePick = async function (f: File | null) {
+    setFormFile(f)
+    if (!f) return
+    /* (و45) لقطة أوتوماتيكية من الفيديو نفسه — بترفع فورًا كصورة مصغرة */
+    setThumbCapturing(true)
+    try {
+      var dataUrl = await captureVideoFrame(f)
+      if (dataUrl) {
+        var blob = await (await fetch(dataUrl)).blob()
+        var asFile = new File([blob], 'video-thumb.jpg', { type: 'image/jpeg' })
+        var up = await chunkedUpload(asFile, 'thumbnails')
+        if (up && up.filePath) applyAutoThumb(up.filePath)
+      }
+    } catch (e) { /* اللقطة الأوتوماتيكية اختيارية — فشلها ما يمنعش إضافة الفيديو */ }
+    setThumbCapturing(false)
   }
 
   return (
@@ -1049,8 +1139,8 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
             {/* YouTube URL */}
             <div className="space-y-1.5">
               <Label className="text-xs">رابط الفيديو — يوتيوب أو أي لينك من أي موقع (Cloudinary / Drive / Dropbox / mp4 مباشر…) — أو ارفع ملف فيديو. للتحكم في الجودات: ارفع على Cloudinary وهتلاقي قايمة جودات في المشغل</Label>
-              <Input value={formUrl} onChange={(e) => setFormUrl(e.target.value)} placeholder="https://youtube.com/watch?v=… أو https://res.cloudinary.com/…/video/upload/v…/name.mp4" dir="ltr" />
-              {formUrl && getYouTubeId(formUrl) && (
+              <Input value={formUrl} onChange={(e) => handleVideoUrlChange(e.target.value)} placeholder="https://youtube.com/watch?v=… أو https://res.cloudinary.com/…/video/upload/v…/name.mp4" dir="ltr" />
+              {getYouTubeId(formUrl) && (
                 <div className="mt-2 w-40 aspect-video rounded-lg overflow-hidden border relative">
                   <Image src={`https://img.youtube.com/vi/${getYouTubeId(formUrl)}/mqdefault.jpg`} alt="thumbnail" fill className="object-cover" sizes="400px" unoptimized />
                 </div>
@@ -1061,17 +1151,18 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
             <div className="space-y-1.5">
               <Label className="text-xs">أو ارفع ملف فيديو</Label>
               <div className="flex items-center gap-2">
-                <input ref={videoFileRef} type="file" accept="video/*" className="hidden" onChange={(e) => { setFormFile(e.target.files?.[0] || null) }} />
-                <Button type="button" variant="outline" size="sm" onClick={() => videoFileRef.current?.click()}>
-                  <Upload className="h-4 w-4 ml-1" />{formFile ? formFile.name : 'اختر فيديو'}
+                <input ref={videoFileRef} type="file" accept="video/*" className="hidden" onChange={(e) => { handleVideoFilePick(e.target.files?.[0] || null) }} />
+                <Button type="button" variant="outline" size="sm" onClick={() => videoFileRef.current?.click()} disabled={thumbCapturing}>
+                  {thumbCapturing ? <Loader2 className="h-4 w-4 ml-1 animate-spin" /> : <Upload className="h-4 w-4 ml-1" />}{formFile ? formFile.name : 'اختر فيديو'}
                 </Button>
                 {formFile && <span className="text-xs text-muted-foreground">{(formFile.size / 1024 / 1024).toFixed(1)} MB</span>}
               </div>
+              <p className="text-[10px] text-muted-foreground">لو الفيديو ملف مرفوع، هتاخد صورة مصغرة أوتوماتيك من وسط الفيديو نفسه — وتقدر تغيرها من خانة الصورة المصغرة لو عايز</p>
             </div>
 
             {/* Thumbnail Upload */}
             <div className="space-y-1.5">
-              <Label className="text-xs">صورة مصغرة للفيديو (اختياري)</Label>
+              <Label className="text-xs">صورة مصغرة للفيديو (اختياري — بتتعمل أوتوماتيك لو سبتها فاضية)</Label>
               <div className="flex items-center gap-3">
                 <input ref={thumbFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { setFormThumbnail(e.target.files?.[0] || null) }} />
                 <Button type="button" variant="outline" size="sm" onClick={() => thumbFileRef.current?.click()}>
@@ -1087,7 +1178,7 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
 
             {/* Thumbnail URL */}
             <div className="space-y-1.5">
-              <Label className="text-xs">أو رابط صورة مصغرة (اختياري)</Label>
+              <Label className="text-xs">أو رابط صورة مصغرة (اختياري — أوتوماتيك من اليوتيوب لو سبتها فاضي)</Label>
               <Input value={formThumbnailUrl} onChange={(e) => setFormThumbnailUrl(e.target.value)} placeholder="https://example.com/thumbnail.jpg" dir="ltr" />
               {formThumbnailUrl && (
                 <div className="mt-2 w-40 aspect-video rounded-lg overflow-hidden border relative">
@@ -1113,7 +1204,7 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
               <Button size="sm" onClick={handleSubmit} disabled={submitting || uploading}>
                 {submitting || uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'حفظ ونشر'}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => { setShowForm(false); setFormTitle(''); setFormUrl(''); setFormGrade(''); setFormFile(null); setFormThumbnail(null); setFormThumbnailUrl('') }}>إلغاء</Button>
+              <Button size="sm" variant="outline" onClick={() => { setShowForm(false); setFormTitle(''); setFormUrl(''); setFormGrade(''); setFormFile(null); setFormThumbnail(null); setFormThumbnailUrl(''); setAutoThumbRef('') }}>إلغاء</Button>
             </div>
           </div>
         )}
@@ -1653,7 +1744,7 @@ function ExamTrackingPanel() {
       var data = await res.json()
       if (res.ok && data.extracted && data.extracted.questions && data.extracted.questions.length > 0) {
         var extracted = data.extracted.questions.map(function (q: any) {
-          if (q.type === 'writing' || q.type === 'essay' || (!q.options || q.options.length === 0) || (Array.isArray(q.options) && q.options.every(function (o: string) { return !o || o === 'N/A' || o === 'لا يوجد' }))) {
+          if (isWritingQuestion(q)) {
             return { q: q.question || '', options: [] as string[], correct: -1, points: q.points || 5, type: 'writing', modelAnswer: q.modelAnswer || '', acceptedAnswers: q.acceptedAnswers || [] }
           }
           return { q: q.question || '', options: (q.options || ['','','','']).slice(0, 4), correct: q.correct || 0, points: q.points || 1, type: 'mcq', modelAnswer: q.modelAnswer || '' }
@@ -2046,6 +2137,12 @@ function GalleryManager() {
     setLoading(false)
   }
 
+  /* (و45) صورة مصغرة أوتوماتيكية للفيديو — يوتيوب من i.ytimg.com */
+  var getYtThumb = function (url: string) {
+    var yt = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/|live\/))([\w-]{11})/)
+    return yt ? 'https://i.ytimg.com/vi/' + yt[1] + '/hqdefault.jpg' : ''
+  }
+
   useEffect(function() { loadGallery() }, [])
 
   var resetAll = function() {
@@ -2106,7 +2203,8 @@ function GalleryManager() {
         type: 'video',
         sortOrder: parseInt(vidOrder) || 0
       }
-      if (vidThumb.trim()) { body.filePath = vidThumb.trim() }
+      /* (و45) الصورة المصغرة: رابط يدوي ← أوتوماتيك من اليوتيوب (والسيرفر كمان بيتعامل مع الحالتين) */
+      if (vidThumb.trim()) { body.thumbnail = vidThumb.trim() }
       var res = await fetch('/api/gallery', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2115,7 +2213,11 @@ function GalleryManager() {
       if (res.ok) {
         toast.success('تم إضافة الفيديو بنجاح')
         setVidUrl(''); setVidThumb(''); loadGallery()
-      } else { toast.error('خطأ في الإضافة') }
+      } else {
+        var gErr = ''
+        try { var gData = await res.json(); gErr = String(gData.error || '') } catch { gErr = 'كود ' + res.status }
+        toast.error('الفيديو ما اتضافش: ' + gErr)
+      }
     } catch { toast.error('خطأ في الاتصال') }
     setSaving(false)
   }
@@ -2129,7 +2231,8 @@ function GalleryManager() {
   }
 
   var getVideoThumb = function(url: string) {
-    var yt = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]+)/)
+    /* (و45) كل صيغ اليوتيوب زي الصفحة العامة */
+    var yt = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/|live\/))([\w-]{11})/)
     if (yt) return 'https://img.youtube.com/vi/' + yt[1] + '/mqdefault.jpg'
     return ''
   }
@@ -2208,8 +2311,15 @@ function GalleryManager() {
                   <Input placeholder="https://youtube.com/watch?v=..." value={vidUrl} onChange={function(e) { setVidUrl(e.target.value) }} dir="ltr" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">رابط صورة مصغرة (اختياري)</Label>
+                  <Label className="text-xs text-muted-foreground">رابط صورة مصغرة (اختياري — أوتوماتيك من اليوتيوب لو سبتها فاضية)</Label>
                   <Input placeholder="https://example.com/thumb.jpg" value={vidThumb} onChange={function(e) { setVidThumb(e.target.value) }} dir="ltr" />
+                  {vidUrl.trim() && !vidThumb.trim() && getYtThumb(vidUrl) && (
+                    <div className="flex items-center gap-2 mt-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={getYtThumb(vidUrl)} alt="الصورة المصغرة الأوتوماتيكية" className="h-12 w-20 object-cover rounded border border-border bg-white" />
+                      <p className="text-[10px] text-muted-foreground">هتتحط أوتوماتيك من اليوتيوب لو مكتتبتش حاجة</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2241,7 +2351,7 @@ function GalleryManager() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[500px] overflow-y-auto custom-scrollbar">
             {images.map(function(img) {
               var isVideo = img.type === 'video'
-              var thumb = isVideo ? (getVideoThumb(img.videoUrl) || img.filePath || '') : img.filePath
+              var thumb = isVideo ? ((img as any).thumbnail || getVideoThumb(img.videoUrl) || img.filePath || '') : img.filePath
               var src = isVideo ? thumb : img.filePath
               return (
                 <div key={img.id} className="relative group rounded-lg overflow-hidden border bg-card aspect-square">
@@ -2727,7 +2837,8 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
       var rawQuestions = (data.questions || (data.extracted && data.extracted.questions) || [])
       if (res.ok && rawQuestions.length > 0) {
         var extracted = rawQuestions.map(function(q: any) {
-          var isWriting = q.type === 'writing' || q.type === 'essay' || (!q.options || q.options.length === 0)
+          /* (و45) تصنيف موحّد: سؤال له اختيارات (نص أو صور/رسومات) = اختياري دايمًا */
+          var isWriting = isWritingQuestion(q)
           if (isWriting) {
             return { type: 'writing', question: q.question || '', options: [], correct: -1, points: q.points || 5, modelAnswer: q.modelAnswer || '' }
           }
@@ -3148,6 +3259,9 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
   const [savedBooks, setSavedBooks] = useState<any[]>([])
   const [savedBooksLoading, setSavedBooksLoading] = useState(false)
   const [showSavedBooks, setShowSavedBooks] = useState(false)
+  /* (و45) وضع الكتاب بلينك: «أو ضع رابط PDF» — بيتحمل من خلال /api/books/proxy */
+  const [bookUrl, setBookUrl] = useState('')
+  const [bookLinkLoading, setBookLinkLoading] = useState(false)
 
   var resetAll = function() {
     setStep(1); setExtractType('exam'); setGrade(''); setTitle('')
@@ -3188,12 +3302,13 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
      3) لو أول ملف → استبدال عادي من غير srcName (سؤال بمصدر واحد بيتعرض «صفحة N» بس) */
   var finishExtraction = async function (newQs: any[], cropSource: { file?: File | null; doc?: any | null }) {
     try {
-      /* (و44) العدّاد بيشمل رسومات الاختيارات كمان (optionFigures) */
+      /* (و44) قص رسومات السؤال أوتوماتيك — (و45) رسومات الاختيارات اتشالت من العدّاد
+         والإلزام بالكامل بطلب المستر: مش مطلوب رفع صورة للسؤال ولا للختيار —
+         القص أوتوماتيك بس لما ينفع، ومن غير أي تنبيه أو منع */
       var needCrop = 0
       newQs.forEach(function (q: any) {
         if (!q) return
         if (q.figure && q.figure.bbox && !q.figure.url) needCrop++
-        if (Array.isArray(q.optionFigures)) q.optionFigures.forEach(function (of: any) { if (of && of.bbox && !of.url) needCrop++ })
       })
       if (needCrop > 0) {
         setStatusMsg('جهز الرسومات 0 من ' + needCrop + '…')
@@ -3392,7 +3507,8 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
       var data = await res.json()
       if (res.ok && data.extracted && data.extracted.questions && data.extracted.questions.length > 0) {
         var extracted = data.extracted.questions.map(function(q: any) {
-          var isWriting = q.type === 'writing' || q.type === 'essay' || (!q.options || q.options.length === 0)
+          /* (و45) تصنيف موحّد: سؤال له اختيارات (نص أو صور/رسومات) = اختياري دايمًا */
+          var isWriting = isWritingQuestion(q)
           /* (2026-و40-w) حقول ورقة العمل بتعد pass-through (الجدول/الرسمة/صفحة المصدر) */
           var wsFields: any = {}
           ;['sourcePage', 'srcName', 'table', 'figure', 'optionFigures'].forEach(function (k: string) {
@@ -3438,17 +3554,46 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
     setBookPdfLoading(false)
   }
 
+  /* (و45 بطلب المستر) وضع الكتاب بلينك: «أو ضع رابط PDF» — التحميل بيتم من
+     خلال /api/books/proxy (نفس بروكسي الكتب: حماية SSRF + سقف 250MB + حل CORS)
+     والملف بيتحول File وبيفتح في نفس pipeline وضع الكتاب بالظبط (openPdf).
+     الملف المحلي لو موجود بياخد الأسبقية — واللينك مكتوب في bookUrl زي ما هو. */
+  var openBookFromLink = async function () {
+    var link = bookUrl.trim()
+    if (!link || bookLinkLoading) return
+    if (!/^https?:\/\//i.test(link)) { toast.error('الرابط لازم يبدأ بـ http أو https'); return }
+    if (bookFile) { toast.error('فيه ملف محلي مختار — الملف بياخد الأسبقية. امسحه الأول لو عايز تفتح الرابط'); return }
+    setBookLinkLoading(true)
+    try {
+      var res = await fetch('/api/books/proxy?url=' + encodeURIComponent(link), { cache: 'no-store' })
+      if (!res.ok) {
+        var je: any = null
+        try { je = await res.json() } catch (e) {}
+        throw new Error((je && je.error) || 'مقدرتش أجيب الملف من الرابط (كود ' + res.status + ') — اتأكد إن الرابط شغال ومباشر')
+      }
+      var blob = await res.blob()
+      if (blob.size === 0) throw new Error('الملف اللي جاي من الرابط فاضي — اتأكد إن الرابط بيوصل للملف مباشرة')
+      var file = new File([blob], 'book-' + Date.now() + '.pdf', { type: 'application/pdf' })
+      setBookFile(file); bookDocRef.current = null; setBookNumPages(0); setBookFrom(1); setBookTo(1)
+      var opened = await openPdf(file)
+      bookDocRef.current = opened.doc
+      setBookNumPages(opened.numPages)
+      setBookName(''); setTitle(function (t: string) { return t || 'كتاب من رابط' })
+      setBookFrom(1); setBookTo(Math.min(opened.numPages, 30))
+      toast.success('اتفتح الكتاب من الرابط — عدد الصفحات: ' + opened.numPages + ' — حدد الصفحات واضغط استخراج')
+    } catch (e: any) {
+      toast.error('الرابط ما اتنفذش: ' + (e && e.message ? e.message : 'حصلت مشكلة'))
+    }
+    setBookLinkLoading(false)
+  }
+
   /* مفتاح منع التكرار: نص السؤال مطبّع (فراغات/ترقيم/طول 120) */
   var bookQuestionKey = function(q: any) {
     return String((q && (q.question || q.q)) || '').toLowerCase().replace(/\s+/g, ' ').replace(/[^\u0600-\u06FFa-z0-9]/g, '').substring(0, 120)
   }
 
-  /* (و43) كاشف الأسئلة الرسومية: نص السؤال/الإجابة فيه إشارة رسم/منحنى/شكل هندسي —
-     بنستخدمه في شاشة المراجعة عشان نحذر لو السؤال الرسومي طلع من غير figure مسجل */
-  var isGraphicalLike = function(q: any) {
-    var t = String((q && q.question) || '') + ' ' + String((q && q.modelAnswer) || '')
-    return /(رسم|مخطط|شكل هندسي|مثلث|دائرة|زاوية|منحنى|graph|plot|diagram|figure|shape|axis of symmetry|represent graphically)/i.test(t)
-  }
+  /* (و45) دالة isGraphicalLike اتنشلت — كانت بتشغّل تحذير «السؤال ده محتاج رسم»
+     اللي المستر طلب إلغاءه خالص (كان بينبّه غلط على أسئلة مش محتاجة رسمة) */
 
   /* (و43) رفع رسمة السؤال يدويًا من شاشة المراجعة: chunkedUpload → /api/files/<id>
      → figure.url — الرسمة بتظهر للطالب زي الملف بالظبط */
@@ -3760,6 +3905,21 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
                 {bookFile ? bookFile.name : 'اختر ملف الكتاب (PDF)'}
               </Button>
             </div>
+            {/* (و45 بطلب المستر) الاستخراج بملف أو لينك — في وضع الكتاب كمان:
+               لو الكتاب على لينك (Drive أو أي موقع) حط اللينك وهيتحمل من خلال
+               بروكسي المنصة (بيحل CORS) ويفتح زي الملف بالظبط — الملف لو متحط
+               بياخد الأسبقية. الملف الصغير الأسرع، واللينك أحسن للكتب الكبيرة */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3"><div className="flex-grow h-px bg-sky-200" /><span className="text-[11px] text-muted-foreground">أو ضع رابط PDF</span><div className="flex-grow h-px bg-sky-200" /></div>
+              <div className="flex items-center gap-2">
+                <Input placeholder="https://drive.google.com/… أو https://example.com/book.pdf" value={bookUrl} onChange={function(e) { setBookUrl(e.target.value) }} dir="ltr" className="flex-1" />
+                <Button type="button" variant="outline" onClick={openBookFromLink} disabled={bookLinkLoading || !bookUrl.trim()} className="border-sky-400/40 text-sky-700 dark:text-sky-400 shrink-0">
+                  {bookLinkLoading ? <Loader2 className="h-4 w-4 ml-2 animate-spin" /> : <LinkIcon className="h-4 w-4 ml-2" />}
+                  افتح الرابط
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground">لو حطيت ملف ورابط، الملف هو اللي هيفتح. اللينك بيتحمل عن طريق المنصة (حماية + بلا مشاكل CORS) — مستحسن للكتب الكبيرة على Drive</p>
+            </div>
             {/* (2026-و44) الكتب المحفوظة — سهم يفتح قايمة الكتب المضافة من تاب
                «الكتب والملازم» (ملف أو لينك) — دوست على الكتاب يفتح وتحدد صفحاته */}
             <div className="space-y-1.5">
@@ -3947,17 +4107,16 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
 
         <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
           {extractedQuestions.map(function(q, qi) {
-            var qType = q.type === 'writing' || (!q.options || q.options.length === 0) ? 'writing' : 'mcq'
+            var qType = isWritingQuestion(q) ? 'writing' : 'mcq' /* (و45) اختيارات صور = اختياري */
             /* (2026-و40-w) فاصل خفيف بين مجموعات الملفات (srcName بيتبدل) */
             var prevSrc = qi > 0 ? String(extractedQuestions[qi - 1].srcName || '') : ''
             var curSrc = String(q.srcName || '')
             var showFileDivider = qi > 0 && prevSrc !== curSrc
             var hasTablePreview = !!(q.table && Array.isArray(q.table.rows) && q.table.rows.length > 0)
             var hasFigurePreview = !!(q.figure && q.figure.bbox)
-            /* (و43) سؤال شكله رسومي ومفيش figure مسجل (لا url ولا bbox) — تحذير + رفع يدوي.
-               وبعد الرفع اليدوي (url من غير bbox) نفس الصف بتعرض الصورة + زرار الإزالة
-               لأن معاينة الرسمة العادية بتشتغل بـ bbox بس */
-            var isGraphMissing = isGraphicalLike(q) && !(q.figure && q.figure.bbox)
+            /* (و43) بعد الرفع اليدوي (url من غير bbox) نفس الصف بتعرض الصورة + زرار الإزالة
+               لأن معاينة الرسمة العادية بتشتغل بـ bbox بس
+               (و45) تحذير «السؤال ده فيه رسمة» اتلغى خالص بطلب المستر */
             var hasManualFigureUrl = !!(q.figure && q.figure.url)
             return (
               <Fragment key={qi}>
@@ -3999,23 +4158,22 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
                     <WorksheetFigure figure={q.figure} />
                   </div>
                 )}
-                {/* (و43) تحذير السؤال الرسومي من غير رسمة مسجلة + الرفع اليدوي للرسمة */}
-                {isGraphMissing && (
-                  <div className="flex items-center gap-2 flex-wrap p-2 rounded-md border border-amber-500/40 bg-amber-500/5 text-[11px] text-amber-700 dark:text-amber-400">
-                    {hasManualFigureUrl ? (
-                      <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={q.figure.url} alt="رسمة السؤال" className="max-h-16 rounded border bg-white object-contain" onError={function (e) { var t = e.currentTarget as HTMLImageElement; t.style.display = 'none' }} />
-                        <button type="button" className="font-bold px-2 py-1 rounded-md border border-destructive/40 text-destructive hover:bg-destructive/10" onClick={function () { removeFigure(qi) }}>✕ إزالة</button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="flex-1 min-w-[220px]">⚠ السؤال ده فيه رسمة غالبًا ومش متسجلة — ارفع صورة الرسمة عشان تظهر للطالب زي الملف</span>
-                        <input ref={function (el) { figureInputRefs.current['q' + qi] = el }} type="file" accept="image/*" className="hidden" onChange={function (e) { var f = e.target.files && e.target.files[0]; e.target.value = ''; handleFigureUpload(qi, f || null) }} />
-                        <button type="button" className="font-bold px-2 py-1 rounded-md border border-amber-500/60 hover:bg-amber-500/10" onClick={function () { var el = figureInputRefs.current['q' + qi]; if (el) el.click() }}>📷 ارفع الرسمة</button>
-                      </>
-                    )}
+                {/* (و45 بطلب المستر) تحذير «السؤال ده محتاج رسم» اتلغى خالص —
+                   كان بينبّه غلط على أسئلة مش محتاجة رسمة. القص أوتوماتيك شغال،
+                   وزرار 📷 لرفع رسمة السؤال يدويًا لسه موجود اختياريًا — وصورة
+                   الرسمة المرفوعة يدويًا لسه بتتعرض مع زرار الإزالة */}
+                {hasManualFigureUrl && !(q.figure && q.figure.bbox) && (
+                  <div className="flex items-center gap-2 flex-wrap p-2 rounded-md border border-border text-[11px]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={q.figure.url} alt="رسمة السؤال" className="max-h-16 rounded border bg-white object-contain" onError={function (e) { var t = e.currentTarget as HTMLImageElement; t.style.display = 'none' }} />
+                    <button type="button" className="font-bold px-2 py-1 rounded-md border border-destructive/40 text-destructive hover:bg-destructive/10" onClick={function () { removeFigure(qi) }}>✕ إزالة</button>
                   </div>
+                )}
+                {!q.figure && (
+                  <label className="inline-flex items-center gap-1 cursor-pointer text-[11px] text-muted-foreground hover:text-foreground transition-colors w-fit">
+                    📷 رفع رسمة للسؤال (اختياري)
+                    <input ref={function (el) { figureInputRefs.current['q' + qi] = el }} type="file" accept="image/*" hidden onChange={function (e) { var f = e.target.files && e.target.files[0]; e.target.value = ''; handleFigureUpload(qi, f || null) }} />
+                  </label>
                 )}
                 {/* المعاينة الحية — زي ما الطالب هيشوف بالظبط (كسور وأسوس مُنسّقة) */}
                 <QuestionPreview question={q.question} options={qType === 'writing' ? undefined : q.options} correct={qType === 'writing' ? undefined : q.correct} modelAnswer={q.modelAnswer} />
@@ -4037,23 +4195,19 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
                     {q.options.map(function(opt: string, oi: number) {
-                      /* (و43) صورة الاختيار: optionFigures[i] = { url } — مصفوفة متوازية مع options */
+                      /* (و43) صورة الاختيار: optionFigures[i] = { url } — مصفوفة متوازية مع options
+                         (و45 بطلب المستر) مفيش أي تنبيه أو إلزام لصور الاختيارات —
+                         زرار 📷 بقى أداة اختيارية بس: مفيش كهرماني ولا نبض ولا تحذير */
                       var optFigUrl = (q.optionFigures && q.optionFigures[oi] && q.optionFigures[oi].url) || ''
-                      /* (و44) الاختيار ده فيه رسمة من الملف (bbox) ولسه متلقطتش → تنبيه واضح */
-                      var ofMissing = !!(q.optionFigures && q.optionFigures[oi] && q.optionFigures[oi].bbox && !q.optionFigures[oi].url)
                       return (
                         <div key={oi} className="space-y-1">
                           <div className="flex items-center gap-1.5">
                             <button type="button" className={"w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] transition-colors shrink-0 " + (q.correct === oi ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/30 hover:border-primary/50')} onClick={function() { updateQuestion(qi, 'correct', oi) }}>{["أ","ب","ت","ث"][oi]}</button>
                             <Input value={opt} onChange={function(e) { updateQuestion(qi, 'option_' + oi, e.target.value) }} placeholder={"الخيار " + (oi + 1)} className="h-8 text-xs" />
-                            {/* (و43) رفع صورة للاختيار — الاختيارات اللي هي صور في الملف الأصلي
-                               (و44) الاختيار الناقص رسمته بيبقى كهرماني بنبض عشان المستر يشوفه فورًا */}
+                            {/* (و43) رفع صورة للاختيار — أداة اختيارية بالكامل (و45) */}
                             <input ref={function (el) { figureInputRefs.current['q' + qi + '_' + oi] = el }} type="file" accept="image/*" className="hidden" onChange={function (e) { var f = e.target.files && e.target.files[0]; e.target.value = ''; handleOptionFigureUpload(qi, oi, f || null) }} />
-                            <button type="button" title={ofMissing ? 'الاختيار ده صورة في الملف الأصلي — ارفع صورته عشان تظهر للطالب' : 'ارفع صورة للاختيار'} className={"text-[11px] leading-none px-1 py-1 rounded border shrink-0 transition-colors " + (ofMissing ? 'border-amber-500 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 animate-pulse font-bold' : 'border-border hover:bg-muted')} onClick={function () { var el = figureInputRefs.current['q' + qi + '_' + oi]; if (el) el.click() }}>📷</button>
+                            <button type="button" title="رفع صورة للاختيار (اختياري)" className="text-[11px] leading-none px-1 py-1 rounded border border-border shrink-0 transition-colors hover:bg-muted" onClick={function () { var el = figureInputRefs.current['q' + qi + '_' + oi]; if (el) el.click() }}>📷</button>
                           </div>
-                          {ofMissing && (
-                            <p className="text-[10px] font-bold text-amber-700 dark:text-amber-400">⚠ الاختيار ده صورة في الملف الأصلي — دوس 📷 وارفع صورته</p>
-                          )}
                           {optFigUrl && (
                             <div className="flex items-center gap-1">
                               {/* eslint-disable-next-line @next/next/no-img-element */}

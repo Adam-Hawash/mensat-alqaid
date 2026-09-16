@@ -63,6 +63,7 @@ export interface GalleryImage {
   filePath: string
   type: string
   videoUrl: string
+  thumbnail?: string // (و45) صورة مصغرة لعناصر الفيديو (أوتوماتيك من اليوتيوب)
   sortOrder: number
   createdAt: string
 }

@@ -26,7 +26,11 @@ import BidiText from '@/components/BidiText'
 import { FigurePointEditor } from '@/components/student/FigurePointEditor'
 /* (2026-و44) جرس الإشعارات + بادج المجتمع — أي حاجة جديدة توصل للطالب */
 import { NotificationsBell } from '@/components/student/NotificationsBell'
+/* (2026-و45) شيرين — المساعدة الشخصية العائمة (تحت على الشمال) */
+import { SherineChat } from '@/components/student/SherineChat'
 import { normalizeCorrectKey } from '@/lib/correct-key'
+/* (و45) تصنيف موحّد: سؤال له اختيارات صور/رسومات = اختياري مش مقالي */
+import { isWritingQuestion } from '@/lib/question-figures'
 /* (2026-و40-w) ورقة العمل: جداول قابلة للكتابة + رسومات مقصوصة + تجميع صفحات المصدر */
 import {
   WorksheetQuestionBadge, WorksheetPageChip, WorksheetTableEditable, WorksheetTableReadonly,
@@ -121,6 +125,17 @@ function isExamScheduledAhead(scheduledAt: any): boolean {
 }
 
 export function StudentPortal() {
+  /* (2026-و45) شيرين — مركّبة مرة واحدة فوق البورتال كله (الداشبورد + الشوز)،
+     بتقفل نفسها لو مفيش طالب مسجل */
+  return (
+    <>
+      <StudentPortalInner />
+      <SherineChat />
+    </>
+  )
+}
+
+function StudentPortalInner() {
   const { currentStudent, logout } = useAppStore()
   const [dashboardData, setDashboardData] = useState<{
     videos: VideoType[]
@@ -940,14 +955,10 @@ function WritingAnswerBox({ value, onChange, disabled }: { value: string; onChan
   )
 }
 
-/* is this question a writing (مقالي) question? */
-function isWritingQuestion(q: any): boolean {
-  if (q.type === 'writing' || q.type === 'essay') return true
-  if (Array.isArray(q.options) && q.options.length > 0) {
-    return q.options.every(function(o: any) { return !o || o === 'N/A' || o === 'لا يوجد' || String(o).trim() === '' })
-  }
-  return !q.options || q.options.length === 0
-}
+/* (و45) تصنيف مقالي/اختياري بقى موحّد من @/lib/question-figures (isWritingQuestion
+   المستوردة فوق) — النسخة المحلية القديمة اتمسحت عشان كل مواقع البورتال
+   (هومورك شوز + حل الواجب + الامتحان) تستخدم الحكم الموحد اللي بيعترف
+   برسومات الاختيارات (optionFigures) — سؤال لاختياراته صور = اختياري مش مقالي */
 
 function HomeworkTab({ homework, studentId }: { homework: Homework[]; studentId: string }) {
   var [expandedHw, setExpandedHw] = useState<string | null>(null)

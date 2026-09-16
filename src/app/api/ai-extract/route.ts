@@ -17,6 +17,8 @@ import { parseAiJson } from '@/lib/parse-ai-json'
 
 import { NextResponse } from 'next/server'
 import { callGemini as callGeminiCentral, hasGeminiKey } from '@/lib/gemini'
+/* (و45) تصنيف موحّد اختياري/مقالي — سؤال له اختيارات (حتى لو صور) = اختياري */
+import { isWritingQuestion } from '@/lib/question-figures'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -75,6 +77,7 @@ export async function POST(request) {
     lines.push('لكل سؤال:')
     lines.push('- انقل نص السؤال بنفسه بالظبط زي ما هو مكتوب (باللغة الأصلية — العربي يفضل عربي من غير ترجمة).')
     lines.push('- حدد نوع السؤال: لو له اختيارات يكون type "mcq" مع الخيارات، ولو سؤال مقالي أو سؤال short answer أو اكمل أو علل يكون type "writing" من غير خيارات.')
+    lines.push('IMAGE-CHOICE RULE (2026-W45 — mandatory): a question whose choices are PICTURES / FIGURES / GRAPHS (not text) is STILL "mcq": return "options" as an array of empty strings with the SAME length as the number of picture-choices, and put each choice picture in "optionFigures" aligned by index. NEVER label a picture-choices question as "writing" and NEVER flatten its choices into text.')
     lines.push('- للسؤال المقالي (writing): اكتب إجابة نموذجية مختصرة وصحيحة في modelAnswer مبنية على محتوى المستند نفسه.')
     lines.push('- للسؤال الاختياري (mcq): انقل الخيارات الأربعة بنفسها بالظبط، وحدد رقم الإجابة الصحيحة correct (0=A, 1=B, 2=C, 3=D). لو الخيارات أقل من أربعة كمّلها لاختيارات غلط منطقية. لو مفيش خيارات في المستند اعمل 4 خيارات من ضمنهم الصحيح.')
     lines.push('- حدد درجة السؤال points: الاختياري عادة 1، المقالي عادة 5.')
@@ -139,8 +142,8 @@ export async function POST(request) {
     }
     var questions = (parsed.questions || []).map(function(q) {
       var qText = q.question || q.q || ''
-      var isWriting = q.type === 'writing' || q.type === 'essay'
-      if (!isWriting && (!Array.isArray(q.options) || q.options.length === 0)) isWriting = true
+      /* (و45) سؤال له اختيارات (نص أو صور/رسومات) = اختياري دايمًا — ممنوع يتحول مقالي */
+      var isWriting = isWritingQuestion(q)
       /* (2026-و40-w) حقول ورقة العمل — pass-through (sourcePage/srcName/table/figure/optionFigures)
          بتتحفظ جنب الحقول القانونية — مع تطبيع خفيف */
       var wsFields: any = {}
@@ -161,7 +164,13 @@ export async function POST(request) {
           modelAnswer: q.modelAnswer || q.answer || '',
         }, wsFields)
       }
-      var opts = Array.isArray(q.options) ? q.options.slice() : ['N/A', 'N/A', 'N/A', 'N/A']
+      /* (و45) لو الاختيارات صور من غير نص — بنملأ نص فاضي بنفس عدد رسومات الاختيارات
+         عشان الفهارس تبقى متوافقة والسؤال يفضل اختياري صور مش مقالي */
+      var opts = Array.isArray(q.options) ? q.options.filter(function(o: any) { return o !== null && o !== undefined }).slice() : []
+      if (opts.length === 0 && Array.isArray(q.optionFigures) && q.optionFigures.length > 0) {
+        for (var ofi = 0; ofi < q.optionFigures.length && ofi < 4; ofi++) opts.push('')
+      }
+      if (opts.length === 0) opts = ['N/A', 'N/A', 'N/A', 'N/A']
       while (opts.length < 4) { opts.push('N/A') }
       var c = typeof q.correct === 'number' ? q.correct : 0
       if (c < 0 || c > 3) { c = 0 }

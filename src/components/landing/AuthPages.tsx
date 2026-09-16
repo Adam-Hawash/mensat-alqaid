@@ -268,9 +268,9 @@ export function LoginView() {
                 <PasswordField value={password} onChange={setPassword} placeholder="كلمة المرور" id="login-password" />
                 <Button className="w-full min-h-[44px] font-semibold" onClick={handleLogin} disabled={loading}>{loading ? (<><Loader2 className="h-4 w-4 ml-2 animate-spin" />جاري تسجيل الدخول...</>) : 'تسجيل الدخول'}</Button>
                 <p className="text-center text-sm text-muted-foreground">ليس لديك حساب؟ <button onClick={function () { setView('auth-register') }} className="text-yellow-600 font-medium hover:underline cursor-pointer">أنشئ حساباً جديداً</button></p>
-                <div className="border-t border-border pt-3">
-                  <p className="text-center text-sm text-muted-foreground">انت <span className="font-bold">ولي أمر</span> وعايز تتابع ابنك؟ <button onClick={function () { setView('parent-login') }} className="text-yellow-600 font-bold hover:underline cursor-pointer">ادخل من هنا</button></p>
-                </div>
+                {/* (و45 بطلب المستر) سطر «انت ولي أمر وعايز تتابع ابنك؟ ادخل من هنا» اتشال من
+                   صفحة الدخول — دخول ولي الأمر شغال من نفس الصفحة أوتوماتيك (و44:
+                   لو مطابقة الطالب فشلت بيتحقق /api/parents/login تلقائيًا) */}
               </div>
             </CardContent>
           </Card>
