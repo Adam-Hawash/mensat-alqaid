@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
-import { AIAssistant } from "@/components/student/AIAssistant";
 import { ThemeProvider } from "@/components/theme-provider";
 import { RecordingGuard } from "@/components/RecordingGuard";
 
@@ -84,7 +83,7 @@ export default async function RootLayout({
         style={{ fontFamily: "Cairo, sans-serif" }}
       >
         <ThemeProvider>{children}</ThemeProvider>
-        <AIAssistant />
+        {/* (و46) المساعد الذكي اتشال بالكامل — طلب المستر: «شيلها يا حبيبي خالص» */}
         {/* حماية عامة من التسجيل/التصوير + أدوات المطوّر في كل الصفحات */}
         <RecordingGuard />
         <Toaster />

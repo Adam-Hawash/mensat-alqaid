@@ -79,16 +79,27 @@ export async function POST(request) {
       if (Array.isArray(q.optionFigures)) ws.optionFigures = q.optionFigures
       return ws
     }
+    /* (و46) سؤال اختياراته صور/رسومات (optionFigures) = اختياري **مطلقًا مقالي** —
+       طلب المستر الحرفي: «الأسئلة اللي فيها اختيارات على شكل رسم ما بتتضافش…
+       عايز الرسمة تكون شكلها صغير عشان الطالب يقدر يختار». نفس قاعدة
+       extract-and-save بس من غير أي اعتماديات — أي عنصر فيه url أو bbox = رسومات */
+    function serverHasVisualOptions(q: any): boolean {
+      if (!q || typeof q !== 'object' || !Array.isArray(q.optionFigures)) return false
+      return q.optionFigures.some(function (ofg: any) {
+        return ofg && typeof ofg === 'object' && ((typeof ofg.url === 'string' && ofg.url) || ofg.bbox)
+      })
+    }
     var dbQuestions = extractedQuestions.map(function(q) {
       var questionText = q.question || q.q || ''
       var isWriting = q.type === 'writing' || q.type === 'essay'
+      /* (و46) رسومات الاختيارات → اختياري دايمًا حتي لو النصوص كلها فاضية/N/A */
+      var hasVisual = serverHasVisualOptions(q)
+      if (hasVisual) isWriting = false
       if (!isWriting && Array.isArray(q.options)) {
-        /* (و43) سؤال اختياراته كلها صور (نص فاضي + optionFigures) مش مقالي — ممنع
-           تصنيفه writing عشان الاختيارات والصور بتاعتها تفضل مظبوطة */
-        var allNA = !Array.isArray(q.optionFigures) && q.options.length > 0 && q.options.every(function(o) { return !o || o === 'N/A' || o === 'لا يوجد' || String(o).trim() === '' })
-        if (allNA) isWriting = true
+        var allNA = q.options.length > 0 && q.options.every(function(o) { return !o || o === 'N/A' || o === 'لا يوجد' || String(o).trim() === '' })
+        if (allNA && !hasVisual) isWriting = true
       }
-      if (!isWriting && (!q.options || q.options.length === 0)) {
+      if (!isWriting && (!q.options || q.options.length === 0) && !hasVisual) {
         isWriting = true
       }
       if (isWriting) {
@@ -107,8 +118,11 @@ export async function POST(request) {
 
       // Shuffle question order
       // (shuffle options and update correct index)
-      var opts = Array.isArray(q.options) ? q.options.slice(0, 4) : ['N/A', 'N/A', 'N/A', 'N/A']
-      while (opts.length < 4) { opts.push('N/A') }
+      var opts = Array.isArray(q.options) ? q.options.slice(0, 4) : []
+      /* (و46) سؤال الرسومات: نملأ الاختيارات بنفس عدد الرسومات على الأقل —
+         نص فاضي = الاختيار صورة بس (الطالب يشوف الرسمة الصغيرة ويختارها) */
+      var minOpts = hasVisual && Array.isArray(q.optionFigures) ? q.optionFigures.length : 0
+      while (opts.length < Math.max(4, minOpts)) { opts.push('') }
       var correctIdx = typeof q.correct === 'number' ? q.correct : 0
       if (correctIdx < 0 || correctIdx >= opts.length) { correctIdx = 0 }
       var correctText = opts[correctIdx]
