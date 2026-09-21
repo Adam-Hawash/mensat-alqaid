@@ -52,7 +52,7 @@ export function Footer() {
   var cfg = siteConfig
   var portfolioUrl = cfg.hero_developer_url || FALLBACK_PORTFOLIO_URL
   var heroDevLabel = cfg.hero_developer_label || 'Hero Developer'
-  var madeByLabel = cfg.footer_made_by_label || 'Developed by Adam Hawash'
+  var madeByLabel = cfg.footer_made_by_label || 'Developed by Adham Hawash'
   var brandName = cfg.footer_brand || 'منصة القائد'
   var copyrightText = cfg.footer_copyright || 'جميع الحقوق محفوظة لـ منصة القائد'
 
@@ -138,7 +138,7 @@ export function Footer() {
             </p>
           </div>
 
-          {/* Left side (end in RTL) - Developed by Adam Hawash */}
+          {/* Left side (end in RTL) - Developed by Adham Hawash */}
           <a
             href={portfolioUrl}
             target="_blank"

@@ -73,10 +73,34 @@ export default function TipsSection() {
     },
   ]
 
+  // (و78) نصائح مضافة ديناميكيًا من الأدمن (custom_tips) — بتترسم بعد النصائح الأساسية
+  // بنفس شكل الكارت، والأيقونات/الألوان بتلف على المصفوفات الموجودة بالدور (i % length)
+  var customTips: any[] = []
+  try {
+    var parsedCustomTips = JSON.parse(cfg.custom_tips || '[]')
+    if (Array.isArray(parsedCustomTips)) {
+      for (var ci = 0; ci < parsedCustomTips.length; ci++) {
+        var ct = parsedCustomTips[ci]
+        if (!ct || typeof ct !== 'object') continue
+        var ctTitleAr = typeof ct.titleAr === 'string' ? ct.titleAr : ''
+        var ctDescAr = typeof ct.descAr === 'string' ? ct.descAr : ''
+        if (!ctTitleAr && !ctDescAr) continue
+        customTips.push({
+          icon: TIP_ICONS[customTips.length % TIP_ICONS.length],
+          titleAr: ctTitleAr,
+          titleEn: typeof ct.titleEn === 'string' ? ct.titleEn : '',
+          description: ctDescAr || (typeof ct.descEn === 'string' ? ct.descEn : ''),
+          color: TIP_COLORS[customTips.length % TIP_COLORS.length],
+        })
+      }
+    }
+  } catch (e) {}
+  var allTips = tips.concat(customTips)
+
   function renderTipCard(tip, idx) {
     return (
       <Card
-        key={tip.titleEn}
+        key={'tip-' + idx + '-' + tip.titleEn}
         className="group hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 border-border/50 bg-card"
       >
         <CardContent className="p-4 sm:p-5 flex gap-4 items-start">
@@ -152,7 +176,7 @@ export default function TipsSection() {
         {/* Two-column layout */}
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-6 lg:gap-8 items-start">
           <div className="order-2 lg:order-2 space-y-4">
-            {tips.map(function(tip, idx) {
+            {allTips.map(function(tip, idx) {
               return renderTipCard(tip, idx)
             })}
           </div>

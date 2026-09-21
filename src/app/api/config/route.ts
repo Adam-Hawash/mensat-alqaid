@@ -23,7 +23,7 @@ var DEFAULTS = {
   hero_stat3_label: "متابعة التقدم",
   hero_developer_url: "https://prime-developer-portfolio-11.vercel.app/",
   hero_developer_label: "Prime Developer",
-  footer_made_by_label: "Developed by Adam Hawash",
+  footer_made_by_label: "Developed by Adham Hawash",
   prime_developer_url: "https://prime-developer-portfolio-11.vercel.app/",
 
   // === Schedule Page (24-e — صفحة مواعيد السنتر + لوحة الأدمن) ===
@@ -128,6 +128,19 @@ var DEFAULTS = {
 
 }
 
+// (و78) شفاء ذاتي للاسم المخزّن غلط «Adam Hawash» — الإصلاح الصحيح «Adham Hawash».
+// بتشتغل على القراءة (GET) + فيه ترحيلة دائمة في SCHEMA_FIXES (ensure-schema.ts).
+var NAME_REPAIR_KEYS = ['footer_made_by_label', 'footer_made_by_label_en', 'hero_developer_label', 'hero_developer_label_en']
+
+function repairDeveloperName(map) {
+  for (var i = 0; i < NAME_REPAIR_KEYS.length; i++) {
+    var key = NAME_REPAIR_KEYS[i]
+    if (typeof map[key] === 'string' && map[key].indexOf('Adam Hawash') !== -1) {
+      map[key] = map[key].split('Adam Hawash').join('Adham Hawash')
+    }
+  }
+}
+
 export async function GET() {
   try {
     var configs = await db.siteConfig.findMany()
@@ -136,11 +149,14 @@ export async function GET() {
       var c = configs[i]
       map[c.key] = c.value
     }
+    repairDeveloperName(map)
     return NextResponse.json(map)
   } catch (error) {
     console.error('Config fetch error:', error)
     // CRITICAL FIX: Return flat DEFAULTS so frontend never crashes
-    return NextResponse.json(Object.assign({}, DEFAULTS))
+    var fallbackMap = Object.assign({}, DEFAULTS)
+    repairDeveloperName(fallbackMap)
+    return NextResponse.json(fallbackMap)
   }
 }
 

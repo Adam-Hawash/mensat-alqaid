@@ -50,7 +50,7 @@ export function Navbar() {
   const navBrand = cfg.navbar_brand || 'منصة القائد'
   const navSubtitle = cfg.navbar_subtitle || 'مستر عمرو رشدي'
   const portfolioUrl = cfg.hero_developer_url || FALLBACK_PORTFOLIO_URL
-  const madeByLabel = cfg.footer_made_by_label || 'Developed by Adam Hawash'
+  const madeByLabel = cfg.footer_made_by_label || 'Developed by Adham Hawash'
 
   const isAuthenticated = !!currentStudent || isAdminLoggedIn
 
@@ -78,7 +78,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full">
-      {/* (و43) Top bar - Developed by Adam Hawash (نص عادي — من غير قلب ولا أيقونات ولا لون مميز) */}
+      {/* (و43) Top bar - Developed by Adham Hawash (نص عادي — من غير قلب ولا أيقونات ولا لون مميز) */}
       {currentView === 'landing' && (
         <div className="w-full border-b border-border/50 bg-background/95">
           <a

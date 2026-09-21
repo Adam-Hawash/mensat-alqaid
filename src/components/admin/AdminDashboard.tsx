@@ -329,7 +329,7 @@ export function AdminDashboard() {
         setResendApiKey(cfgData.resend_api_key || '')
         setHeroDevUrl(cfgData.hero_developer_url || '')
         setHeroDevLabel(cfgData.hero_developer_label || 'Hero Developer')
-        setMadeByLabel(cfgData.footer_made_by_label || 'Developed by Adam Hawash')
+        setMadeByLabel(cfgData.footer_made_by_label || 'Developed by Adham Hawash')
         setVodafoneCash(cfgData.payment_vodafone_cash || '')
         setInstapay(cfgData.payment_instapay || '')
         setFawry(cfgData.payment_fawry || '')
@@ -534,9 +534,9 @@ export function AdminDashboard() {
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">كلمة Made by ... (النص الظاهر في الفوتر)</Label>
-                      <Input value={madeByLabel} onChange={(e) => setMadeByLabel(e.target.value)} placeholder="Developed by Adam Hawash" className="text-xs" />
+                      <Input value={madeByLabel} onChange={(e) => setMadeByLabel(e.target.value)} placeholder="Developed by Adham Hawash" className="text-xs" />
                     </div>
-                    <p className="text-[10px] text-muted-foreground">غيّر النصوص اللي بتظهر جنب أيقونة المُطوّر في الفوتر. مثلاً ممكن تكتب "Developed by Adam Hawash" أو أي كلمات تختارها.</p>
+                    <p className="text-[10px] text-muted-foreground">غيّر النصوص اللي بتظهر جنب أيقونة المُطوّر في الفوتر. مثلاً ممكن تكتب "Developed by Adham Hawash" أو أي كلمات تختارها.</p>
                   </div>
                   {/* Payment Numbers */}
                   <div className="border-t pt-4 space-y-3">

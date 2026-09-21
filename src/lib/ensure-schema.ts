@@ -141,6 +141,9 @@ var SCHEMA_FIXES = [
   // اللي رفعها المستر عمرو رشدي) — أسرع في مصر ومفيش اعتماد على هوست صور خارجي، والفولباك في الكود
   // نفس الملف بالظبط (idempotent — لو الأدمن رفع صورة تانية بعدين مش هتتلمس)
   "UPDATE SiteConfig SET value = '/images/instructor.jpg' WHERE key = 'instructor_photo' AND (value LIKE '%i.imghos.co%' OR value LIKE '%instructor.webp%')",
+  // ===== (و78) شفاء الاسم المخزّن غلط «Adam Hawash» → «Adham Hawash» — ترحيلة دائمة (idempotent)
+  // بتكمّل إصلاح القراءة اللي في /api/config GET (NAME_REPAIR_KEYS)
+  "UPDATE SiteConfig SET value = REPLACE(value, 'Adam Hawash', 'Adham Hawash') WHERE (key LIKE '%made_by%' OR key LIKE '%developer_label%') AND value LIKE '%Adam Hawash%'",
 ]
 
 /* ============================================================

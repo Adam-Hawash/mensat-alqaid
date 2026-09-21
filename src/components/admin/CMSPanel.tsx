@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Settings, Save, Upload, Loader2, Image as ImageIcon, Trash2, Link2, Type, Layout, GraduationCap, Compass, Lightbulb, BookOpen, Smartphone, Globe } from 'lucide-react'
+import { Settings, Save, Upload, Loader2, Image as ImageIcon, Trash2, Link2, Type, Layout, GraduationCap, Compass, Lightbulb, BookOpen, Smartphone, Globe, PlusCircle, Plus } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import type { SiteConfig } from '@/stores/app-store'
@@ -283,6 +283,77 @@ export function CMSPanel() {
     setPreviews(function(prev) { var n = Object.assign({}, prev); n[configKey] = url; return n })
   }
 
+  // ===== (و78) إضافة نصائح ومميزات ديناميكية — custom_tips / custom_features =====
+  // JSON strings: [{"titleAr":"...","titleEn":"...","descAr":"...","descEn":"..."}]
+  var parseCustomItems = function(key: string) {
+    var items: any[] = []
+    try {
+      var parsed = JSON.parse(config[key] || '[]')
+      if (Array.isArray(parsed)) {
+        for (var i = 0; i < parsed.length; i++) {
+          var it = parsed[i]
+          if (!it || typeof it !== 'object') continue
+          items.push({
+            titleAr: typeof it.titleAr === 'string' ? it.titleAr : '',
+            titleEn: typeof it.titleEn === 'string' ? it.titleEn : '',
+            descAr: typeof it.descAr === 'string' ? it.descAr : '',
+            descEn: typeof it.descEn === 'string' ? it.descEn : '',
+          })
+        }
+      }
+    } catch (e) {}
+    return items
+  }
+
+  var persistConfigKey = async function(key: string, jsonValue: string) {
+    try {
+      var newConfig = Object.assign({}, config)
+      newConfig[key] = jsonValue
+      setConfig(newConfig)
+      var res = await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newConfig),
+      })
+      if (res.ok) {
+        toast.success('تم الحفظ فورًا | Saved')
+        var storeState = await (await import('@/stores/app-store')).useAppStore.getState()
+        storeState.setSiteConfig(newConfig)
+      } else {
+        var errText = ''
+        try { errText = await res.text() } catch(x) {}
+        toast.error('خطأ في الحفظ: ' + res.status + ' ' + errText.substring(0, 150))
+      }
+    } catch(e) { toast.error('خطأ في الاتصال') }
+  }
+
+  var addCustomItem = function(key: string) {
+    var items = parseCustomItems(key)
+    items.push({ titleAr: '', titleEn: '', descAr: '', descEn: '' })
+    persistConfigKey(key, JSON.stringify(items))
+  }
+
+  var removeCustomItem = function(key: string, idx: number) {
+    var items = parseCustomItems(key)
+    if (idx < 0 || idx >= items.length) return
+    items.splice(idx, 1)
+    persistConfigKey(key, JSON.stringify(items))
+  }
+
+  // التعديل النصي بيتحدّث في الستايت المحلي بس — بيتحفظ بزرار «حفظ» أو «حفظ الكل»
+  var updateCustomItem = function(key: string, idx: number, field: string, value: string) {
+    var items = parseCustomItems(key)
+    if (!items[idx]) return
+    items[idx][field] = value
+    var newConfig = Object.assign({}, config)
+    newConfig[key] = JSON.stringify(items)
+    setConfig(newConfig)
+  }
+
+  var saveCustomItem = function(key: string) {
+    persistConfigKey(key, JSON.stringify(parseCustomItems(key)))
+  }
+
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
 
   return (
@@ -365,6 +436,16 @@ export function CMSPanel() {
             </Button>
           )
         })}
+        {/* (و78) تاب الإضافة الديناميكية — نصائح ومميزات مخصصة بتتضاف بعد الأساسية */}
+        <Button
+          variant={activeSection === 'custom-content' ? 'default' : 'outline'}
+          size="sm"
+          onClick={function() { setActiveSection('custom-content') }}
+          className="text-xs"
+        >
+          <PlusCircle className="h-3.5 w-3.5 mr-1.5" />
+          إضافة نصائح ومميزات
+        </Button>
       </div>
 
       {/* Active Section Fields */}
@@ -410,6 +491,92 @@ export function CMSPanel() {
           </Card>
         )
       })}
+
+      {/* (و78) قسم الإضافة الديناميكية: نصائح ومميزات مخصصة فوق الأساسية —
+          الإضافة والحذف بيتحفظوا فورًا، وتعديل النصوص بيتحفظ بزرار «حفظ» في كل عنصر أو «حفظ الكل» */}
+      {activeSection === 'custom-content' && (
+        <div className="space-y-6">
+          {[
+            { key: 'custom_tips', titleAr: 'نصائح إضافية', titleEn: 'Custom Tips', addLabel: '+ إضافة نصيحة جديدة', itemLabel: 'نصيحة' },
+            { key: 'custom_features', titleAr: 'مميزات إضافية', titleEn: 'Custom Features', addLabel: '+ إضافة ميزة جديدة', itemLabel: 'ميزة' },
+          ].map(function(group) {
+            var items = parseCustomItems(group.key)
+            return (
+              <Card key={group.key}>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center justify-between flex-wrap gap-2">
+                    <span className="flex items-center gap-2"><Lightbulb className="h-5 w-5" />{group.titleAr} | {group.titleEn}</span>
+                    <Button size="sm" onClick={function() { addCustomItem(group.key) }}>
+                      <Plus className="h-4 w-4 ml-1" />
+                      {group.addLabel}
+                    </Button>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground mb-4">العناصر دي بتظهر في الصفحة الرئيسية بعد العناصر الأساسية مباشرة — وقسم النصائح الأساسي فاضل زي ما هو (نسخة احتياطية).</p>
+                  {items.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-lg">مفيش عناصر مضافة لسه — اضغط «{group.addLabel}» عشان تضيف أول عنصر.</p>
+                  )}
+                  <div className="space-y-4">
+                    {items.map(function(item, idx) {
+                      return (
+                        <div key={group.key + '-item-' + idx} className="border rounded-lg p-4 space-y-3 bg-muted/30">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold">{group.itemLabel} {idx + 1}</p>
+                            <div className="flex items-center gap-1.5">
+                              <Button variant="outline" size="sm" onClick={function() { saveCustomItem(group.key) }} className="h-7">
+                                <Save className="h-3 w-3 ml-1" />
+                                <span className="text-[10px]">حفظ</span>
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={function() { removeCustomItem(group.key, idx) }} className="h-7">
+                                <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div>
+                              <Label className="text-xs mb-1 block">عنوان عربي</Label>
+                              <Input
+                                value={item.titleAr}
+                                onChange={function(e) { updateCustomItem(group.key, idx, 'titleAr', e.target.value) }}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs mb-1 block">Title EN</Label>
+                              <Input
+                                dir="ltr"
+                                value={item.titleEn}
+                                onChange={function(e) { updateCustomItem(group.key, idx, 'titleEn', e.target.value) }}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs mb-1 block">وصف عربي</Label>
+                              <Textarea
+                                rows={3}
+                                value={item.descAr}
+                                onChange={function(e) { updateCustomItem(group.key, idx, 'descAr', e.target.value) }}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs mb-1 block">Description EN</Label>
+                              <Textarea
+                                rows={3}
+                                dir="ltr"
+                                value={item.descEn}
+                                onChange={function(e) { updateCustomItem(group.key, idx, 'descEn', e.target.value) }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
