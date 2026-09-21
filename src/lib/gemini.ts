@@ -16,6 +16,91 @@
 //          GEMINI_API_KEYS=AIzaSy....,AIzaSy....,AIzaSy....
 // ============================================================
 
+/* (و77) كاش الموديلات في قاعدة البيانات — عشان السرعة:
+ *   أول رسالة بعد كل deploy كانت بتدفع ثمن محاولات فاشلة (404 لموديل
+ *   مش موجود على المفتاح) + ListModels discovery. الحل: الموديل اللي
+ *   نجح آخر مرة بيتخزن في جدول AiModelCache (اللي نجح بيبدأ بيه فورًا
+ *   من غير أي محاولة فاشلة)، وكمان قايمة models المكتشفة بتتخزن عشان
+ *   الـcold start الجاي يبقى جاهز من أول لحظة.
+ *   الكل try/catch — لو القاعدة مش متاحة الحياة تكمّ عادي زي ما كانت.
+ * ============================================================ */
+import { db } from '@/lib/db'
+
+var aiCacheTableEnsured = false
+var aiCacheTablePromise: Promise<void> | null = null
+var cachedWorkingModel = ''
+var cachedModelsJson: string[] = []
+var modelCacheLoaded = false
+var modelCacheLoadPromise: Promise<void> | null = null
+
+function ensureAiModelCacheTable(): Promise<void> {
+  if (aiCacheTableEnsured) return Promise.resolve()
+  if (!aiCacheTablePromise) {
+    aiCacheTablePromise = (async function () {
+      await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS AiModelCache (key TEXT PRIMARY KEY, value TEXT)')
+      aiCacheTableEnsured = true
+    })().catch(function (e: any) {
+      aiCacheTablePromise = null // سمّح بمحاولة تانية في الطلب الجاي
+      throw e
+    })
+  }
+  return aiCacheTablePromise
+}
+
+async function cacheGet(key: string): Promise<string> {
+  try {
+    await ensureAiModelCacheTable()
+    var rows: any = await db.$queryRawUnsafe('SELECT value FROM AiModelCache WHERE key = ? LIMIT 1', key)
+    if (rows && rows.length > 0) return String((rows[0] && rows[0].value) || '')
+  } catch (e) {}
+  return ''
+}
+
+async function cacheSet(key: string, value: string): Promise<void> {
+  try {
+    // حدّث الكاش الـin-memory فورًا — الطلبات الجاي في نفس الـprocess بتاخده من غير قاعدة
+    if (key === 'working_model') cachedWorkingModel = value
+    if (key === 'models_json') {
+      try {
+        var arr = JSON.parse(value)
+        if (Array.isArray(arr)) cachedModelsJson = arr.filter(function (x: any) { return typeof x === 'string' })
+      } catch (e2) {}
+    }
+    await ensureAiModelCacheTable()
+    await db.$executeRawUnsafe('INSERT OR REPLACE INTO AiModelCache (key, value) VALUES (?, ?)', key, value)
+  } catch (e) {}
+}
+
+// تحميل الكاش من القاعدة — مرة واحدة لكل process، وبيتسابق مع مؤقت
+// 1.5 ثانية فمستحيل يأجّل أول رد، ولو فشل بنكمل من غيره عادي.
+function loadModelCache(): Promise<void> {
+  if (modelCacheLoaded) return Promise.resolve()
+  if (!modelCacheLoadPromise) {
+    modelCacheLoadPromise = (async function () {
+      var wm = await cacheGet('working_model')
+      var mj = await cacheGet('models_json')
+      if (wm) cachedWorkingModel = wm
+      if (mj) {
+        try {
+          var arr = JSON.parse(mj)
+          if (Array.isArray(arr)) cachedModelsJson = arr.filter(function (x: any) { return typeof x === 'string' })
+        } catch (e2) {}
+      }
+      modelCacheLoaded = true
+    })()
+  }
+  return modelCacheLoadPromise
+}
+
+async function ensureModelCacheFast(): Promise<void> {
+  try {
+    await Promise.race([
+      loadModelCache(),
+      new Promise(function (r) { setTimeout(r, 1500) }),
+    ])
+  } catch (e) {}
+}
+
 export var GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-flash-latest']
 
 // Optional API base override (proxy/self-host testing). Defaults to Google's
@@ -136,6 +221,8 @@ async function discoverModels(): Promise<string[]> {
     if (found.length > 0) {
       discoveredModels = rankModels(found)
       discoveredAt = Date.now()
+      // (و77) خزّن القايمة المكتشفة — الـcold start الجاي يبقى جاهز منها
+      cacheSet('models_json', JSON.stringify(discoveredModels))
       try { console.log('[Gemini] Available models for this key:', discoveredModels.slice(0, 8).join(', ')) } catch (e) {}
     }
     return discoveredModels
@@ -148,15 +235,17 @@ async function discoverModels(): Promise<string[]> {
 // SPEED FIX: the OLD getModelChain() AWAITED ListModels before the
 // first attempt — on a cold server the very first message paid up
 // to 8 extra seconds of discovery latency.
-// NEW: static preferred models first (+ anything already cached),
-// ZERO network before the first attempt. Discovery runs in the
-// BACKGROUND to keep the cache fresh, and is only AWAITED when
-// every static attempt already failed (self-healing preserved).
+// NEW (و77): أوله الموديل اللي نجح آخر مرة (من كاش القاعدة) — يعني
+// أول رسالة بعد deploy بتبدأ بالموديل الصح على طول من غير 404 ولا
+// discovery — ثم الموديلات الثابتة، ثم المكتشفة in-memory، ثم
+// models_json من كاش القاعدة. صفر شبكة قبل أول محاولة.
 // ============================================================
 function getStaticChain(): string[] {
   var chain: string[] = []
+  if (cachedWorkingModel) if (chain.indexOf(cachedWorkingModel) < 0) chain.push(cachedWorkingModel)
   for (var i = 0; i < GEMINI_MODELS.length; i++) if (chain.indexOf(GEMINI_MODELS[i]) < 0) chain.push(GEMINI_MODELS[i])
   for (var j = 0; j < discoveredModels.length; j++) if (chain.indexOf(discoveredModels[j]) < 0) chain.push(discoveredModels[j])
+  for (var k = 0; k < cachedModelsJson.length; k++) if (chain.indexOf(cachedModelsJson[k]) < 0) chain.push(cachedModelsJson[k])
   return chain
 }
 
@@ -298,6 +387,9 @@ export async function callGemini(opts: {
   var sawQuota = false
   var attemptIndex = 0
 
+  // (و77) حمّل كاش الموديلات من القاعدة (محدود بـ1.5ث — مستحيل يأجّل)
+  await ensureModelCacheFast()
+
   // background refresh (cached 10 min) — never awaited on the fast path
   var discoveryPromise = discoverModels()
   var staticModels = getStaticChain()
@@ -315,7 +407,11 @@ export async function callGemini(opts: {
           var t = timeoutMs
           if (attemptIndex === 1 && opts.fastFailFirstMs) t = opts.fastFailFirstMs
           var result = await attempt(models[mi], keys[ki], opts.parts, generationConfig, t, thinkingMode)
-          if (result.ok) return result
+          if (result.ok) {
+            // (و77) الموديل اللي نجح بقى أول واحد في السلسلة الجاية — fire-and-forget
+            cacheSet('working_model', models[mi])
+            return result
+          }
           lastError = result.error || ''
           if (result.status === 429) {
             sawQuota = true
@@ -441,7 +537,15 @@ async function streamAttempt(model: string, apiKey: string, parts: any[], genera
   return first
 }
 
-export async function callGeminiStream(opts: {
+/* ============================================================
+ * (و77) streamGemini — الاستريمينج الحقيقي للمساعد الذكي:
+ * نفس سلسلة الموديلات (كاش القاعدة ← الثابتة ← المكتشفة)، كل محاولة
+ * بتبعت :streamGenerateContent?alt=sse وكل قطعة نص بتوصل للطالب
+ * through onDelta لحظة وصولها — يعني أول حرف بيوصل في ثواني بدل ما
+ * كنا مستنيين الرد كله. مفيش إعادة محاولة بميزانية 4x هنا (ده لغير
+ * الاستريمينج) — وأي موديل رجّع ok أو صفر دلتا بيتخطى للموديل اللي بعده.
+ * ============================================================ */
+export async function streamGemini(opts: {
   parts: any[]
   generationConfig?: any
   timeoutMs?: number
@@ -458,6 +562,9 @@ export async function callGeminiStream(opts: {
   var lastError = ''
   var sawQuota = false
 
+  // (و77) كاش الموديلات من القاعدة (محدود بـ1.5ث) — أول محاولة بالموديل الصح
+  await ensureModelCacheFast()
+
   var discoveryPromise = discoverModels()
   var staticModels = getStaticChain()
 
@@ -465,7 +572,11 @@ export async function callGeminiStream(opts: {
     for (var mi = 0; mi < models.length; mi++) {
       for (var ki = 0; ki < keys.length; ki++) {
         var result = await streamAttempt(models[mi], keys[ki], opts.parts, generationConfig, timeoutMs, thinkingMode, opts.onDelta)
-        if (result.ok) return result
+        if (result.ok) {
+          // (و77) الموديل اللي نجح بقى أول واحد في السلسلة الجاية — fire-and-forget
+          cacheSet('working_model', models[mi])
+          return result
+        }
         lastError = result.error || ''
         if (result.status === 429) {
           sawQuota = true
@@ -495,6 +606,18 @@ export async function callGeminiStream(opts: {
 
   if (sawQuota) lastError = QUOTA_HINT + ' [' + lastError + ']'
   return { ok: false, error: lastError, status: sawQuota ? 429 : undefined }
+}
+
+/* (و77) الاسم القديم callGeminiStream — غلاف على streamGemini بنفس
+ * السلوك بالظبط، لتحقيق التوافق مع أي كود قديم مستدعيها. */
+export async function callGeminiStream(opts: {
+  parts: any[]
+  generationConfig?: any
+  timeoutMs?: number
+  thinking?: 'low' | 'off' | 'default'
+  onDelta?: (delta: string) => void
+}): Promise<GeminiResult> {
+  return streamGemini(opts)
 }
 
 // Extract first JSON object from an AI text response
