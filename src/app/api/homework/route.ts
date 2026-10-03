@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { notifyStudents } from '@/lib/notify'
+import { notifyParentsOfNewContent } from '@/lib/parent-notify'
 import { isAdmin } from '@/lib/video-guard'
 import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
 
@@ -142,6 +143,8 @@ export async function POST(request: NextRequest) {
       try { var nTp2 = JSON.parse(targetIds); if (Array.isArray(nTp2)) nIds = nTp2.filter(Boolean) } catch (e) {}
       /* (و45) await — الإشعار بيتكتب قبل الرد */
         try { await notifyStudents({ studentIds: nIds, grade: String(grade || ''), type: 'homework', title: '📚 واجب جديد: ' + String(title), body: 'دخل من تاب الواجبات وسلّمه قبل ميعاده' }) } catch (nE) {}
+        /* (2026-ص5) إشعار ولي الأمر بالمحتوى الجديد — تيجي على ولي الأمر وللطالب */
+        try { await notifyParentsOfNewContent({ studentIds: nIds, grade: String(grade || ''), kind: 'homework', title: String(title), body: 'اتبعت واجب جديد — تابع مع ابني/بنتي من شاشة ولي الأمر' }) } catch (npE) {}
     } catch (nE) {}
 
     return NextResponse.json({ message: 'Homework added', homework }, { status: 201 })

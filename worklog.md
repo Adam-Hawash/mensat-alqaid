@@ -40,3 +40,23 @@ Stage Summary:
 - منصة القائد now has feature-parity with Maths-Genius AI: المساعد الذكي السريع (بث مباشر) + الاستخراج الذكي للدراسات (عربي، اختياري + مقالي) + تصحيح المقالي بالفهم والمعنى مع حراسة أمان ومراجعة يدوية عند الشك
 - Deploy note: set GEMINI_API_KEYS (comma-separated) in Vercel env (same keys work for all three platforms), TURSO_DATABASE_URL/TURSO_AUTH_TOKEN, then `prisma db push`
 - Commit 3d32712 pushed to main
+
+---
+Task ID: 2026-ص5-QA
+Agent: Z.ai Code (main)
+Task: منصة القائد (mensat-alqaid) — تفعيل إشعارات Web Push لولي الأمر (نفس نظام جينيس/Zicola) + «الإشعارات تيجي على ولي الأمر وللطالب»: إشعارات المحتوى الجديد (واجب/امتحان/إعلان/كتاب) لولي الأمر + إشعارات التسليم والدرجة في راوتات التسليم.
+
+Work Log:
+- نقل ستاك البوش كامل من Zicola-Math: src/lib/push.ts + parent-notify.ts (بمعاه notifyParentsOfNewContent الجديدة) + parent-push-client.ts + components/parent/PushPermissionBanner.tsx + api/push/{subscribe,unsubscribe,test,vapid} + public/sw.js (معالج push والكليك)
+- تركيب البانر في ParentPortal بعد الهيدر (نفس مكان Zicola بالظبط) — بوب-أب الإذن + كارت حالة
+- package.json: web-push + @types/web-push
+- prisma/schema.prisma: إضافة موديل ParentPushSubscription (كان مفقود — عميل prisma كان بيرجع undefined على db.parentPushSubscription)
+- راوتات المحتوى: homework/exams/announcements/admin-books ← notifyParentsOfNewContent بعد notifyStudents (نفس باتش Zicola/شيماء/شريف)
+- راوتات التسليم: exams/submit (إشعار استلام بعد الحفظ المبكر + إشعار درجة قبل الرد) — homework/submit (استلام بعد الإدراج + درجة في آخر backgroundGrading + درجة فورية لو مفيش تصحيح خلفية) — العناوين بتتقرأ من القاعدة جوه الكتلة
+- تحقق: tsc = 26 = نفس الباسلين (git stash وقارن) وصفر أخطاء في الملفات المتغيرة
+- تحقق سيرفر (3400 + SQLite مؤقتة): /api/push/vapid = 200 بمفتاح عام ✓ — POST subscribe → صف ParentPushSubscription اتخزن ✓ — POST واجب → صف parent_notifications لولي الأمر + Notification للطالب ✓ — جداول parent_notifications/ParentPushSubscription بتتعمل ذاتيًا (ensure) زي Zicola
+- ملاحظة بيئية: bunx prisma كان بيجيب نسخة 7 من الكاش العام — استخدام ./node_modules/.bin/prisma المحلي 6.19.3 هو الصح
+- تنظيف: السيرفر kill + القاعدة المؤقتة اتمسحت
+
+Stage Summary:
+- منصة القائد بقى عندها نفس منظومة إشعارات أولياء الأمور بتاعة جينيس/Zicola: اشتراك أجهزة الأب + إشعار خارجي (براوزر/موبايل) + داخلي في شاشة ولي الأمر — للمحتوى الجديد وللتسليم وللدرجات — والإشعارات بتيجي على ولي الأمر وللطالب زي طلب المستر

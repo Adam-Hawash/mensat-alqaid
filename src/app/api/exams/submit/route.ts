@@ -9,6 +9,7 @@
 //   Final score (MCQ + writing) is saved together with per-question
 //   writingGrades JSON so the student AND admin see the AI verdict everywhere.
 import { NextResponse } from 'next/server'
+import { notifyParentsOfResult, notifyParentsOfSubmission } from '@/lib/parent-notify'
 import { db } from '@/lib/db'
 import { gradeImageAnswer, gradeTextAnswer, extractImageMediaIds, finalAnswerCandidates } from '@/lib/ai-image-grader'
 import { quickSmartMatch, gradeFallbackDecisive } from '@/lib/smart-grader'
@@ -305,6 +306,12 @@ export async function POST(request) {
       console.error('Early insert exam result error (سيتكمل بالحفظ النهائي):', earlyInsertErr)
     }
 
+    /* (2026-ص5) إشعار ولي الأمر فور التسليم — تيجي على ولي الأمر وللطالب */
+    try {
+      var _pnT: any = await db.$queryRawUnsafe('SELECT title FROM Exam WHERE id = ? LIMIT 1', examId)
+      await notifyParentsOfSubmission({ studentId: String(studentId || ''), kind: 'exam', title: String((_pnT && _pnT[0] && _pnT[0].title) || '') }).catch(function () {})
+    } catch (ePN1) { console.error('[parent-notify] exam submission notify failed (ignored):', ePN1) }
+
     var persistExamGrades = async function() {
       if (!rowPersisted) return
       try {
@@ -600,6 +607,11 @@ export async function POST(request) {
       /* (2026-و33) معرف النتيجة — بيتستخدم كاش ملاحظات الاختيارات الذكية */
       responsePayload.resultId = resultId
     }
+    /* (2026-ص5) إشعار ولي الأمر بالدرجة النهائية — تيجي على ولي الأمر وللطالب */
+    try {
+      var _pnT2: any = await db.$queryRawUnsafe('SELECT title FROM Exam WHERE id = ? LIMIT 1', examId)
+      await notifyParentsOfResult({ studentId: String(studentId || ''), kind: 'exam', title: String((_pnT2 && _pnT2[0] && _pnT2[0].title) || ''), score: Number(score) || 0, maxScore: Number(maxScore) || 0 }).catch(function () {})
+    } catch (ePN2) { console.error('[parent-notify] exam result notify failed (ignored):', ePN2) }
     return NextResponse.json(responsePayload)
   } catch (error) {
     console.error('Exam submit error:', error)

@@ -12,6 +12,7 @@
 // /api/homework/result/[id] and sees grades appear live.
 
 import { NextResponse, after } from 'next/server'
+import { notifyParentsOfResult, notifyParentsOfSubmission } from '@/lib/parent-notify'
 import { db } from '@/lib/db'
 /* (2026-و40) حارس الترتيب التسلسلي — الواجب مينفعش يتسلّم غير لما اللي قبله يتسلّم
    (نفس نظام الفيديوهات بالظبط — سلسلة مطابقة لقايمة الطالب + fail-open) */
@@ -347,6 +348,12 @@ export async function POST(request) {
       }
     }
 
+    /* (2026-ص5) إشعار ولي الأمر فور التسليم — تيجي على ولي الأمر وللطالب */
+    try {
+      var _pnT: any = await db.$queryRawUnsafe('SELECT title FROM Homework WHERE id = ? LIMIT 1', homeworkId)
+      await notifyParentsOfSubmission({ studentId: String(studentId || ''), kind: 'homework', title: String((_pnT && _pnT[0] && _pnT[0].title) || '') }).catch(function () {})
+    } catch (ePN1) { console.error('[parent-notify] hw submission notify failed (ignored):', ePN1) }
+
     var hasWriting = writingAnswers.length > 0
 
     // Respond INSTANTLY — the student is out of here in <1s
@@ -637,11 +644,22 @@ export async function POST(request) {
       }
       await persistPartial()
       console.log('[HW BG] Grading done for', resultId, '— final score', (mcqScore + writingScore) + '/' + maxScore)
+      /* (2026-ص5) إشعار ولي الأمر بالدرجة النهائية بعد التصحيح — على ولي الأمر وللطالب */
+      try {
+        var _pnT2: any = await db.$queryRawUnsafe('SELECT title FROM Homework WHERE id = ? LIMIT 1', homeworkId)
+        await notifyParentsOfResult({ studentId: String(studentId || ''), kind: 'homework', title: String((_pnT2 && _pnT2[0] && _pnT2[0].title) || ''), score: Number(mcqScore + writingScore) || 0, maxScore: Number(maxScore) || 0 }).catch(function () {})
+      } catch (ePN2) { console.error('[parent-notify] hw result notify failed (ignored):', ePN2) }
     }
 
     if (hasWriting && inserted) {
       // after() runs when the response has been sent — same invocation, same runtime
       after(backgroundGrading)
+    } else {
+      /* (2026-ص5) مفيش تصحيح خلفية → الدرجة النهائية جاهزة — إشعار ولي الأمر دلوقتي */
+      try {
+        var _pnT3: any = await db.$queryRawUnsafe('SELECT title FROM Homework WHERE id = ? LIMIT 1', homeworkId)
+        await notifyParentsOfResult({ studentId: String(studentId || ''), kind: 'homework', title: String((_pnT3 && _pnT3[0] && _pnT3[0].title) || ''), score: Number(score) || 0, maxScore: Number(maxScore) || 0 }).catch(function () {})
+      } catch (ePN3) { console.error('[parent-notify] hw result notify failed (ignored):', ePN3) }
     }
 
     return NextResponse.json(responsePayload)

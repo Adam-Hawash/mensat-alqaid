@@ -24,6 +24,8 @@ import { UserCheck, Loader2, RefreshCw, LogOut, BookOpenCheck, ClipboardList, Al
 import { toast } from 'sonner'
 import FractionText, { hasMathMarkup } from '@/components/FractionText'
 import BidiText from '@/components/BidiText'
+/* (2026-ص5) تفعيل إشعارات الموبايل (Web Push) لولي الأمر — نفس نظام جينيس/Zicola */
+import PushPermissionBanner from '@/components/parent/PushPermissionBanner'
 
 interface ResultRow {
   id: string
@@ -276,6 +278,9 @@ export function ParentPortal() {
             </CardContent>
           </Card>
         </div>
+
+        {/* (2026-ص5) تفعيل إشعارات الموبايل (Web Push) — بوب-أب بعد الدخول + كارت حالة */}
+        <PushPermissionBanner parentId={currentParent && currentParent.id ? currentParent.id : ''} />
 
         {/* كارت الطالب */}
         {student ? (
