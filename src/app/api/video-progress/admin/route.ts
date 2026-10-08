@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { gradeWhere } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 // GET /api/video-progress/admin?grade=xxx - Get all video progress for admin
 export async function GET(request: NextRequest) {
@@ -8,7 +9,8 @@ export async function GET(request: NextRequest) {
     
     const where: any = {}
     if (grade) {
-      const vids = await db.video.findMany({ where: { grade }, select: { id: true } })
+      // (S-4b توحيد الصفوف) كل صيغ نفس الصف
+      const vids = await db.video.findMany({ where: { grade: gradeWhere(grade) }, select: { id: true } })
       where.videoId = { in: vids.map(v => v.id) }
     }
 

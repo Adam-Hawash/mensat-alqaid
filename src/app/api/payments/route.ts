@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 export const runtime = 'nodejs'
 
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
         studentId: resolvedStudent.id,
         studentName: studentName || resolvedStudent.name,
         studentPhone: studentPhone || resolvedStudent.phone,
-        studentGrade: studentGrade || resolvedStudent.grade,
+        studentGrade: storeGrade(studentGrade || resolvedStudent.grade), // (S-4b) بالاسم المعتمد
         videoId,
         videoTitle,
         amount,

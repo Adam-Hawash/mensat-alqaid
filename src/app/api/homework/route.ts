@@ -4,6 +4,7 @@ import { notifyStudents } from '@/lib/notify'
 import { notifyParentsOfNewContent } from '@/lib/parent-notify'
 import { isAdmin } from '@/lib/video-guard'
 import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
+import { gradeWhere, storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 /* (2026-و25 نقل 25-b1) هل الواجب مجدول في المستقبل؟ — للأدمن بادج «مجدول» */
 function isScheduledFuture(h: any): boolean {
@@ -37,7 +38,8 @@ export async function GET(request: NextRequest) {
     const studentId = searchParams.get('studentId') || ''
 
     const where: Record<string, unknown> = {}
-    if (grade) where.grade = grade
+    // (S-4b توحيد الصفوف) قراية كل صيغ نفس الصف
+    if (grade) where.grade = gradeWhere(grade)
     if (keyword) {
       where.OR = [{ title: { contains: keyword } }]
     }
@@ -134,7 +136,7 @@ export async function POST(request: NextRequest) {
     }
 
     const homework = await db.homework.create({
-      data: { title, content: content || '', grade, filePath: filePath || '', fileType: fileType || '', thumbnail: thumbnail || '', answerKeyPath: answerKeyPath || '', answerKeyType: answerKeyType || '', questions: questions || '', scheduledAt, targetStudentIds: targetIds, targetGroupIds: targetGids },
+      data: { title, content: content || '', grade: storeGrade(grade), filePath: filePath || '', fileType: fileType || '', thumbnail: thumbnail || '', answerKeyPath: answerKeyPath || '', answerKeyType: answerKeyType || '', questions: questions || '', scheduledAt, targetStudentIds: targetIds, targetGroupIds: targetGids }, // (S-4b) بالاسم المعتمد
     })
 
     /* (و44) إشعار للطلاب المستهدفين: واجب جديد */
@@ -142,9 +144,9 @@ export async function POST(request: NextRequest) {
       var nIds: string[] = []
       try { var nTp2 = JSON.parse(targetIds); if (Array.isArray(nTp2)) nIds = nTp2.filter(Boolean) } catch (e) {}
       /* (و45) await — الإشعار بيتكتب قبل الرد */
-        try { await notifyStudents({ studentIds: nIds, grade: String(grade || ''), type: 'homework', title: '📚 واجب جديد: ' + String(title), body: 'دخل من تاب الواجبات وسلّمه قبل ميعاده' }) } catch (nE) {}
+        try { await notifyStudents({ studentIds: nIds, grade: storeGrade(grade), type: 'homework', title: '📚 واجب جديد: ' + String(title), body: 'دخل من تاب الواجبات وسلّمه قبل ميعاده' }) } catch (nE) {}
         /* (2026-ص5) إشعار ولي الأمر بالمحتوى الجديد — تيجي على ولي الأمر وللطالب */
-        try { await notifyParentsOfNewContent({ studentIds: nIds, grade: String(grade || ''), kind: 'homework', title: String(title), body: 'اتبعت واجب جديد — تابع مع ابني/بنتي من شاشة ولي الأمر' }) } catch (npE) {}
+        try { await notifyParentsOfNewContent({ studentIds: nIds, grade: storeGrade(grade), kind: 'homework', title: String(title), body: 'اتبعت واجب جديد — تابع مع ابني/بنتي من شاشة ولي الأمر' }) } catch (npE) {}
     } catch (nE) {}
 
     return NextResponse.json({ message: 'Homework added', homework }, { status: 201 })

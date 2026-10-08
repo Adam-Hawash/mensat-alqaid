@@ -10,6 +10,7 @@
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
+import { gradeWhere, storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 import { isAdmin, getStudentAnyStatus, safeThumb, getYouTubeId, mediaIdFromPath, ensureVideoTable } from '@/lib/video-guard'
 
 export const dynamic = 'force-dynamic'
@@ -35,7 +36,8 @@ export async function GET(request: NextRequest) {
     const student = admin ? null : await getStudentAnyStatus(studentId)
 
     const where: Record<string, unknown> = {}
-    if (grade) where.grade = grade
+    // (S-4b توحيد الصفوف) قراية كل صيغ نفس الصف — «السادس» بتجيب «الصف السادس الابتدائي» كمان
+    if (grade) where.grade = gradeWhere(grade)
     if (keyword) {
       where.OR = [
         { title: { contains: keyword } },
@@ -154,7 +156,7 @@ export async function POST(request: NextRequest) {
           data: {
             title: String(title).trim(),
             url: finalUrl,
-            grade,
+            grade: storeGrade(grade), // (S-4b) الكتابة بالاسم المعتمد الكامل
             filePath: filePath || '',
             fileType: fileType || '',
             thumbnail: finalThumb,

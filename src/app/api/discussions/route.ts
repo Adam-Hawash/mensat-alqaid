@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { gradeWhere, storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 /* (و46) إشعار الطلاب — طلب المستر: «في المجتمع لو حد بعت رسالة يجي له إشعار» */
 import { notifyStudents } from '@/lib/notify'
 
@@ -14,7 +15,8 @@ export async function GET(request: NextRequest) {
     const pageSize = parseInt(searchParams.get('pageSize') || '20')
 
     const where: Record<string, unknown> = {}
-    if (grade) where.grade = grade
+    // (S-4b توحيد الصفوف) قراية كل صيغ نفس الصف
+    if (grade) where.grade = gradeWhere(grade)
     if (studentId) where.studentId = studentId
     if (keyword) {
       where.OR = [
@@ -59,7 +61,7 @@ export async function POST(request: NextRequest) {
       data: {
         studentId: studentId || 'admin',
         studentName: studentName || 'مستر عمرو رشدي',
-        grade,
+        grade: storeGrade(grade), // (S-4b) بالاسم المعتمد
         content,
         isAdminReply: isAdminReply || false,
       },

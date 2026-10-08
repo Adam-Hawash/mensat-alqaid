@@ -23,6 +23,9 @@
 // الرد {ok,code,reason} + التوصيل 423 في مسارَي التسليم زي ما هما بالظبط.
 // ============================================================
 import { db, withRetry } from '@/lib/db'
+/* (S-4b توحيد الصفوف) التطبيع بقى من المرجع الموحد src/lib/grade-names.ts —
+   النسخة المحلية المكررة اتمسحت (كانت بتقطّع includes وبيضيّع صيغ الابتدائي) */
+import { gradeVariants } from '@/lib/grade-names'
 
 export interface SeqCheckResult {
   ok: boolean
@@ -66,30 +69,6 @@ async function rowExists(table: 'ExamResult' | 'HomeworkResult', studentId: stri
     console.warn('[SequentialGuard] rowExists failed — failing OPEN (' + table + ' ' + itemId + '):', e)
     return true
   }
-}
-
-/* (2026-و40) تطبيع الصف — نسخة مطابقة من normalizeGrade المعرّفة محليًا جوه
-   /api/homework و /api/exams (مش في lib مشترك — لو اتعدلت هناك لازم تتعدل هنا)
-   عشان السلسلة السيرفرية تطابق قايمة الطالب بنفس منطق المطابقة الضبابية */
-function normalizeGradeSeq(grade: string): string {
-  if (!grade) return ''
-  var g = grade.trim()
-  g = g.replace(/^الصف\s+/i, '')
-  g = g.replace(/الاعدادي/gi, 'إعدادي')
-  g = g.replace(/الإعدادي/gi, 'إعدادي')
-  g = g.replace(/البكالوريا/gi, 'بكالوريا')
-  g = g.replace(/بكالوريا/gi, 'بكالوريا')
-  if (g.includes('أولى') || g.includes('اولى') || g.includes('الأول')) g = 'أولى'
-  if (g.includes('تانية') || g.includes('الثاني')) g = 'تانية'
-  if (g.includes('تالتة') || g.includes('الثالث')) g = 'تالتة'
-  if (g.includes('الرابع')) g = 'الرابع'
-  if (g.includes('الخامس')) g = 'الخامس'
-  if (g.includes('السادس')) g = 'السادس'
-  if (g === 'أولى' && grade.includes('عداد')) g = 'أولى إعدادي'
-  if (g === 'تانية' && grade.includes('عداد')) g = 'تانية إعدادي'
-  if (g === 'تالتة' && grade.includes('عداد')) g = 'تالتة إعدادي'
-  if (g === 'أولى' && grade.includes('كالور')) g = 'أولى بكالوريا'
-  return g
 }
 
 /* (2026-و40) قراءة قايمة الاستهداف — نفس parseTargetIds في مسارَي القايمة */
@@ -139,15 +118,16 @@ async function loadVisibleChain(
   studentId: string
 ): Promise<any[]> {
   var table = kind === 'homework' ? 'Homework' : 'Exam'
-  var normalized = normalizeGradeSeq(grade)
-  var firstWord = String(normalized || grade || '').trim().split(' ')[0] || ''
+  /* (S-4b توحيد الصفوف) كل صيغ نفس الصف حرفيًا مكان contains بأول كلمة */
+  var chainGrades = gradeVariants(String(grade || ''))
+  var chainPh = chainGrades.map(function () { return '?' }).join(',')
   var rows: any[] = []
   try {
     rows = await withRetry(function () {
       return (db as any).$queryRawUnsafe(
         'SELECT id, title, questions, scheduledAt, targetStudentIds, targetGroupIds FROM ' + table +
-        ' WHERE grade = ? OR grade = ? OR grade LIKE ? ORDER BY createdAt ASC',
-        grade, normalized, '%' + firstWord + '%'
+        ' WHERE grade IN (' + chainPh + ') ORDER BY createdAt ASC',
+        ...chainGrades
       )
     }, 3, 300) as any[]
   } catch (e) {

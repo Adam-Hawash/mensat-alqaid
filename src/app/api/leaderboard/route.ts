@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { displayGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 // ============================================================
 // لوحة شرف المنصة — عامة لكل الزوار من غير تسجيل دخول (2026-و18/18-d)
@@ -94,7 +95,7 @@ export async function GET() {
         return {
           id: s.id,
           name: shortName(s.name),
-          grade: String(s.grade || ''),
+          grade: displayGrade(s.grade), // (S-4b توحيد الصفوف) العرض بالاسم المعتمد
           points: cleanPoints((examTotals[s.id] || 0) + (hwTotals[s.id] || 0)),
         }
       })

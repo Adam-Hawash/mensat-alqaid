@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { storeGrade } from "@/lib/grade-names"; // (S-4b توحيد الصفوف)
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
         name: String(name).trim(),
         phone: cleanPhone,
         password: String(password),
-        grade: grade || "تالتة إعدادي",
+        grade: storeGrade(grade) || "تالتة إعدادي", // (S-4b توحيد الصفوف) بالاسم المعتمد
         parentName: parentName ? String(parentName).trim() : "",
         parentPhone: parentPhone ? String(parentPhone).trim() : "",
         status: "active",

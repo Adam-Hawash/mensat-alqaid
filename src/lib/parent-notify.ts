@@ -28,6 +28,7 @@
 // ============================================================
 import { db } from '@/lib/db'
 import { sendParentPush } from '@/lib/push'
+import { gradeVariants } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 /* ============================================================
    ✏️✏️ قوالب رسائل ولي الأمر — عدّل الكلام من هنا براحتك ✏️✏️
@@ -381,9 +382,12 @@ export async function notifyParentsOfNewContent(opts: { studentIds?: string[]; g
     var ids: string[] = Array.isArray(opts.studentIds) ? opts.studentIds.filter(Boolean) : []
     if (ids.length === 0 && opts.grade) {
       try {
+        /* (S-4b توحيد الصفوف) كل صيغ نفس الصف — «السادس» بتجيب «الصف السادس الابتدائي» كمان */
+        var gvs = gradeVariants(String(opts.grade))
+        var gPh = gvs.map(function () { return '?' }).join(',')
         var rowsG: any = await db.$queryRawUnsafe(
-          "SELECT id FROM Student WHERE status IN ('approved','paid') AND grade = ?",
-          String(opts.grade)
+          "SELECT id FROM Student WHERE status IN ('approved','paid') AND grade IN (" + gPh + ")",
+          ...gvs
         )
         ids = (rowsG || []).map(function (r: any) { return String(r.id) })
       } catch (eG) { ids = [] }

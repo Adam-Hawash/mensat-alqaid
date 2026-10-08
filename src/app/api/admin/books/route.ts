@@ -10,6 +10,7 @@ import { db, safeWrite } from '@/lib/db'
 import { isAdmin } from '@/lib/video-guard'
 import { notifyStudents } from '@/lib/notify'
 import { notifyParentsOfNewContent } from '@/lib/parent-notify'
+import { storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 export const runtime = 'nodejs'
 
@@ -94,16 +95,16 @@ export async function POST(request: NextRequest) {
           fileType: String(fileType || 'application/pdf'),
           sourceUrl: isLinkMode ? linkUrl : '',
           sizeBytes: sizeNum,
-          grade: String(grade || ''),
+          grade: storeGrade(grade), // (S-4b) بالاسم المعتمد
         },
       })
     })
 
     /* (و44) إشعار للطلاب: كتاب جديد اتضاف — المسارين (لينك خارجي + ملف) بيمروا من هنا */
     /* (و45) await — الإشعار بيتكتب قبل الرد */
-    try { await notifyStudents({ grade: String(grade || ''), type: 'book', title: '📕 كتاب جديد اتضاف: ' + String(title).trim(), body: String(description || '').slice(0, 200) || 'تقدر تفتحه أو تحمله من تاب الكتب والملازم' }) } catch (nE) {}
+    try { await notifyStudents({ grade: storeGrade(grade), type: 'book', title: '📕 كتاب جديد اتضاف: ' + String(title).trim(), body: String(description || '').slice(0, 200) || 'تقدر تفتحه أو تحمله من تاب الكتب والملازم' }) } catch (nE) {}
       /* (2026-ص5) إشعار ولي الأمر بالمحتوى الجديد — تيجي على ولي الأمر وللطالب */
-      try { await notifyParentsOfNewContent({ grade: String(grade || ''), kind: 'book', title: String(title).trim(), body: String(description || '').slice(0, 160) || 'كتاب جديد في تاب الكتب والملازم' }) } catch (npE) {}
+      try { await notifyParentsOfNewContent({ grade: storeGrade(grade), kind: 'book', title: String(title).trim(), body: String(description || '').slice(0, 160) || 'كتاب جديد في تاب الكتب والملازم' }) } catch (npE) {}
 
     return NextResponse.json({ message: 'تم إضافة الكتاب', book }, { status: 201 })
   } catch (error: any) {

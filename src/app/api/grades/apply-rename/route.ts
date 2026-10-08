@@ -19,6 +19,7 @@ import { db } from '@/lib/db'
 // ============================================================
 
 // الجداول المستهدفة: (جدول، عمود)
+// (S-4b توحيد الصفوف) Book اتنسى قبل كده — عمود grade فيه في السكيما فاتضاف
 var GRADE_TABLES: Array<{ table: string; column: string }> = [
   { table: 'Student', column: 'grade' },
   { table: 'Video', column: 'grade' },
@@ -27,6 +28,7 @@ var GRADE_TABLES: Array<{ table: string; column: string }> = [
   { table: 'Announcement', column: 'grade' },
   { table: 'Discussion', column: 'grade' },
   { table: 'Complaint', column: 'grade' },
+  { table: 'Book', column: 'grade' },
   // Payment بيخزن صف الطالب في عمود باسم مختلف
   { table: 'Payment', column: 'studentGrade' },
 ]

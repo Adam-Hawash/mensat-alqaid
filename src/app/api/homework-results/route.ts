@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, withRetry } from '@/lib/db'
 /* (2026-و37) نفس قاعدة التسليم: مفتاح ناقص = مراجعة مستر — مش تخمين (A) */
 import { normalizeCorrectKey } from '@/lib/correct-key'
+import { gradeVariants } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 /* (2026-و40-w) حقول ورقة العمل في المراجعة — نفس نمط exam-results */
 function wsReviewFields(q: any, origIdx: number, studentAns: any): any {
@@ -282,17 +283,20 @@ export async function GET(request: NextRequest) {
       // Get students who haven't submitted the homework yet
       var notSubmitted: any[] = []
       try {
+        /* (S-4b توحيد الصفوف) كل صيغ نفس الصف — «السادس» بتجيب «الصف السادس الابتدائي» كمان */
+        var hwGrades = gradeVariants(String(hwInfo.grade || ''))
+        var hwGPh = hwGrades.map(function () { return '?' }).join(',')
         var submittedIds = rawResults.map(function(r) { return r.studentId })
         if (submittedIds.length > 0) {
           var notPlaceholders = submittedIds.map(function() { return '?' }).join(',')
           notSubmitted = await db.$queryRawUnsafe(
-            'SELECT id, name, phone FROM Student WHERE grade = ? AND status = ? AND id NOT IN (' + notPlaceholders + ')',
-            hwInfo.grade, 'approved', ...submittedIds
+            'SELECT id, name, phone FROM Student WHERE grade IN (' + hwGPh + ') AND status = ? AND id NOT IN (' + notPlaceholders + ')',
+            ...hwGrades, 'approved', ...submittedIds
           ) || []
         } else {
           notSubmitted = await db.$queryRawUnsafe(
-            'SELECT id, name, phone FROM Student WHERE grade = ? AND status = ?',
-            hwInfo.grade, 'approved'
+            'SELECT id, name, phone FROM Student WHERE grade IN (' + hwGPh + ') AND status = ?',
+            ...hwGrades, 'approved'
           ) || []
         }
       } catch (e) {

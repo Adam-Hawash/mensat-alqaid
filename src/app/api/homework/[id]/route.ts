@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
 import { isAdmin } from '@/lib/video-guard'
 import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
+import { storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 // GET /api/homework/[id] - جلب واجب بالمعرف
 export async function GET(
@@ -44,7 +45,7 @@ export async function PUT(
       data: {
         ...(title && { title }),
         ...(content && { content }),
-        ...(grade && { grade }),
+        ...(grade && { grade: storeGrade(grade) }), // (S-4b) بالاسم المعتمد
       },
     })
 

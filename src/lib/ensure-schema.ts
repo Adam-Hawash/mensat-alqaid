@@ -4,6 +4,7 @@
 // missing) so a freshly-swapped database repairs itself instead of 500ing
 // every API (the "الفديو مش شغال" outage class).
 import { createClient } from '@libsql/client'
+import { canonicalGradeName } from './grade-names' // (S-4b توحيد الصفوف)
 
 export function makeLibsqlClient() {
   var dbUrl = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL || ''
@@ -235,9 +236,70 @@ async function execTolerant(client: any, sql: string, meta: any, results: any[])
   }
 }
 
+/* ============================================================
+   (S-4b توحيد الصفوف) ترحيل الصفوف القديمة المخزنة — UPDATE SET grade بالمعتمد.
+   العلّة: كتابة قديمة كانت بتخزن الصف زي ما جا حرفيًا («السادس»/«سادس ابتدائي»/
+   «أولى ثانوي»/«الصف الأول الإعدادي»...) والقراءة كانت مطابقة نصية — فالمحتوى
+   مكانش بيظهر لطلاب نفس الصف. الترحيل بيوحّد كل القيم المخزنة على الاسم
+   المعتمد في src/lib/grade-names.ts (نفس أسماء DEFAULT_GRADES):
+     UPDATE <جدول> SET <عمود> = (المعتمد) WHERE <عمود> = (القيمة المخزنة زي ما هي)
+   • أسماء مش من أي عيلة معروفة (المستر مخترعها بنفسه) — بتتسيب زي ما هي
+   • idempotent: بعد أول تحديث الشرط بيرجع صفر صف — no-op آمن
+   • مرة واحدة لكل instance + آمن على قاعدة جديدة (جداول ناقصة = تجاهل صامت)
+   ============================================================ */
+var GRADE_CONTENT_TABLES: Array<[string, string]> = [
+  ['Student', 'grade'],
+  ['Video', 'grade'],
+  ['Homework', 'grade'],
+  ['Exam', 'grade'],
+  ['Announcement', 'grade'],
+  ['Discussion', 'grade'],
+  ['Complaint', 'grade'],
+  ['Book', 'grade'],
+  ['Payment', 'studentGrade'],
+]
+
+var _gradeRowsMigrated = false
+
+export async function migrateGradeRows(client: any): Promise<{ updated: number; tables: string[] }> {
+  if (_gradeRowsMigrated) return { updated: 0, tables: [] }
+  _gradeRowsMigrated = true
+  var updated = 0
+  var touched: string[] = []
+  for (var t = 0; t < GRADE_CONTENT_TABLES.length; t++) {
+    var tbl = GRADE_CONTENT_TABLES[t][0]
+    var col = GRADE_CONTENT_TABLES[t][1]
+    try {
+      var dist = await client.execute('SELECT DISTINCT ' + col + ' AS g FROM ' + tbl)
+      if (!dist || !dist.rows) continue
+      for (var d = 0; d < dist.rows.length; d++) {
+        var val = String(dist.rows[d].g || '')
+        var trimmed = val.trim()
+        if (!trimmed) continue
+        var target = canonicalGradeName(trimmed)
+        if (!target || target === trimmed) continue
+        try {
+          var res = await client.execute({
+            sql: 'UPDATE ' + tbl + ' SET ' + col + ' = ? WHERE ' + col + ' = ?',
+            args: [target, val],
+          })
+          var n = Number((res && (res.rowsAffected || res.changes)) || 0)
+          if (n > 0) { updated += n; if (touched.indexOf(tbl) === -1) touched.push(tbl) }
+        } catch (e2) { /* صف واحد فشل — مكملين */ }
+      }
+    } catch (e) { /* جدول ناقص في قاعدة قديمة — الترحيل مكمل */ }
+  }
+  return { updated: updated, tables: touched }
+}
+
 export async function ensureSchema(client: any, opts?: { force?: boolean }) {
   var force = !!(opts && opts.force)
   var results: any[] = []
+
+  /* (S-4b توحيد الصفوف) ترحيل الصفوف القديمة المخزنة — قبل أي قفلة مبكرة
+     (درس Z-1 الموثق: ترحيل جوه بوابة البصمة على قاعدة موجودة عمره ما بيتنفذ).
+     idempotent ومتكرر آمن + مرة واحدة لكل instance + آمن على قاعدة فاضية. */
+  try { await migrateGradeRows(client) } catch (gErr) { /* الترحيل ما يبوّظش الإقلاع أبدًا */ }
 
   /* المسار الأسرع: الـ instance ده اتأكد من السكيما قبل كده → صفر استعلامات */
   if (!force && _schemaVerifiedInProcess) {

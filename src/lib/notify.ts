@@ -8,6 +8,7 @@
 // (الرد على الشكوى/إضافة الكتاب/…) — بنلقط الخطأ بسجلوه وبس.
 // ============================================================
 import { db } from '@/lib/db'
+import { gradeVariants } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 function nid(): string {
   return 'ntf' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
@@ -69,9 +70,12 @@ export async function notifyStudents(opts: {
     var ids: string[] = Array.isArray(opts.studentIds) ? opts.studentIds.filter(Boolean) : []
     if (ids.length === 0 && opts.grade) {
       try {
+        /* (S-4b توحيد الصفوف) كل صيغ نفس الصف — «السادس» بتجيب «الصف السادس الابتدائي» كمان */
+        var gvs = gradeVariants(String(opts.grade))
+        var gPh = gvs.map(function () { return '?' }).join(',')
         var rows: any = await db.$queryRawUnsafe(
-          "SELECT id FROM Student WHERE status IN ('approved','paid') AND grade = ?",
-          opts.grade
+          "SELECT id FROM Student WHERE status IN ('approved','paid') AND grade IN (" + gPh + ")",
+          ...gvs
         )
         ids = (rows || []).map(function (r: any) { return String(r.id) })
       } catch (eG) {

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
 import { parseAiJson } from '@/lib/parse-ai-json'
 import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
+import { storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 export async function POST(request: NextRequest) {
   try {
@@ -250,7 +251,7 @@ export async function POST(request: NextRequest) {
         return db.exam.create({
           data: {
             title: title.trim(),
-            grade: grade,
+            grade: storeGrade(grade), // (S-4b) بالاسم المعتمد
             content: extractedQuestions.length + ' سؤال مستخرج بالذكاء الاصطناعي',
             questions: questionsStr,
             passScore: 50,
@@ -266,7 +267,7 @@ export async function POST(request: NextRequest) {
         return db.homework.create({
           data: {
             title: title.trim(),
-            grade: grade,
+            grade: storeGrade(grade), // (S-4b) بالاسم المعتمد
             content: extractedQuestions.length + ' سؤال مستخرج بالذكاء الاصطناعي',
             questions: questionsStr,
             // (2026-و25 نقل 25-b1) موعد ظهور الواجب

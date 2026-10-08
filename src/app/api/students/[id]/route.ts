@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 export async function GET(
   _request: NextRequest,
@@ -49,7 +50,7 @@ export async function PUT(
     const updateData: Record<string, any> = {}
     if (name) updateData.name = name
     if (phone) updateData.phone = phone
-    if (grade) updateData.grade = grade
+    if (grade) updateData.grade = storeGrade(grade) // (S-4b) بالاسم المعتمد
     if (status) updateData.status = status
     if (typeof isPaidAccess === 'boolean') updateData.isPaidAccess = isPaidAccess
     // ===== ربط الجهاز: تحكم المستر =====

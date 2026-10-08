@@ -9,6 +9,7 @@
 import { NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
 import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
+import { storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 export const runtime = 'nodejs'
 
@@ -168,7 +169,7 @@ export async function POST(request) {
         return db.exam.create({
           data: {
             title: title.trim(),
-            grade: grade,
+            grade: storeGrade(grade), // (S-4b) بالاسم المعتمد
             content: dbQuestions.length + ' questions extracted by AI',
             questions: questionsStr,
             passScore: 50,
@@ -189,7 +190,7 @@ export async function POST(request) {
         return db.homework.create({
           data: {
             title: title.trim(),
-            grade: grade,
+            grade: storeGrade(grade), // (S-4b) بالاسم المعتمد
             content: dbQuestions.length + ' questions extracted by AI',
             questions: questionsStr,
             // (2026-و25 نقل 25-b1) موعد ظهور الواجب

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { notifyStudents } from '@/lib/notify'
 import { notifyParentsOfNewContent } from '@/lib/parent-notify'
+import { gradeWhere, storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 // GET /api/announcements - جلب كل الإعلانات
 export async function GET(request: NextRequest) {
@@ -14,7 +15,8 @@ export async function GET(request: NextRequest) {
     const pageSize = parseInt(searchParams.get('pageSize') || '20')
 
     const where: Record<string, unknown> = {}
-    if (grade) where.grade = grade
+    // (S-4b توحيد الصفوف) قراية كل صيغ نفس الصف
+    if (grade) where.grade = gradeWhere(grade)
     if (keyword) {
       where.OR = [
         { title: { contains: keyword } },
@@ -55,14 +57,14 @@ export async function POST(request: NextRequest) {
     }
 
     const announcement = await db.announcement.create({
-      data: { title, content, grade },
+      data: { title, content, grade: storeGrade(grade) }, // (S-4b) بالاسم المعتمد
     })
 
     /* (و44) إشعار للطلاب: إعلان جديد */
     /* (و45) await — الإشعار بيتكتب قبل الرد */
-      try { await notifyStudents({ grade: String(grade || ''), type: 'announcement', title: '📣 إعلان جديد: ' + String(title), body: String(content || '').slice(0, 200) }) } catch (nE) {}
+      try { await notifyStudents({ grade: storeGrade(grade), type: 'announcement', title: '📣 إعلان جديد: ' + String(title), body: String(content || '').slice(0, 200) }) } catch (nE) {}
       /* (2026-ص5) إشعار ولي الأمر بالمحتوى الجديد — تيجي على ولي الأمر وللطالب */
-      try { await notifyParentsOfNewContent({ grade: String(grade || ''), kind: 'announcement', title: String(title), body: String(content || '').slice(0, 160) || 'في إعلان جديد في المنصة' }) } catch (npE) {}
+      try { await notifyParentsOfNewContent({ grade: storeGrade(grade), kind: 'announcement', title: String(title), body: String(content || '').slice(0, 160) || 'في إعلان جديد في المنصة' }) } catch (npE) {}
 
     return NextResponse.json({ message: 'تم إنشاء الإعلان بنجاح', announcement }, { status: 201 })
   } catch (error) {

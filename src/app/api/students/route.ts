@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
 import { makeLibsqlClient, ensureSchema } from '@/lib/ensure-schema'
+import { gradeWhere, storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 // ============================================================
 // نظام ربط الجهاز — إصدار 5 (البساطة نفسها)
@@ -363,7 +364,8 @@ export async function GET(request: NextRequest) {
 
     // ===== قائمة الطلاب (لوحة التحكم) =====
     var where: Record<string, unknown> = {}
-    if (grade) where.grade = grade
+    // (S-4b توحيد الصفوف) قراية كل صيغ نفس الصف
+    if (grade) where.grade = gradeWhere(grade)
     if (status) where.status = status
     if (keyword) {
       where.OR = [
@@ -485,7 +487,7 @@ export async function POST(request: NextRequest) {
         data: {
           name: name,
           phone: phone,
-          grade: grade,
+          grade: storeGrade(grade), // (S-4b) بالاسم المعتمد
           status: status,
           parentName: parentName,
           parentPhone: parentPhone,

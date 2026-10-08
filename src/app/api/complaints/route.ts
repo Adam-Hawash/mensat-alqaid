@@ -10,6 +10,7 @@
 // ============================================================
 import { NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
+import { storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 export var maxDuration = 10
 
@@ -117,11 +118,12 @@ export async function POST(request: Request) {
     }
 
     var id = 'cmp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+    var gradeStored = storeGrade(grade) // (S-4b توحيد الصفوف) بالاسم المعتمد
     await safeWrite(function () {
       return db.$executeRawUnsafe(
         `INSERT INTO Complaint (id, studentId, studentName, phone, grade, message, summary, source, status, reply, createdAt, updatedAt)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        id, studentId, studentName, phone, grade, message, summary, source
+        id, studentId, studentName, phone, gradeStored, message, summary, source
       )
     })
 

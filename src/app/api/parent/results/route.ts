@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { displayGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 /* (2026-و38) شفاء ذاتي لجدول Parent — نفس حماية مسارَي التسجيل والدخول */
 var parentDdlDone: Promise<void> | null = null
@@ -130,7 +131,7 @@ export async function GET(request: NextRequest) {
       student: {
         id: student.id,
         name: student.name,
-        grade: student.grade,
+        grade: displayGrade(student.grade), // (S-4b توحيد الصفوف) العرض بالاسم المعتمد
         status: student.status,
         isPaidAccess: !!student.isPaidAccess,
       },

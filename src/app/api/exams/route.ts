@@ -4,6 +4,7 @@ import { notifyStudents } from '@/lib/notify'
 import { notifyParentsOfNewContent } from '@/lib/parent-notify'
 import { isAdmin } from '@/lib/video-guard'
 import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
+import { gradeWhere, storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
 // ============================================================
 // توزيع النماذج العشوائي (طلب المستر): لما الامتحان يكون فيه نماذج كتير
@@ -99,7 +100,8 @@ export async function GET(request: NextRequest) {
     const admin = await isAdmin(adminId)
 
     const where: Record<string, unknown> = {}
-    if (grade) where.grade = grade
+    // (S-4b توحيد الصفوف) قراية كل صيغ نفس الصف
+    if (grade) where.grade = gradeWhere(grade)
     if (keyword) {
       where.OR = [{ title: { contains: keyword } }]
     }
@@ -193,7 +195,7 @@ export async function POST(request: NextRequest) {
       data: {
         title,
         content: content || '',
-        grade,
+        grade: storeGrade(grade), // (S-4b) الكتابة بالاسم المعتمد الكامل
         filePath: filePath || '',
         fileType: fileType || '',
         answerKeyPath: answerKeyPath || '',
@@ -217,9 +219,9 @@ export async function POST(request: NextRequest) {
       var nIds: string[] = []
       try { var nTp = JSON.parse(targetIds); if (Array.isArray(nTp)) nIds = nTp.filter(Boolean) } catch (e) {}
       /* (و45) await — الإشعار بيتكتب قبل الرد */
-        try { await notifyStudents({ studentIds: nIds, grade: String(grade || ''), type: 'exam', title: '📝 امتحان جديد: ' + String(title), body: 'دخل من تاب الامتحانات وحل دلوقتي' }) } catch (nE) {}
+        try { await notifyStudents({ studentIds: nIds, grade: storeGrade(grade), type: 'exam', title: '📝 امتحان جديد: ' + String(title), body: 'دخل من تاب الامتحانات وحل دلوقتي' }) } catch (nE) {}
         /* (2026-ص5) إشعار ولي الأمر بالمحتوى الجديد — تيجي على ولي الأمر وللطالب */
-        try { await notifyParentsOfNewContent({ studentIds: nIds, grade: String(grade || ''), kind: 'exam', title: String(title), body: 'اتبعت امتحان جديد — تابع مع ابني/بنتي من شاشة ولي الأمر' }) } catch (npE) {}
+        try { await notifyParentsOfNewContent({ studentIds: nIds, grade: storeGrade(grade), kind: 'exam', title: String(title), body: 'اتبعت امتحان جديد — تابع مع ابني/بنتي من شاشة ولي الأمر' }) } catch (npE) {}
     } catch (nE) {}
 
     return NextResponse.json({ message: 'Exam added', exam }, { status: 201 })
