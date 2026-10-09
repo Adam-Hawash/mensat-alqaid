@@ -656,12 +656,13 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
     return Object.assign({}, baseProgress, progressOverrides)
   }, [baseProgress, progressOverrides])
 
-  // ترتيب الدروس من الأقدم للأحدث — ده ترتيب نزول الدروس نفسه (الأول في المنهج فوق)
+  /* (2026-ز11 — طلب المستر الحرفي): «اللي ينزل الجديد يبقى في الاول واللي
+     في الاخر يكون الاقدم» — الأحدث فوق والأقدم تحت */
   const orderedVideos = useMemo(function () {
     return videos.slice().sort(function (a, b) {
       var ta = new Date((a as any).createdAt || 0).getTime()
       var tb = new Date((b as any).createdAt || 0).getTime()
-      return ta - tb
+      return tb - ta
     })
   }, [videos])
 
