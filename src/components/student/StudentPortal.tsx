@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import {
   Video, ClipboardList, FileText, Megaphone, MessageSquare, Send,
   LogOut, Loader2, FileDown, Bell, PlayCircle, CheckCircle2, Timer, XCircle,
-  BookOpen, Target, TrendingUp, GraduationCap, ChevronLeft,
+  BookOpen, Target, TrendingUp, GraduationCap, ChevronLeft, Swords,
   User, Phone, Award, Lock, X, ImagePlus, ListTodo, Flag, Search, ExternalLink, Clock,
 } from 'lucide-react'
 import { useState, useEffect, useRef, useMemo } from 'react'
@@ -24,6 +24,9 @@ import { FractionText } from '@/components/FractionText'
 import BidiText from '@/components/BidiText'
 /* (2026-و44) جرس الإشعارات + بادج المجتمع — أي حاجة جديدة توصل للطالب */
 import { NotificationsBell } from '@/components/student/NotificationsBell'
+/* (ز13) ساحة التحدي + اتدرب أكتر — واجهة الطالب بالإنجليزي (طلب المستر) */
+import { BattleArena } from '@/components/student/BattleArena'
+import { PracticeGenerator } from '@/components/student/PracticeGenerator'
 import { normalizeCorrectKey } from '@/lib/correct-key'
 /* (و45) تصنيف موحّد: سؤال له اختيارات صور/رسومات = اختياري مش مقالي */
 import { isWritingQuestion } from '@/lib/question-figures'
@@ -536,6 +539,9 @@ function FullPortalContent({ initialData, onBack }: { initialData: PortalData; o
             { key: 'announcements', icon: Megaphone, label: 'الإعلانات' },
             { key: 'discussions', icon: MessageSquare, label: 'النقاشات' },
             { key: 'complaints', icon: Flag, label: 'الشكاوي' },
+            /* (ز13) ساحة التحدي + اتدرب أكتر — تابات طالب بالإنجليزي (طلب المستر) */
+            { key: 'arena', icon: Swords, label: 'Arena' },
+            { key: 'practice', icon: Target, label: 'Practice' },
           ].map(tab => (
             <button
               key={tab.key}
@@ -562,6 +568,9 @@ function FullPortalContent({ initialData, onBack }: { initialData: PortalData; o
         {activeTab === 'announcements' && <AnnouncementsTab announcements={initialData.announcements} />}
         {activeTab === 'discussions' && <DiscussionsTab grade={grade} studentId={studentId} studentName={currentStudent?.name || ''} />}
         {activeTab === 'complaints' && <StudentComplaints studentId={studentId} studentName={currentStudent?.name || ''} studentPhone={currentStudent?.phone || ''} grade={grade} />}
+        {/* (ز13) ساحة التحدي + اتدرب أكتر — واجهة إنجليزي بالكامل */}
+        {activeTab === 'arena' && <BattleArena studentId={studentId} studentName={currentStudent?.name || ''} grade={grade} />}
+        {activeTab === 'practice' && <PracticeGenerator grade={grade} />}
       </div>
     </div>
   )

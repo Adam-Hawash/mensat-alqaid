@@ -41,6 +41,21 @@ export var SCHEMA_TABLES = [
   'CREATE TABLE IF NOT EXISTS Book (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT \'\', filePath TEXT NOT NULL DEFAULT \'\', fileName TEXT NOT NULL DEFAULT \'\', fileType TEXT NOT NULL DEFAULT \'application/pdf\', sourceUrl TEXT NOT NULL DEFAULT \'\', sizeBytes INTEGER NOT NULL DEFAULT 0, grade TEXT NOT NULL DEFAULT \'\', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL)',
   // (2026-و44) الإشعارات — رد الشكوى/الكتب الجديدة/امتحانات وواجبات جديدة
   'CREATE TABLE IF NOT EXISTS Notification (id TEXT PRIMARY KEY, studentId TEXT NOT NULL, type TEXT NOT NULL DEFAULT \'general\', title TEXT NOT NULL, body TEXT NOT NULL DEFAULT \'\', read INTEGER NOT NULL DEFAULT 0, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+  /* (ز13 — نقل من ماث جينيس و66/و68/و70/و72/و88) ساحة التحدي — غرف الجروبات + اللاعبين + تحدي المستر + الفلاش كاردز
+     timed (بوقت/من غير وقت) + qSeconds (ثواني السؤال الواحد للأسئلة العامة) */
+  'CREATE TABLE IF NOT EXISTS BattleRoom (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, title TEXT DEFAULT \'\', hostPlayerId TEXT DEFAULT \'\', status TEXT NOT NULL DEFAULT \'lobby\', questions TEXT NOT NULL DEFAULT \'[]\', currentIndex INTEGER NOT NULL DEFAULT 0, questionStartAt TEXT NOT NULL DEFAULT \'0\', startedAt TEXT DEFAULT \'\', mode TEXT DEFAULT \'general\', difficulty TEXT DEFAULT \'mixed\', cardSeconds INTEGER DEFAULT 15, timed INTEGER DEFAULT 1, qSeconds INTEGER DEFAULT 25, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+  'CREATE TABLE IF NOT EXISTS BattlePlayer (id TEXT PRIMARY KEY, roomId TEXT NOT NULL, name TEXT NOT NULL, token TEXT DEFAULT \'\', isHost INTEGER NOT NULL DEFAULT 0, score INTEGER NOT NULL DEFAULT 0, streak INTEGER NOT NULL DEFAULT 0, answers TEXT NOT NULL DEFAULT \'{}\', lastSeen TEXT NOT NULL DEFAULT \'0\', studentId TEXT DEFAULT \'\', qIndex INTEGER DEFAULT 0, qStartAt TEXT DEFAULT \'\', finishedAt TEXT DEFAULT \'\', finished INTEGER DEFAULT 0, status TEXT DEFAULT \'active\', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+  'CREATE TABLE IF NOT EXISTS TeacherChallenge (id TEXT PRIMARY KEY, title TEXT NOT NULL, question TEXT NOT NULL, options TEXT NOT NULL DEFAULT \'[]\', correctIndex INTEGER NOT NULL DEFAULT 0, points INTEGER NOT NULL DEFAULT 30, durationMin INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, closesAt DATETIME, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+  'CREATE TABLE IF NOT EXISTS ChallengeEntry (id TEXT PRIMARY KEY, challengeId TEXT NOT NULL, studentId TEXT DEFAULT \'\', name TEXT NOT NULL, isTeacher INTEGER NOT NULL DEFAULT 0, choice INTEGER NOT NULL DEFAULT -1, correct INTEGER NOT NULL DEFAULT 0, timeMs INTEGER NOT NULL DEFAULT 0, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+  'CREATE TABLE IF NOT EXISTS FlashcardScore (id TEXT PRIMARY KEY, studentId TEXT DEFAULT \'\', name TEXT NOT NULL, score INTEGER NOT NULL DEFAULT 0, correctCount INTEGER NOT NULL DEFAULT 0, totalCards INTEGER NOT NULL DEFAULT 10, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+  /* (و66) الخرائط الذهنية التفاعلية */
+  'CREATE TABLE IF NOT EXISTS MindMap (id TEXT PRIMARY KEY, videoId TEXT DEFAULT \'\', title TEXT NOT NULL, sourceType TEXT DEFAULT \'youtube\', sourceUrl TEXT DEFAULT \'\', sourceName TEXT DEFAULT \'\', data TEXT NOT NULL DEFAULT \'{}\', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+  /* (و68) بنك أسئلة التحدي — المستر يرفع ملفات → استخراج إنجليزي →
+     الطالب ياخد أسئلة عشوائية من كل الملفات + محاولات محفوظة بلوحة ترتيب */
+  'CREATE TABLE IF NOT EXISTS ChallengeBankQuestion (id TEXT PRIMARY KEY, fileName TEXT DEFAULT \'\', question TEXT NOT NULL, options TEXT NOT NULL DEFAULT \'[]\', correctIndex INTEGER NOT NULL DEFAULT 0, points INTEGER NOT NULL DEFAULT 10, active INTEGER NOT NULL DEFAULT 1, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+  'CREATE TABLE IF NOT EXISTS ChallengeAttempt (id TEXT PRIMARY KEY, studentId TEXT DEFAULT \'\', name TEXT NOT NULL, score INTEGER NOT NULL DEFAULT 0, correctCount INTEGER NOT NULL DEFAULT 0, totalQuestions INTEGER NOT NULL DEFAULT 10, timeMs INTEGER NOT NULL DEFAULT 0, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+  /* (و70-ج) كروت الفلاش بتاعة المستر — الأمام سؤال والظهر إجابة (بالإنجليزي) */
+  'CREATE TABLE IF NOT EXISTS FlashcardCard (id TEXT PRIMARY KEY, fileName TEXT DEFAULT \'\', front TEXT NOT NULL, back TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)',
 ]
 
 
@@ -114,6 +129,28 @@ var SCHEMA_COLUMNS = [
   ['Payment', 'reviewedBy', 'TEXT', "DEFAULT ''"],
   // (و43) لينك خارجي للكتب — الكتب القديمة (من قبل و43) بتاخد '' يعني كتاب ملف عادي
   ['Book', 'sourceUrl', 'TEXT', "NOT NULL DEFAULT ''"],
+  /* (ز13 — نقل من ماث جينيس) أعمدة الساحة:
+     (و68-إضافي) فيديو المستر في تحدي المستر — videoUrl: لينك يوتيوب خام أو مسار
+     /api/files/<id> لملف مرفوع، videoType: 'youtube' | 'file' | '' (فاضي = مفيش فيديو) */
+  ['TeacherChallenge', 'videoUrl', 'TEXT', "DEFAULT ''"],
+  ['TeacherChallenge', 'videoType', 'TEXT', "DEFAULT ''"],
+  /* (و72) السباق الفردي في تحدي الجروبات — كل لاعب ليه مؤقت وسؤال مستقل:
+     BattlePlayer.studentId (ربط الحساب + منع العودة بعد الخروج)
+     qIndex/qStartAt (سؤالي الحالي وبدايته) finished/finishedAt (لترتيب «مين خلّص الأول»)
+     status (active | left) + BattleRoom.startedAt/mode/difficulty/cardSeconds */
+  ['BattlePlayer', 'studentId', 'TEXT', "DEFAULT ''"],
+  ['BattlePlayer', 'qIndex', 'INTEGER', 'DEFAULT 0'],
+  ['BattlePlayer', 'qStartAt', 'TEXT', "DEFAULT ''"],
+  ['BattlePlayer', 'finishedAt', 'TEXT', "DEFAULT ''"],
+  ['BattlePlayer', 'finished', 'INTEGER', 'DEFAULT 0'],
+  ['BattlePlayer', 'status', 'TEXT', "DEFAULT 'active'"],
+  ['BattleRoom', 'startedAt', 'TEXT', "DEFAULT ''"],
+  ['BattleRoom', 'mode', 'TEXT', "DEFAULT 'general'"],
+  ['BattleRoom', 'difficulty', 'TEXT', "DEFAULT 'mixed'"],
+  ['BattleRoom', 'cardSeconds', 'INTEGER', 'DEFAULT 15'],
+  /* (و88) وضع التوقيت في تحدي الجروبات — بوقت ولا من غير وقت + ثواني السؤال */
+  ['BattleRoom', 'timed', 'INTEGER', 'DEFAULT 1'],
+  ['BattleRoom', 'qSeconds', 'INTEGER', 'DEFAULT 25'],
 ]
 
 var SCHEMA_FIXES = [
@@ -170,7 +207,9 @@ export var SCHEMA_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_notification_created ON Notification(createdAt)',
 ]
 
-export var CORE_TABLES = ['Admin', 'Student', 'StudentActivity', 'Video', 'Homework', 'Exam', 'ExamResult', 'Announcement', 'Discussion', 'SiteConfig', 'Media', 'VideoProgress', 'GalleryImage', 'Payment', 'VideoAccess', 'Complaint', 'Parent', 'Book', 'Notification']
+/* (ز13) جداول الساحة دخلت CORE_TABLES — نفس درس و38/و40/و43/و44/و45:
+   من غير كده الجداول الجديدة عمرها ما بتتعمل على Turso أول ريكوست بعد النشر */
+export var CORE_TABLES = ['Admin', 'Student', 'StudentActivity', 'Video', 'Homework', 'Exam', 'ExamResult', 'Announcement', 'Discussion', 'SiteConfig', 'Media', 'VideoProgress', 'GalleryImage', 'Payment', 'VideoAccess', 'Complaint', 'Parent', 'Book', 'Notification', 'BattleRoom', 'BattlePlayer', 'TeacherChallenge', 'ChallengeEntry', 'FlashcardScore', 'MindMap', 'ChallengeBankQuestion', 'ChallengeAttempt', 'FlashcardCard']
 
 /* Returns { missing: string[], repaired: boolean, results: any[] } */
 
@@ -191,7 +230,12 @@ export var CORE_TABLES = ['Admin', 'Student', 'StudentActivity', 'Video', 'Homew
 /* (و45) مفتاح البصمة اتبدّل رابع — عمود GalleryImage.thumbnail (صورة مصغرة
  * لفيديوهات المعرض) دخل SCHEMA_TABLES + SCHEMA_COLUMNS — نفس الدرس الموثق:
  * من غير البَمب العمود مش هيتضاف على Turso أول ريكوست بعد النشر. */
-var SCHEMA_HASH_KEY = 'schema_heal_hash_v2_w45'
+/* (ز13) مفتاح البصمة اتبدّل خامس — جداول الساحة (BattleRoom/BattlePlayer/
+ * TeacherChallenge/ChallengeEntry/FlashcardScore/MindMap/ChallengeBankQuestion/
+ * ChallengeAttempt/FlashcardCard) دخلوا SCHEMA_TABLES + CORE_TABLES + أعمدة
+ * السباق الفردي دخلوا SCHEMA_COLUMNS — نفس الدرس الموثق: من غير البَمب
+ * جداول الساحة مش هتتعمل على قواعد Turso الموجودة أول ريكوست بعد النشر. */
+var SCHEMA_HASH_KEY = 'schema_heal_hash_v2_arena_z13'
 /* ============================================================
  * 2026-و23 — **إصلاح بطء المنصة**: كل إقلاع سيرفر كان بيشغّل ~70
  * استعلام متسلسل على Turso (ALTERs فاشلة + UPDATEs) — بقى فحص بصمة

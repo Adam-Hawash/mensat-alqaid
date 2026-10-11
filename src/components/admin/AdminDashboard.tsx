@@ -20,7 +20,7 @@ import {
   Link2, Activity, Eye, ImagePlus, Trophy, UserX, Camera,
   PlayCircle, Pause, Film, Search, FileDown, PictureInPicture2, Save, Sparkles, Wallet,
   /* (و45) LinkIcon — زرار «أو ضع رابط PDF» في وضع الكتاب */
-  LinkIcon, Smartphone, RotateCcw, ShieldCheck, Monitor, Tablet, Flag, GraduationCap, CalendarClock, UsersRound, PieChart, BookOpen, ChevronDown
+  LinkIcon, Smartphone, RotateCcw, ShieldCheck, Monitor, Tablet, Flag, GraduationCap, CalendarClock, UsersRound, PieChart, BookOpen, ChevronDown, Swords
 } from 'lucide-react'
 import { AdminComplaints } from './AdminComplaints'
 import { CMSPanel } from './CMSPanel'
@@ -44,6 +44,8 @@ import { ensureFigureUrls, isWritingQuestion } from '@/lib/question-figures'
 import { WorksheetTableReadonly, WorksheetFigure } from '@/components/worksheet/WorksheetParts'
 /* (2026-و40) الكتب والملازم — تاب مكتبة الكتب للطالب */
 import { BooksManager } from './BooksManager'
+/* (ز13) تحدي المستر — بنك أسئلة + فلاش كاردز + إنشاء التحدي الأسبوعي */
+import { TeacherChallengePanel } from './TeacherChallengePanel'
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
 import Image from 'next/image'
 import { toast } from 'sonner'
@@ -408,6 +410,8 @@ export function AdminDashboard() {
             <TabsTrigger value="grades-schedule" className="text-xs sm:text-sm gap-1 text-emerald-600 dark:text-emerald-400"><GraduationCap className="h-4 w-4" /><span className="hidden sm:inline">الصفوف والمواعيد</span></TabsTrigger>
             {/* (2026-و40) الكتب والملازم — مكتبة PDF الطالب يفتحها/يحملها */}
             <TabsTrigger value="books" className="text-xs sm:text-sm gap-1 text-sky-600 dark:text-sky-400"><BookOpen className="h-4 w-4" /><span className="hidden sm:inline">الكتب والملازم</span></TabsTrigger>
+            {/* (ز13) تحدي المستر — نفس لوحة ماث جينيس (الأدمن عربي زي ما هو) */}
+            <TabsTrigger value="teacher-challenge" className="text-xs sm:text-sm gap-1 text-amber-600 dark:text-amber-400"><Swords className="h-4 w-4" /><span className="hidden sm:inline">تحدي المستر</span></TabsTrigger>
           </TabsList>
 
           <TabsContent value="students"><StudentsManager onStatsRefresh={fetchStats} /></TabsContent>
@@ -439,6 +443,8 @@ export function AdminDashboard() {
           <TabsContent value="grades-schedule"><GradesSchedulePanel /></TabsContent>
           {/* (2026-و40) الكتب والملازم */}
           <TabsContent value="books"><BooksManager /></TabsContent>
+          {/* (ز13) تحدي المستر — بنك أسئلة/فلاش كاردز/التحدي الأسبوعي */}
+          <TabsContent value="teacher-challenge"><TeacherChallengePanel /></TabsContent>
         </Tabs>
 
         {/* Admin Settings Dialog */}
