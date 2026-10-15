@@ -11,7 +11,7 @@
 // (مستحسن للكتب الكبيرة — بنحفظ اللينك بس من غير تخزين في قاعدة البيانات)
 // ============================================================
 
-import { useAppStore, GRADES } from '@/stores/app-store'
+import { useAppStore, gradesFromConfig } from '@/stores/app-store'
 import { chunkedUpload } from '@/lib/chunked-upload'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,6 +36,8 @@ function formatBookSize(bytes: number): string {
 
 export function BooksManager() {
   const adminId = useAppStore(function (s) { return s.currentAdmin?.id || '' })
+  /* (ز15) القايمة الديناميكية من لوحة الأدمن (grades_data) */
+  const GRADES = gradesFromConfig(useAppStore(function (s) { return s.siteConfig })).map(function (g) { return g.ar })
   const [books, setBooks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
