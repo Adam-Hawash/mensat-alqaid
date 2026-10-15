@@ -665,13 +665,13 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
     return Object.assign({}, baseProgress, progressOverrides)
   }, [baseProgress, progressOverrides])
 
-  /* (2026-ز11 — طلب المستر الحرفي): «اللي ينزل الجديد يبقى في الاول واللي
-     في الاخر يكون الاقدم» — الأحدث فوق والأقدم تحت */
+  /* (2026-ز14 — طلب المستر): رجّعنا الترتيب الزمني — «الدرس التاني يجي بعد
+     الدرس الأول»: الأقدم فوق والأحدث تحت */
   const orderedVideos = useMemo(function () {
     return videos.slice().sort(function (a, b) {
       var ta = new Date((a as any).createdAt || 0).getTime()
       var tb = new Date((b as any).createdAt || 0).getTime()
-      return tb - ta
+      return ta - tb
     })
   }, [videos])
 

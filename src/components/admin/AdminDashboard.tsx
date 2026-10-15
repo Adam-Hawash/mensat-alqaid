@@ -663,8 +663,8 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
      تاني هيتقالده «حسابك مرفوض من المنصة»، وبينختفي من كل قايمات الأدمن.
      من غير حذف نهائي لصفوفه عشان الرقم يفضل محفوظ والرفض يفضل شغال. */
   const handleRejectDelete = async (id: string) => {
-    try { await fetch(`/api/students/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'rejected' }) }); toast.success('تم رفض الطالب وحذفه من المنصة — لو حاول يدخل تاني هيتقالده حسابك مرفوض'); loadStudents(false); onStatsRefresh() }
-    catch { toast.error('خطأ في رفض الطالب') }
+    try { await fetch(`/api/students/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'rejected' }) }); toast.success('Student rejected and removed — if he tries to log in again he will get "Your account has been rejected"'); loadStudents(false); onStatsRefresh() }
+    catch { toast.error('Error rejecting student') }
   }
 
   // ===== فك ربط الجهاز — الزرار الوحيد للمستر (منظومة الجهاز الواحد) =====
@@ -680,7 +680,7 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
   }
 
   const statusColors: Record<string, string> = { pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', approved: 'bg-teal-50 text-teal-700 dark:bg-emerald-900/30 dark:text-emerald-400', rejected: 'bg-rose-50 text-rose-400 dark:bg-red-900/30 dark:text-red-400' }
-  const statusLabels: Record<string, string> = { pending: 'قيد المراجعة', approved: 'مقبول', rejected: 'مرفوض' }
+  const statusLabels: Record<string, string> = { pending: 'قيد المراجعة', approved: 'مقبول', rejected: 'Rejected' }
   // أسماء أنواع الأجهزة بالعربي — تظهر في بادج الطالب
   const deviceTypeLabels: Record<string, string> = { mobile: 'موبايل', tablet: 'تابلت', computer: 'كمبيوتر' }
   const deviceIcon = (t?: string) => t === 'computer' ? <Monitor className="h-2.5 w-2.5" /> : t === 'tablet' ? <Tablet className="h-2.5 w-2.5" /> : <Smartphone className="h-2.5 w-2.5" />
@@ -778,7 +778,7 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
             <div className="flex gap-1 bg-muted rounded-lg p-1">
               {(['pending', 'all', 'approved', 'rejected'] as const).map((f) => (
                 <Button key={f} variant={filter === f ? 'default' : 'ghost'} size="sm" className="text-xs h-7 px-2" onClick={() => setFilter(f)}>
-                  {f === 'pending' ? 'بانتظار' : f === 'approved' ? 'مقبول' : f === 'rejected' ? 'مرفوض' : 'الكل'}
+                  {f === 'pending' ? 'بانتظار' : f === 'approved' ? 'مقبول' : f === 'rejected' ? 'Rejected' : 'الكل'}
                 </Button>
               ))}
             </div>
@@ -848,7 +848,7 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" onClick={() => handleAction(s.id, 'approved')}><Check className="h-4 w-4" /></Button>
                                       </>)}
                   {/* (2026-ز12 — طلب المستر): زرار الباسكت الوحيد = رفض + حذف من المنصة */}
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRejectDelete(s.id)} title="رفض وحذف الطالب من المنصة"><Trash2 className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRejectDelete(s.id)} title="Reject & remove student from the platform"><Trash2 className="h-4 w-4" /></Button>
                 </div>
               </div>
             ))}
