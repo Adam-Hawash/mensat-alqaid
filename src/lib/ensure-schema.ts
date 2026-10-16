@@ -182,6 +182,10 @@ var SCHEMA_FIXES = [
   // ===== (و78) شفاء الاسم المخزّن غلط «Adam Hawash» → «Adham Hawash» — ترحيلة دائمة (idempotent)
   // بتكمّل إصلاح القراءة اللي في /api/config GET (NAME_REPAIR_KEYS)
   "UPDATE SiteConfig SET value = REPLACE(value, 'Adam Hawash', 'Adham Hawash') WHERE (key LIKE '%made_by%' OR key LIKE '%developer_label%') AND value LIKE '%Adam Hawash%'",
+  // ===== (ز16) إزالة تكرار SiteConfig قبل إنشاء الفهرس الفريد — علة 500 في upsert على جداول قديمة
+  // بنحتفظ بأحدث صف لكل مفتاح (أكبر rowid) — لو مفيش تكرار الاستعلام مش بيمسح حاجة (idempotent)
+  'DELETE FROM SiteConfig WHERE rowid NOT IN (SELECT MAX(rowid) FROM SiteConfig GROUP BY key)',
+
 ]
 
 /* ============================================================
@@ -205,6 +209,9 @@ export var SCHEMA_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_parent_student ON Parent(studentId)',
   'CREATE INDEX IF NOT EXISTS idx_notification_student ON Notification(studentId, read)',
   'CREATE INDEX IF NOT EXISTS idx_notification_created ON Notification(createdAt)',
+  // (ز16) فهرس فريد على مفتاح الكونفج — بدون ON CONFLICT فريد، upsert بيفشل 500 على الجداول القديمة
+  'CREATE UNIQUE INDEX IF NOT EXISTS idx_siteconfig_key_unique ON SiteConfig(key)',
+
 ]
 
 /* (ز13) جداول الساحة دخلت CORE_TABLES — نفس درس و38/و40/و43/و44/و45:
