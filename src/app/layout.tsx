@@ -68,6 +68,14 @@ export default async function RootLayout({
 
         <link rel="icon" href={faviconUrl} />
 
+        {/* (ز17) PWA — تثبيت المنصة كتطبيق + ثيم الموبايل + أيقونة الشاشة الرئيسية */}
+        <meta name="theme-color" content="#0D9488" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="منصة القائد" />
+
         {/* Preload instructor photo so it's ready immediately when hero renders */}
         <link rel="preload" as="image" href={instructorPhoto} fetchPriority="high" />
 
@@ -76,6 +84,13 @@ export default async function RootLayout({
             __html:
               "window.__INITIAL_CONFIG__=" +
               JSON.stringify(initialConfig),
+          }}
+        />
+        {/* (ز17) تسجيل الـ Service Worker — الأوفلاين + إشعارات أولياء الأمور */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){})})}}catch(e){}",
           }}
         />
       </head>

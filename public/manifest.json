@@ -1,0 +1,39 @@
+{
+  "name": "منصة القائد — مستر عمرو رشدي",
+  "short_name": "منصة القائد",
+  "description": "منصة القائد التعليمية — دروس وواجبات وامتحانات وتحديات",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#111111",
+  "theme_color": "#0D9488",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/pwa-icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

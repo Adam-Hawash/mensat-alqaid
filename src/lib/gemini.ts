@@ -386,6 +386,11 @@ export async function callGemini(opts: {
   var lastError = ''
   var sawQuota = false
   var attemptIndex = 0
+  /* (ز17) ساعة الميزانية: لو الموديلات بتلف ومحدش بيرد بنوقف بدل ما الطالب يستنى كتير */
+  var budgetStart = Date.now()
+  function budgetExceeded(): boolean {
+    return !!opts.budgetMs && (Date.now() - budgetStart) > opts.budgetMs
+  }
 
   // (و77) حمّل كاش الموديلات من القاعدة (محدود بـ1.5ث — مستحيل يأجّل)
   await ensureModelCacheFast()
@@ -403,6 +408,8 @@ export async function callGemini(opts: {
       }
       for (var mi = 0; mi < models.length; mi++) {
         for (var ki = 0; ki < keys.length; ki++) {
+          /* (ز17) الميزانية خلصت؟ اخرج فورًا وسلّم للمحرك التالي (ZAI) */
+          if (budgetExceeded()) return null
           attemptIndex++
           var t = timeoutMs
           if (attemptIndex === 1 && opts.fastFailFirstMs) t = opts.fastFailFirstMs
@@ -549,6 +556,8 @@ export async function streamGemini(opts: {
   parts: any[]
   generationConfig?: any
   timeoutMs?: number
+  fastFailFirstMs?: number    // (ز17) مهلة قصيرة للمحاولة الأولى فقط
+  budgetMs?: number           // (ز17) ميزانية كلية قبل التسليم للمحرك الاحتياطي
   thinking?: 'low' | 'off' | 'default'
   onDelta?: (delta: string) => void
 }): Promise<GeminiResult> {
@@ -561,6 +570,11 @@ export async function streamGemini(opts: {
   var thinkingMode = opts.thinking || 'low'
   var lastError = ''
   var sawQuota = false
+  /* (ز17) ساعة الميزانية للستريم — نفس منطق callGemini */
+  var budgetStart = Date.now()
+  function budgetExceeded(): boolean {
+    return !!opts.budgetMs && (Date.now() - budgetStart) > opts.budgetMs
+  }
 
   // (و77) كاش الموديلات من القاعدة (محدود بـ1.5ث) — أول محاولة بالموديل الصح
   await ensureModelCacheFast()
@@ -571,7 +585,11 @@ export async function streamGemini(opts: {
   var tryList = async function (models: string[]): Promise<GeminiResult | null> {
     for (var mi = 0; mi < models.length; mi++) {
       for (var ki = 0; ki < keys.length; ki++) {
-        var result = await streamAttempt(models[mi], keys[ki], opts.parts, generationConfig, timeoutMs, thinkingMode, opts.onDelta)
+        /* (ز17) الميزانية خلصت؟ اخرج فورًا — ZAI بياخد الباقي */
+        if (budgetExceeded()) return null
+        var t = timeoutMs
+        if (mi === 0 && ki === 0 && opts.fastFailFirstMs) t = opts.fastFailFirstMs
+        var result = await streamAttempt(models[mi], keys[ki], opts.parts, generationConfig, t, thinkingMode, opts.onDelta)
         if (result.ok) {
           // (و77) الموديل اللي نجح بقى أول واحد في السلسلة الجاية — fire-and-forget
           cacheSet('working_model', models[mi])
