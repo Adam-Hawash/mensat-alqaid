@@ -676,6 +676,9 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
   }, [videos])
 
   // قفل التسلسل (طلب المستر): الفيديو ميفتحش غير لما اللي قبله يتشاف كامل 100%
+  // (ز22) الفيديو اللي بفلوس = اختياري صامت — مش بيحجب اللي بعده (طلب المستر:
+  // «الفيديو اللي بفلوس يكون اختياري بس متكتبش ان هو اختياري — لو الطالب
+  // مشافش الفيديو اللي بعده يتفتح») — والسيرفر هو الحَكم الدقيق بالوصول الفعلي
   const lockedMap = useMemo(function () {
     var map: Record<string, boolean> = {}
     var prevTrackable: string | null = null
@@ -688,12 +691,14 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
       } else {
         map[v.id] = false
       }
-      if (trackable) prevTrackable = v.id
+      var paidNoAccess = (Number(v.price) || 0) > 0
+      if (trackable && !paidNoAccess) prevTrackable = v.id
     })
     return map
   }, [orderedVideos, mergedProgress, progressLoaded])
 
   // الفيديو اللي قبل كل فيديو (عشان نعرض نسبته على كارت المقفول)
+  // (ز22) نفس قاعدة الاختياري الصامت: المسعّر ما بيعدّش «اللي قبله»
   const prevVideoMap = useMemo(function () {
     var map: Record<string, string> = {}
     var prevTrackable: string | null = null
@@ -701,7 +706,8 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
       var k = videoKindOf(v)
       var trackable = k === 'youtube' || k === 'file'
       if (trackable && prevTrackable) map[v.id] = prevTrackable
-      if (trackable) prevTrackable = v.id
+      var paidNoAccess = (Number(v.price) || 0) > 0
+      if (trackable && !paidNoAccess) prevTrackable = v.id
     })
     return map
   }, [orderedVideos])

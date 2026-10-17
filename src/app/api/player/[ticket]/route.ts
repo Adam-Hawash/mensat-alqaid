@@ -303,12 +303,23 @@ const PLAYER_PAGE = `<!doctype html>
   .wmCard .nm{font-size:clamp(7px,.72vw,8.5px);font-weight:800;unicode-bidi:plaintext;letter-spacing:0;white-space:nowrap}
   .wmCard .sep{opacity:.55;font-size:clamp(6px,.65vw,7.5px)}
   .wmCard .ph{font-size:clamp(6.5px,.68vw,8px);font-weight:700;direction:ltr;unicode-bidi:plaintext;letter-spacing:0;opacity:.92;white-space:nowrap}
-  /* المستطيلات السودة تحت خالص يمين وشمال — تغطية علامة الاشتراك/اللوجو
-     بتاعة يوتيوب تغطية كاملة + بتمنع الدوس عليها (فيه يوتيوب بس) */
-  #ytCoverR{position:absolute;z-index:45;bottom:0;right:0;width:min(215px,34%);height:56px;
-    background:#000;pointer-events:auto}
-  #ytCoverL{position:absolute;z-index:45;bottom:0;left:0;width:min(150px,26%);height:56px;
-    background:#000;pointer-events:auto}
+  /* (ز22) بلوكات العلامات الميتة — شفافة تمامًا، شغلها الوحيد إن الدوس
+     ما توصلش ليوتيوب أبدًا (طلب المستر: «علامة يوتيوب اللي بيدخل للقناة
+     وعلامة اسم القناة ما يكونوش شغالين» + «الزرار اللي بينسخ رابط الفيديو
+     تموتهولي») — نفس قياسات ز21/ز22 على واجهة يوتيوب RTL:
+     • ⚙ الجودة + الصوت + CC في صف الكنترولز السفلي → لسة شغالة (مفيش بلوك عليها)
+     • العنوان + اسم القناة فوق من 33% → ytTitleBlock (ميتة)
+     • لوجو YouTube + «المزيد من الفيديوهات» تحت شمال (0–60%) → ytBrandBlock
+     • زرار الشير تحت يمين (84–100%) → ytShareBlock
+     • حالة الوقف: زرار الشير الدائري العايم + كارت «المزيد» بيطلعوا **فوق
+       خط الشريط** → ytShareHi + ytBrandHi بارتفاعات clamp نسبية
+       (ytBrandHi بيبدأ من 54px عشان زرار ملء الشاشة بتاعنا ما يتغطيش) */
+  #ytTitleBlock{position:absolute;z-index:21;top:0;left:33%;right:0;height:110px;pointer-events:auto;background:transparent}
+  #ytBrandBlock{position:absolute;z-index:46;bottom:0;left:0;width:60%;height:44px;pointer-events:auto;background:transparent}
+  #ytShareBlock{position:absolute;z-index:46;bottom:0;right:0;width:16%;height:44px;pointer-events:auto;background:transparent}
+  #ytShareHi{position:absolute;z-index:46;bottom:44px;right:0;width:20%;height:clamp(64px,16%,90px);pointer-events:auto;background:transparent}
+  #ytBrandHi{position:absolute;z-index:46;bottom:44px;left:54px;width:58%;height:clamp(96px,22%,130px);pointer-events:auto;background:transparent}
+  #fsBtn.hide{opacity:0;pointer-events:none}
   /* درع فوق — **دايمًا شغال** (مش بس وقت الوقف): بيغطي عنوان يوتيوب/اسم القناة/
      زرار الشير اللي بيظهروا وقت الوقف أو بعد التحوال — بديل القص:
      الفيديو كامل 100% والواجهة مستحيل تبان ولا حد يقدر يدوس عليها */
@@ -454,11 +465,22 @@ function ensureTopShield(){
    يوتيوب (فيه يوتيوب بس) — وبتمنع الدوس على اللي تحتها كمان */
 function ensureYtCovers(){
   if(CFG.kind !== 'youtube') return;
-  if(!document.getElementById('ytCoverR')){
-    var r = document.createElement('div'); r.id = 'ytCoverR'; wrap.appendChild(r);
+  /* (ز22) بلوكات العلامات الميتة الشفافة (ز21 + بلوكات الوقف العلوية) —
+     الـself-heal كل 4 ثواني بيرجّعها لو حد شالها */
+  if(!document.getElementById('ytTitleBlock')){
+    var nt = document.createElement('div'); nt.id = 'ytTitleBlock'; wrap.appendChild(nt);
   }
-  if(!document.getElementById('ytCoverL')){
-    var l = document.createElement('div'); l.id = 'ytCoverL'; wrap.appendChild(l);
+  if(!document.getElementById('ytBrandBlock')){
+    var bb = document.createElement('div'); bb.id = 'ytBrandBlock'; wrap.appendChild(bb);
+  }
+  if(!document.getElementById('ytShareBlock')){
+    var sb = document.createElement('div'); sb.id = 'ytShareBlock'; wrap.appendChild(sb);
+  }
+  if(!document.getElementById('ytShareHi')){
+    var sh = document.createElement('div'); sh.id = 'ytShareHi'; wrap.appendChild(sh);
+  }
+  if(!document.getElementById('ytBrandHi')){
+    var bh = document.createElement('div'); bh.id = 'ytBrandHi'; wrap.appendChild(bh);
   }
 }
 /* self-heal: الووترمارك بيرجع يترسم لو حد شاله من الـ DOM */
@@ -801,7 +823,7 @@ function activateFallback(reason){
     f.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;background:#000';
     wrap.appendChild(f);
   }
-  f.src = 'https://www.youtube.com/embed/' + ytId + '?autoplay=1&controls=1&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&cc_load_policy=0&start=' + startS;
+  f.src = 'https://www.youtube.com/embed/' + ytId + '?autoplay=1&controls=1&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&cc_load_policy=0&cc_lang_pref=ar&hl=ar&enablejsapi=1&origin=' + encodeURIComponent(location.origin || 'https://localhost') + '&start=' + startS;
   layoutWrap();
   toast('تمام — الفيديو شغّال دلوقتي ▶');
 }
@@ -994,26 +1016,22 @@ function showCtrl(autohide){ var b=document.getElementById('ytCtrl'); if(!b) ret
 function mountYouTube(){
   var ytId = deobfuscate(CFG.blob, CFG.key);
   if(!ytId){ wrap.innerHTML = '<p style="color:#fca5a5;font-family:sans-serif;padding:24px;direction:rtl">حصل خطأ في تحميل الفيديو</p>'; return; }
+  /* (ز22) الجودة كلها ليوتيوب الأصلي نفسه (controls=1 — قايمة ⚙ الحقيقية
+     زي طلب المستر: «المشغل بتاع يوتيوب هو هو عشان أقدر أتحكم في الجودات»)
+     — كل حارس/قفل/تبديل تيار قديم كان بيتحقق بـ qSel !== 'auto' فبقى
+     ميت تلقائيًا من غير ما نلمس منطق التقدم أو الكابشن أو الووترمارك */
+  qSel = 'auto';
   // الطبقة الداخلية: iframe بيتعمله inject بالجافاسكريبت — مش مكتوب في مصدر الصفحة
-  // **الفيديو كامل 100% من غير أي قص** (طلب المستر) — واجهة يوتيوب بتتغطي
-  // بالدروع (topShield/logoPatch/الوترمارك) مش بقص أطراف الفيديو.
-  // + الجودة (أهم حاجة): الـ iframe بيرندر **بمقاس الصندوق الحقيقي 100%**
-  //   (مفيش transform scale خالص — الخدعة القديمة بمقاس ثابت كانت بتمدد
-  //   البكسلات على الشاشات الكبيرة فالفيديو بيبان ناعم) والجودة نفسها
-  //   بيتفرض عليها بالـ API (حارس + loadVideoById).
-  var ytCrop = document.createElement('div');
-  ytCrop.id = 'ytCrop'; ytCrop.style.cssText = 'position:absolute;width:100%;height:100%;top:0;left:0;overflow:hidden';
+  // (ز22) **المشغل بقى يوتيوب الأصلي نفسه** — controls=1: قايمة الجودة
+  // الحقيقية ⚙ وشريط السحب والسرعة والصوت من يوتيوب مباشرة، وعلامات يوتيوب
+  // (اللوجو/اسم القناة/الشير/كارت «المزيد») ميتة ببلوكات شفافة ز21+ز22.
+  // الووترمارك والدروع وشاشات البداية/النهاية زي ما هي بالظبط.
+  /* (ز22) مفيش سكيلر 1920×1080 — الكنترولز الأصلية لازم تبان بمقاسها
+     الحقيقي (نفس قرار ز21): الـ iframe بمقاس الصندوق الطبيعي 100% */
   var host = document.createElement('div');
   host.id = 'ytHost';
-  /* يرندر 1920×1080 (كحد أدنى) ويصغّر بـ contain — يوتيوب يسمح بـ 1080p+
-     والصورة حادة 100% والفيديو كامل من غير قص */
-  host.style.cssText = 'position:absolute;top:50%;left:50%;width:1920px;height:1080px;transform:translate(-50%,-50%) scale(0.5);transform-origin:center center';
-  ytCrop.appendChild(host);
-  wrap.appendChild(ytCrop);
-  /* إعادة حساب المقاس مع أي تغيير (فتح الصفحة/ملء الشاشة/دوران) */
-  setTimeout(sizeYtHost, 0);
-  setTimeout(sizeYtHost, 300);
-  try{ new ResizeObserver(sizeYtHost).observe(ytCrop); }catch(e){}
+  host.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+  wrap.appendChild(host);
   // شاشة البداية — **صورة الفيديو الحقيقية من يوتيوب** (مش صورة خارجية —
   // طلب المستر: صورة البرواز الدهبي ملهاش علاقة بالمنصة اتشالت خالص)
   // بتغطي أي عنوان/برanding بتاع يوتيوب لحظة التحميل
@@ -1027,103 +1045,24 @@ function mountYouTube(){
   startOv.addEventListener('click', function(){ if(!tapOk()) return; startWithWatchdog(); showCtrl(true); });
   startOv.addEventListener('touchend', function(e){ e.preventDefault(); if(!tapOk()) return; startWithWatchdog(); showCtrl(true); });
   wrap.appendChild(startOv);
-  // طبقة النقر — بتلقط التابات بدل ما توصل ليوتيوب (+ بتقفل قائمة الجودة)
-  var tap = document.createElement('div'); tap.id='tapLayer';
-  function closeQMenu(){ var m = document.getElementById('qMenu'); if(m) m.style.display = 'none'; }
-  tap.addEventListener('click', function(){
-    if(!tapOk()) return;
-    closeQMenu();
-    try{ if(playerApi&&playerApi.getPlayerState){ if(playerApi.getPlayerState()===YT.PlayerState.PLAYING) playerApi.pauseVideo(); else startWithWatchdog(); } }catch(e){}
-    showCtrl(true);
-  });
-  wrap.appendChild(tap);
-  // شاشة التوقف (بتغطي أي حاجة يوتيوب بيعرضها وقت الوقوف)
-  var centerOv = document.createElement('div'); centerOv.id='centerOv'; centerOv.innerHTML='<div class="big">'+svgPlay()+'</div>';
-  wrap.appendChild(centerOv);
-  // باتش صغير فوق مكان لوجو يوتيوب (لو ظهر) — بلور + تعتيم + ووترمارك مكانه
-  var patch = document.createElement('div'); patch.id='logoPatch';
-  patch.innerHTML = '<span>🔒 محتوى محمي</span>';
-  wrap.appendChild(patch);
-  // باتش الركن تحت الشمال — تغطية أي علامة يوتيوب/شير ممكن تظهر هناك
-  // (الكارت الصغير باسم الطالب فوقيه مباشرة — طلب المستر 2026-ح)
-  var blp = document.createElement('div'); blp.id='blPatch';
-  wrap.appendChild(blp);
-  // باتش الركن العلوي (فوق يمين) — طلب المستر 2026-ز: علامة الشير و
-  // "Watch on YouTube" اللي بيوتيوب بيعرضهم فوق يمين وقت فتح/وقف الفيديو
-  // **متشالوش ولا حد يقدر يدوس عليهم** — متغطيين بباتش عليه ووترمارك
-  // (من غير أي قص للفيديو — طبقة فوق بس)
-  var trp = document.createElement('div'); trp.id='topRightPatch';
-  trp.innerHTML = '<span>🔒 محتوى محمي</span>';
-  wrap.appendChild(trp);
+  /* (ز22) زرار ملء الشاشة بتاعنا فوق الشريط الأصلي — ملء الشاشة الأصلي
+     مقفول (fs:0) عشان الووترمارك والدروع تفضل شغالة جوه ملء الشاشة،
+     وبيختفي وقت التشغيل وييجي مع الوقف (زي ز21) */
+  var fsb = document.createElement('button');
+  fsb.id = 'fsBtn'; fsb.type = 'button'; fsb.setAttribute('aria-label','ملء الشاشة');
+  fsb.style.cssText = 'position:absolute;bottom:calc(44px + 10px);left:10px;z-index:50;width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.18);cursor:pointer;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;opacity:.8;transition:opacity .3s ease';
+  fsb.innerHTML = svgFs();
+  fsb.addEventListener('click', function(e){ e.stopPropagation(); toggleFs(); });
+  wrap.appendChild(fsb);
   // شاشة النهاية (بتغطي شاشة يوتيوب النهائية بالعنوان)
   var endOv = document.createElement('div'); endOv.id='endOv';
   endOv.innerHTML = '<p>🎉 خلصت الفيديو — برافو عليك!</p><button type="button" id="replayBtn">شوفه تاني ↺</button>';
   wrap.appendChild(endOv);
-  // كنترولز بتاعتنا: تشغيل/إيقاف + شريط تقدم + الوقت + الجودة + ملء الشاشة
-  var bar = document.createElement('div'); bar.id='ytCtrl';
-  bar.innerHTML = '<button id="ppBtn" type="button" aria-label="تشغيل/إيقاف">'+svgPlay()+'</button>' +
-    '<input id="seek" type="range" min="0" max="1000" step="1" value="0" aria-label="شريط التقدم">' +
-    '<span id="tTime">0:00 / 0:00</span>' +
-    '<button id="qBtn" type="button" aria-label="جودة الفيديو" aria-haspopup="menu"><span id="qLbl">480p</span></button>' +
-    '<button id="fsInBar" type="button" aria-label="ملء الشاشة">'+svgFs()+'</button>';
-  wrap.appendChild(bar);
-  // قائمة الجودة — بتعرض المستويات الموجودة فعلًا في الفيديو + ملاحظة صادقة
-  // لو أعلى جودة في المصدر ضعيفة (الملف الأصلي على يوتيوب مرفوع بجودة ضعيفة)
-  var qMenu = document.createElement('div'); qMenu.id = 'qMenu'; qMenu.style.display = 'none';
-  wrap.appendChild(qMenu);
-  function buildQMenu(){
-    var html = '';
-    html += '<button type="button" data-q="top" class="'+(qSel==='top'?'on':'')+'"><span>عالية (الأعلى المتاح)</span>'+(qSel==='top'?'<span>✓</span>':'')+'</button>';
-    html += '<button type="button" data-q="auto" class="'+(qSel==='auto'?'on':'')+'"><span>تلقائي</span>'+(qSel==='auto'?'<span>✓</span>':'')+'</button>';
-    var ls = [];
-    try{ ls = playerApi && playerApi.getAvailableQualityLevels ? playerApi.getAvailableQualityLevels() : []; }catch(e){}
-    for(var i=0;i<ls.length;i++){
-      var qq = ls[i];
-      if(!qq || qq === 'auto' || qq === 'default') continue;
-      html += '<button type="button" data-q="'+qq+'" class="'+(qSel===qq?'on':'')+'"><span dir="ltr">'+qLabel(qq)+'</span>'+(qSel===qq?'<span>✓</span>':'')+'</button>';
-    }
-    var best = highestAvail();
-    var lowMap = { large:'480p', medium:'360p', small:'240p', tiny:'144p' };
-    if(best && lowMap[best]) html += '<div class="note">أعلى جودة متاحة في الفيديو ده: '+qLabel(best)+' — دي حدود الملف الأصلي على يوتيوب</div>';
-    qMenu.innerHTML = html;
-    var btns = qMenu.getElementsByTagName('button');
-    for(var j=0;j<btns.length;j++){
-      (function(btn){
-        btn.addEventListener('click', function(e){
-          e.stopPropagation();
-          var q = btn.getAttribute('data-q') || 'top';
-          qSel = q; lastQAssert = Date.now();
-          qLowSince = 0; qHardTries = 0; /* اختيار جديد = ميزانية محاولات جديدة */
-          if(q === 'auto'){
-            /* تلقائي = تحرير الجودة ليوتيوب يظبطها لوحده */
-            applyQ();
-          } else {
-            /* (2026-و) اختيار الطالب بيده = **تبديل تيار حقيقي** بـ
-               loadVideoById + suggestedQuality (الـ API القديم مبتغيرش
-               التيار فعلًا — ده اللي كان بيخلي الرقم بيتغير كتابيًا بس) */
-            var tgt = (q === 'top') ? highestAvail() : resolveLockLevel(q);
-            switchQ(tgt);
-          }
-          updateQBtn();
-          qMenu.style.display = 'none';
-        });
-      })(btns[j]);
-    }
-  }
-  var qBtn = document.getElementById('qBtn');
-  qBtn.addEventListener('click', function(e){
-    e.stopPropagation();
-    var open = qMenu.style.display === 'flex';
-    if(open){ qMenu.style.display = 'none'; }
-    else { buildQMenu(); qMenu.style.display = 'flex'; showCtrl(false); }
-  });
-  var pp = document.getElementById('ppBtn');
-  pp.addEventListener('click', function(e){ e.stopPropagation(); if(!tapOk()) return; try{ if(ytState()===1) playerApi.pauseVideo(); else startWithWatchdog(); }catch(err){} showCtrl(true); });
-  document.getElementById('fsInBar').addEventListener('click', function(e){ e.stopPropagation(); toggleFs(); });
+  /* (ز22) الشريط المخصص (ytCtrl) وقايمة الجودة القديمة اتنشالوا من يوتيوب —
+     الكنترولز الأصلية (controls=1) هي اللي شغالة: قايمة الجودة الحقيقية
+     ⚙ + شريط السحب + السرعة + الصوت من يوتيوب مباشرة زي ما المستر طلب.
+     عناصر شاشة النهاية وزرار الملء والووترمارك والدروع زي ما هي */
   document.getElementById('replayBtn').addEventListener('click', function(e){ e.stopPropagation(); try{ playerApi.seekTo(0,true); playerApi.playVideo(); }catch(err){} });
-  var seekEl = document.getElementById('seek');
-  seekEl.addEventListener('input', function(){ seekDragging = true; try{ var d=playerApi.getDuration()||0; document.getElementById('tTime').textContent = fmtT(seekEl.value/1000*d) + ' / ' + fmtT(d); }catch(e){} });
-  seekEl.addEventListener('change', function(){ try{ var d=playerApi.getDuration()||0; if(d) playerApi.seekTo(seekEl.value/1000*d, true); }catch(e){} seekDragging=false; showCtrl(true); });
   /* (2026-ط) تحميل API يوتيوب بلا استسلام: الكولباك بيتحدد قبل حقن السكريبت
      (قفل سباق التحميل)، والتحميل بيتجدد كل 3 ثواني بالتبديل بين المضيفين
      (www ↔ nocookie) مع كسر الكاش — مفيش "بيتجهز للأبد" خالص: إما API يجهز
@@ -1155,7 +1094,8 @@ function buildPlayer(){
     width: '100%',
     height: '100%',
     // controls:0 → مفيش أي واجهة يوتيوب (لا عنوان لا لوجو لا حاجة) — كل الكنترولز بتاعنا
-    playerVars: (function(){ var pv = { autoplay:1, controls:0, rel:0, modestbranding:1, playsinline:1, iv_load_policy:3, cc_load_policy:0, fs:0, disablekb:1, enablejsapi:1, origin: location.origin }; try{ if(qSel !== 'auto'){ pv.vq = (qSel === 'top') ? 'highres' : qSel; } }catch(ePV){} return pv; })(),
+    /* (ز22) controls=1 — كنترولز يوتيوب الأصلية (قايمة الجودة الحقيقية) + من غير disablekb */
+    playerVars: (function(){ var pv = { autoplay:1, controls:1, rel:0, modestbranding:1, playsinline:1, iv_load_policy:3, cc_load_policy:0, fs:0, enablejsapi:1, origin: location.origin }; try{ if(qSel !== 'auto'){ pv.vq = (qSel === 'top') ? 'highres' : qSel; } }catch(ePV){} return pv; })(),
     events: {
       onReady: function(ev){
         /* تكملة المشاهدة بنأجلها لأول لحظة تشغيل فعلية — أعلى أمان على الموبايل
@@ -1215,10 +1155,13 @@ function buildPlayer(){
             var so=document.getElementById('startOv'); if(so) so.style.display='none';
             var eo=document.getElementById('endOv'); if(eo) eo.style.display='none';
             setPP(true); showCtrl(true); wmRun(true);
+            try{ var fbP = document.getElementById('fsBtn'); if(fbP) fbP.classList.add('hide'); }catch(eFb){}
           } else if(ev.data === YT.PlayerState.PAUSED){
             setPP(false); showCtrl(false); wmRun(false);
+            try{ var fbPa = document.getElementById('fsBtn'); if(fbPa) fbPa.classList.remove('hide'); }catch(eFb2){}
           } else if(ev.data === YT.PlayerState.ENDED){
             setPP(false); wmRun(false);
+            try{ var fbE = document.getElementById('fsBtn'); if(fbE) fbE.classList.remove('hide'); }catch(eFb3){}
             var eo2=document.getElementById('endOv'); if(eo2) eo2.style.display='flex';
             /* رجوع للبداية + وقوف → شاشة اقتراحات يوتيوب عمرها ما بتترسم */
             try{ playerApi.seekTo(0,true); playerApi.pauseVideo(); }catch(e){}
