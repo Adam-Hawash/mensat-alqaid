@@ -104,6 +104,10 @@ export async function ensureVideoTable(force = false): Promise<void> {
       ['fileType', 'TEXT', "DEFAULT ''"],
       ['thumbnail', 'TEXT', "DEFAULT ''"],
       ['price', 'REAL', 'DEFAULT 0'],
+      // (ز18-ب) أعمدة الدروس متعددة الأجزاء + الترتيب
+      ['groupKey', 'TEXT', "DEFAULT ''"],
+      ['orderIndex', 'INTEGER', 'DEFAULT 0'],
+      ['sortIndex', 'INTEGER', 'DEFAULT 0'],
     ]
     for (var i = 0; i < cols.length; i++) {
       try {

@@ -78,6 +78,10 @@ var SCHEMA_COLUMNS = [
   // مطلوب قبل أي findMany — Prisma بيفصل كل الأعمدة المعلنة في السكيما
   ['Student', 'groupId', 'TEXT', "DEFAULT ''"],
   ['Video', 'price', 'REAL', 'DEFAULT 0'],
+  // (ز18-ب) أعمدة الدروس متعددة الأجزاء + الترتيب
+  ['Video', 'groupKey', 'TEXT', "DEFAULT ''"],
+  ['Video', 'orderIndex', 'INTEGER', 'DEFAULT 0'],
+  ['Video', 'sortIndex', 'INTEGER', 'DEFAULT 0'],
   ['Video', 'fileType', 'TEXT', "DEFAULT ''"],
   ['Video', 'thumbnail', 'TEXT', "DEFAULT ''"],
   ['Homework', 'questions', 'TEXT', "DEFAULT ''"],
@@ -242,7 +246,7 @@ export var CORE_TABLES = ['Admin', 'Student', 'StudentActivity', 'Video', 'Homew
  * ChallengeAttempt/FlashcardCard) دخلوا SCHEMA_TABLES + CORE_TABLES + أعمدة
  * السباق الفردي دخلوا SCHEMA_COLUMNS — نفس الدرس الموثق: من غير البَمب
  * جداول الساحة مش هتتعمل على قواعد Turso الموجودة أول ريكوست بعد النشر. */
-var SCHEMA_HASH_KEY = 'schema_heal_hash_v2_arena_z13'
+var SCHEMA_HASH_KEY = 'schema_heal_hash_v2_z18b_video_price'
 /* ============================================================
  * 2026-و23 — **إصلاح بطء المنصة**: كل إقلاع سيرفر كان بيشغّل ~70
  * استعلام متسلسل على Turso (ALTERs فاشلة + UPDATEs) — بقى فحص بصمة

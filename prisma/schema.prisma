@@ -84,6 +84,10 @@ model Video {
   thumbnail String   @default("")
   grade     String
   price     Float    @default(0)
+  // (ز18-ب) دروس متعددة الأجزاء + ترتيب — محاذاة باقي المنصات
+  groupKey  String   @default("")
+  orderIndex Int     @default(0)
+  sortIndex  Int     @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
