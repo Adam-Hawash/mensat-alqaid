@@ -1408,6 +1408,7 @@ function VideoManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
         </div>
       )}
 
+
       {/* (2026-و29) نافذة جدولة المجموعات — كل مجموعة بميعادها، والفيديو مخفي قبل الميعاد بدون عداد */}
       {selectedVideoForGroups && (
         <VideoGroupScheduleDialog
