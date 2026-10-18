@@ -28,6 +28,7 @@ import { VideoProtectionSettings } from './VideoProtectionSettings'
 import { SocialLinksPanel } from './SocialLinksPanel'
 /* (2026-و29) نظام المجموعات — تاب + منتقيات الاستهداف للمجموعات + جدولة فيديو للمجموعات */
 import { GroupsManager } from './GroupsManager'
+import { ParentsManager } from './ParentsManager'
 import { AdminItemAnalytics } from './AdminItemAnalytics'
 import { GroupTargetPicker } from './GroupTargetPicker'
 import { VideoGroupScheduleDialog } from './VideoGroupScheduleDialog'
@@ -409,6 +410,8 @@ export function AdminDashboard() {
         <Tabs value={adminTab} onValueChange={setAdminTab} className="space-y-6">
           <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
             <TabsTrigger value="students" className="text-xs sm:text-sm gap-1"><Users className="h-4 w-4" /><span className="hidden sm:inline">الطلاب</span></TabsTrigger>
+            {/* (2026-ز19) تاب أولياء الأمور — مين موجود ومين ابنه — زي وائل */}
+            <TabsTrigger value="parents" className="text-xs sm:text-sm gap-1"><UserCheck className="h-4 w-4" /><span className="hidden sm:inline">أولياء الأمور</span></TabsTrigger>
             {/* (2026-و29) تاب المجموعات — طلب المستر: تقسيم الطلاب مجموعات بأسماء الأيام */}
             <TabsTrigger value="groups" className="text-xs sm:text-sm gap-1"><UsersRound className="h-4 w-4" /><span className="hidden sm:inline">المجموعات</span></TabsTrigger>
             <TabsTrigger value="my-students" className="text-xs sm:text-sm gap-1"><BarChart3 className="h-4 w-4" /><span className="hidden sm:inline">طلابي</span></TabsTrigger>
@@ -435,6 +438,8 @@ export function AdminDashboard() {
           </TabsList>
 
           <TabsContent value="students"><StudentsManager onStatsRefresh={fetchStats} /></TabsContent>
+          {/* (2026-ز19) تاب أولياء الأمور */}
+          <TabsContent value="parents"><ParentsManager adminId={(currentAdmin && currentAdmin.id) || ''} /></TabsContent>
           {/* (2026-و29) تاب المجموعات — طلب المستر: تقسيم الطلاب مجموعات بأسماء الأيام */}
           <TabsContent value="groups"><GroupsManager /></TabsContent>
           <TabsContent value="my-students"><MyStudentsPanel /></TabsContent>          <TabsContent value="videos"><VideoManager onStatsRefresh={fetchStats} /></TabsContent>
