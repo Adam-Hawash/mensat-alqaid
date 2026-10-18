@@ -317,8 +317,8 @@ const PLAYER_PAGE = `<!doctype html>
   #ytTitleBlock{position:absolute;z-index:21;top:0;left:33%;right:0;height:110px;pointer-events:auto;background:transparent}
   #ytBrandBlock{position:absolute;z-index:46;bottom:0;left:0;width:60%;height:44px;pointer-events:auto;background:transparent}
   #ytShareBlock{position:absolute;z-index:46;bottom:0;right:0;width:16%;height:44px;pointer-events:auto;background:transparent}
-  #ytShareHi{position:absolute;z-index:46;bottom:44px;right:0;width:20%;height:clamp(64px,16%,90px);pointer-events:auto;background:transparent}
-  #ytBrandHi{position:absolute;z-index:46;bottom:44px;left:54px;width:58%;height:clamp(96px,22%,130px);pointer-events:auto;background:transparent}
+  #ytShareHi{position:absolute;z-index:46;bottom:44px;right:0;width:16%;height:clamp(48px,14%,72px);pointer-events:auto;background:transparent}
+  #ytBrandHi{position:absolute;z-index:46;bottom:44px;left:54px;width:24%;height:clamp(56px,16%,84px);pointer-events:auto;background:transparent}
   #fsBtn.hide{opacity:0;pointer-events:none}
   /* درع فوق — **دايمًا شغال** (مش بس وقت الوقف): بيغطي عنوان يوتيوب/اسم القناة/
      زرار الشير اللي بيظهروا وقت الوقف أو بعد التحوال — بديل القص:

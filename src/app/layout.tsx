@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { RadixDirection } from "@/components/RadixDirection";
 import { AIAssistant } from "@/components/student/AIAssistant";
 import { RecordingGuard } from "@/components/RecordingGuard";
 import { DevToolsGuard } from "@/components/DevToolsGuard";
@@ -99,7 +100,7 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
         style={{ fontFamily: "Cairo, sans-serif" }}
       >
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider><RadixDirection>{children}</RadixDirection></ThemeProvider>
         {/* (و47) المساعد الذكي رجع زي ما كان — المستر طلبه بنفس المميزات (شيرين بس هي اللي اتشالت) */}
         <AIAssistant />
         {/* حماية عامة من التسجيل/التصوير + أدوات المطوّر في كل الصفحات */}
