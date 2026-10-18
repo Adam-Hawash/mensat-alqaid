@@ -14,14 +14,20 @@
 //                related-videos end screen)
 //          - NO native controls, NO keyboard shortcuts, NO right-click
 //          - Settings (gear) button → video quality control
-//            (عالية [DEFAULT = أعلى جودة متاحة فعلًا في المصدر] / تلقائي /
-//             كل المستويات المتاحة حقيقيًا في الفيديو)
-//            الافتراضي = **أعلى جودة موجودة فعلًا على يوتيوب** (طلب المستر:
-//            الجودة تبقى عالية) والطالب يقدر يغيّر من القائمة وده **بيشتغل
-//            فعلًا** (إعادة تحميل التيار بالمستوى المختار). ملاحظة صادقة:
+//            (2026-ص4 — طلب المستر الحرفي: "الجودة تكون موجودة في الفيديو
+//            زي ما نازل على اليوتيوب" — زي مشغل يوتيوب الأصلي المعتمد):
+//            **الجودة مثبتة على 720p افتراضيًا** والقايمة فيها بس "عالية" +
+//            المستويات الحقيقية من 720 وطالع — **مفيش تلقائي ومفيش أي مستوى
+//            أقل من 720** (360/480 اتنشالوا خالص من القايمة) فالفيديو مش
+//            بينزل تحت 720 على أي جهاز ولا بأي شبكة. ملاحظة صادقة:
 //            لو الفيديو نفسه مرفوع على يوتيوب بجودة ضعيفة (مثلاً 360p بس)
 //            القائمة بتوضّح إن دي حدود الملف الأصلي — مفيش مشغل يقدر يخترع
 //            بكسلات مش موجودة في المصدر.
+//          - VIDEO DURATION: المدة بتظهر في 3 أماكن (طلب المستر 2026-د:
+//            "اكتب وقت الفيديو في الشريط ولما يتجاب يعرفوا الفيديو قد إيه"):
+//              ① شيب ⏱ على صورة الغلاف من أول لحظة قبل التشغيل
+//              ② في الشريط: الوقت الحالي / المدة الكلية دايمًا
+//              ③ بادج ⏱ على كروت الفيديوهات في القايمة (durationSec مخزنة)
 //          - RESUME: on open the player fetches the saved progress for this
 //            student+video and seeks there — progress is CUMULATIVE (max ever
 //            reached), re-watching the start can never pull the % back down.
@@ -63,9 +69,17 @@ function loadYouTubeAPI(): Promise<any> {
 
 function formatTime(sec: number) {
   if (!sec || !isFinite(sec)) return '0:00'
-  var m = Math.floor(sec / 60)
-  var s = Math.floor(sec % 60)
-  return m + ':' + String(s).padStart(2, '0')
+  var s = Math.floor(sec)
+  var h = Math.floor(s / 3600)
+  var m = Math.floor((s % 3600) / 60)
+  var ss = s % 60
+  /* الفيديوهات الطويلة (>ساعة) بتظهر 1:05:10 بدل 65:10 — أوضح للطالب */
+  if (h > 0) return h + ':' + String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0')
+  return m + ':' + String(ss).padStart(2, '0')
+}
+/* تنسيق مدة كارت الفيديو (بادج ⏱) */
+function fmtDur(sec: number): string {
+  return formatTime(sec)
 }
 
 /* ---------- Quality helpers ---------- */
@@ -76,9 +90,31 @@ function qualityLabel(q: string): string {
   var map: any = { highres: '2160p+', hd2160: '2160p', hd1440: '1440p', hd1080: '1080p', hd720: '720p', large: '480p', medium: '360p', small: '240p', tiny: '144p' }
   return map[q] || q
 }
+/* الجودة (أهم حاجة للمستر — 2026-ز): **الإصلاح الجذري لمشكلة "الجودة مش
+   بتعلى" على الموبايل**. يوتيوب بيحدد سقف الجودة بمقاس الـ iframe نفسه:
+   مقاس 1280×720 = أقصى تيار 720p حتى لو الفيديو الأصلي 1080p (ده كان
+   بيحصل على الموبايل لأن الصندوق أصغر من 640 فكان بيرندر 1280×720).
+   **الحل: الـ iframe بيرندر دايمًا 1920×1080 على أي جهاز** (حتى لو الصندوق
+   صغير) — يوتيوب يسمح بتيار 1080p فعلًا، والتصغير بـ CSS scale (contain)
+   بيحافظ على الحدة 100% (supersampling) ومفيش أي قص للفيديو. */
+
+/* ===== الجودة — أحدث قرار للمستر (2026-م) =====
+   الطلب الحرفي: "clicking 360p/480p/720p/1080p must dynamically and actively
+   switch the active video stream source" + "videos load in low quality
+   despite being uploaded in high resolution — fix this completely".
+   1) **الافتراضي = أعلى جودة متاحة** (top) من أول لحظة — علاج الفتح بجودة واطية.
+   2) أي اختيار من القائمة → **تبديل تيار حقيقي فوري** loadVideoById بـ
+      suggestedQuality بنفس الثانية + إعادة تثبيت النطاق بعد التحميل.
+   3) سلم التصعيد لو يوتيوب تجاهل الأمر (بدون لوب):
+      a) setPlaybackQualityRange + setPlaybackQuality كل 2.5 ثانية
+      b) بعد 8 ثواني عدم مطابقة → forceQuality (سيك صغير بيطلب تيار جديد)
+      c) بعد 25 ثانية → تبديل تيار حقيقي loadVideoById (سقف 3 + كولداون 30 ثانية)
+   4) **الرقم المعروض = الجودة الحقيقية الحية** من getPlaybackQuality.
+   5) الترجمة (CC): متقفلة افتراضيًا تمامًا + زرار CC جنب زرار الجودة
+      + زرار C بيفتح/يقفل (طلب المستر الحرفي 2026-م). */
+var Q_RANK: any = { highres: 10, hd2160: 10, hd1440: 9, hd1080: 8, hd720: 7, large: 6, medium: 5, small: 4, tiny: 3 }
 /* أعلى جودة متاحة فعلًا في الفيديو — يوتيوب بيرجّع القائمة مرتبة من الأعلى
-   للأقل (وآخر عنصر 'auto'). لو الملف الأصلي مرفوع بجودة ضعيفة، دي أعلى
-   حاجة هتظهر — وده حدود المصدر مش حدود المشغل. */
+   للأقل (وآخر عنصر 'auto'). */
 function highestAvailable(p: any): string {
   try {
     var levels = p && p.getAvailableQualityLevels ? p.getAvailableQualityLevels() : []
@@ -88,17 +124,29 @@ function highestAvailable(p: any): string {
   } catch (e) {}
   return 'hd720'
 }
-/* الجودة (أهم حاجة للمستر — 2026-ز): **الإصلاح الجذري لمشكلة "الجودة مش
-   بتعلى" على الموبايل**. يوتيوب بيحدد سقف الجودة بمقاس الـ iframe نفسه:
-   مقاس 1280×720 = أقصى تيار 720p حتى لو الفيديو الأصلي 1080p (ده كان
-   بيحصل على الموبايل لأن الصندوق أصغر من 640 فكان بيرندر 1280×720).
-   **الحل: الـ iframe بيرندر دايمًا 1920×1080 على أي جهاز** (حتى لو الصندوق
-   صغير) — يوتيوب يسمح بتيار 1080p فعلًا، والتصغير بـ CSS scale (contain)
-   بيحافظ على الحدة 100% (supersampling) ومفيش أي قص للفيديو. */
-
-/* ============================================================
- * ProtectedYouTubePlayer — the player box (aspect-video parent)
- * ============================================================ */
+/* المستوى الفعلي المفروض: لو المستوى المطلوب موجود في الفيديو → هو؛
+   لو مش موجود → **أقرب مستوى فوقه الأول** (سياسة المستر 2026-د: الجودة
+   متنزلش تحت المطلوب أبدًا)، ولو مفيش أعلى خالص → أعلى مستوى من تحت */
+function resolveLockLevel(p: any, wanted: string): string {
+  try {
+    var levels = p && p.getAvailableQualityLevels ? p.getAvailableQualityLevels() : []
+    var clean: string[] = []
+    for (var i = 0; i < levels.length; i++) {
+      if (levels[i] && levels[i] !== 'auto' && levels[i] !== 'default' && STANDARD_QUALITIES.indexOf(levels[i]) >= 0) clean.push(levels[i])
+    }
+    if (clean.indexOf(wanted) >= 0) return wanted
+    if (clean.length === 0) return wanted
+    var wr = Q_RANK[wanted] || 0
+    var above: string | null = null
+    var below: string | null = null
+    for (var j = 0; j < clean.length; j++) {
+      var r = Q_RANK[clean[j]] || 0
+      if (r > wr && (above === null || r < (Q_RANK[above] || 0))) above = clean[j]
+      if (r < wr && (below === null || r > (Q_RANK[below] || 0))) below = clean[j]
+    }
+    return above || below || wanted
+  } catch (e) { return wanted }
+}
 export function ProtectedYouTubePlayer({
   ytId,
   poster,
@@ -146,14 +194,26 @@ export function ProtectedYouTubePlayer({
   const mutedFallbackRef = useRef(false)
   const [needsUnmute, setNeedsUnmute] = useState(false)
 
-  /* ===== منع التسجيل (طلب المستر 2026-ز) =====
-     • Win/⌘ + Shift + R (تسجيل ويندوز) → رسالة "التسجيل ممنوع"
-     • Win/⌘ + Shift + S (أداة القص) → رسالة "التسجيل ممنوع"
+  /* ===== الترجمة (CC) — متقفلة افتراضيًا تمامًا + زرار CC + زر C
+     (طلب المستر الحرفي 2026-م: "Add a dedicated caption toggle button next
+     to the settings/quality icon + bind the 'C' key to toggle captions.
+     Captions must be completely disabled by default on load") ===== */
+  const [captionsOn, setCaptionsOn] = useState(false)
+  const captionsOnRef = useRef(false)
+  const ccPickTimerRef = useRef<any>(null)
+  const toggleCaptionsRef = useRef<() => void>(() => {})
+
+  /* ===== منع التسجيل (طلب المستر 2026-م) =====
+     • كليك يمين → "كليك يمين ممنوع"
+     • Ctrl+U / Ctrl+S / F12 / **F10 صراحةً (event.key === 'F10')** /
+       Ctrl+Shift+I/J/K + Ctrl+Shift+R/S → "الخاصية دي ممنوعة"
+       (طلب المستر الحرفي: "actively block Right-Click, F12, Ctrl+U, and
+       explicitly intercept and prevent the F10 key")
+     • كل زرار function من F1 لـ F12 ممنوع
      • زرار PrintScreen → محاولة تفريغ الحافظة + رسالة
-     • كليك يمين ممنوع
-     ملاحظة حقيقية: اختصارات النظام نفسها فوق صلاحية المتصفح — لكن
-     بنكتشف المحاولة ونبعت التحذير فورًا، والووترمارك باسم الطالب ورقمه
-     على الفيديو نفسه هو الخصم الحقيقي لأي صورة/فيديو مسرب. */
+     • زرار C لوحده = مفتاح الترجمة (CC) — مش ممنوع (طلب المستر 2026-م)
+     ملاحظة حقيقية: اختصارات النظام نفسها (Win+Shift+S/R للقص) فوق صلاحية
+     المتصفح — والووترمارك باسم الطالب ورقمه هو الخصم الحقيقي لأي تسريب. */
   const [recMsg, setRecMsg] = useState('')
   const recTimerRef = useRef<any>(null)
   function warnRecording(msg: string) {
@@ -164,21 +224,54 @@ export function ProtectedYouTubePlayer({
   useEffect(function () {
     function onKey(e: KeyboardEvent) {
       var k = (e.key || '').toLowerCase()
-      var metaPressed = !!(e.metaKey || e.key === 'OS' || e.key === 'Meta' || e.keyCode === 91 || e.keyCode === 92)
-      if (metaPressed && e.shiftKey && (k === 'r' || k === 's')) {
+      /* زرار C لوحده = مفتاح الترجمة (CC) — طلب المستر الحرفي 2026-م */
+      if (k === 'c' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         e.preventDefault()
-        warnRecording('🚫 التسجيل ممنوع')
+        e.stopPropagation()
+        if (typeof toggleCaptionsRef.current === 'function') toggleCaptionsRef.current()
+        return
+      }
+      /* F10 صراحةً بـ event.key — طلب المستر الحرفي (2026-م):
+         "explicitly intercept and prevent the F10 key" */
+      if (e.key === 'F10') {
+        e.preventDefault()
+        warnRecording('🛡️ الخاصية دي ممنوعة')
+        return
+      }
+      /* Ctrl+U / Ctrl+S — عرض المصدر/حفظ الصفحة ممنوعين (طلب المستر الحرفي) */
+      if ((e.ctrlKey || e.metaKey) && (k === 'u' || k === 's')) {
+        e.preventDefault()
+        warnRecording('🛡️ الخاصية دي ممنوعة')
+        return
+      }
+      /* أدوات المطور — Ctrl/Cmd + Shift + I/J/K */
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (k === 'i' || k === 'j' || k === 'k')) {
+        e.preventDefault()
+        warnRecording('🛡️ الخاصية دي ممنوعة')
+        return
+      }
+      /* Ctrl + Shift + R / S — إعادة تحميل عنيدة / أداة القص في متصفحات كتير */
+      if (e.ctrlKey && e.shiftKey && (k === 'r' || k === 's')) {
+        e.preventDefault()
+        warnRecording('🛡️ الخاصية دي ممنوعة')
+        return
+      }
+      /* كل زرار function من F1 لـ F12 (فيهم F10 وF12) ممنوع */
+      if (/^f([1-9]|1[0-2])$/.test(k)) {
+        e.preventDefault()
+        warnRecording('🛡️ الخاصية دي ممنوعة')
+        return
       }
       if (k === 'printscreen' || e.keyCode === 44) {
-        warnRecording('🚫 التسجيل ممنوع')
+        warnRecording('🛡️ الخاصية دي ممنوعة')
         try {
-          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText('🔒 المحتوى محمي — Math Genius').catch(function () {})
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText('🔒 المحتوى محمي — منصة القائد').catch(function () {})
         } catch (err) {}
       }
     }
     function onCtx(e: MouseEvent) {
       e.preventDefault()
-      warnRecording('🚫 التسجيل ممنوع — كليك يمين مقفول')
+      warnRecording('🚫 كليك يمين ممنوع')
     }
     window.addEventListener('keydown', onKey, true)
     document.addEventListener('contextmenu', onCtx, true)
@@ -231,23 +324,77 @@ export function ProtectedYouTubePlayer({
   /* resume + cumulative progress state */
   const savedSecondsRef = useRef(0)
   const maxSeenRef = useRef(0)
+  /* تقرير مدة الفيديو (مرة واحدة) — عشان بادج ⏱ على الكروت (طلب المستر 2026-د) */
+  const durationReportedRef = useRef(false)
 
-  /* quality settings state — DEFAULT: 'top' = أعلى جودة متاحة فعلًا في المصدر
-     (طلب المستر: الجودة تبقى عالية). الطالب يقدر يختار من القائمة واختياره
-     بيتنفذ فعلًا (إعادة تحميل التيار بالمستوى). */
+  /* quality settings state — DEFAULT: **مثبتة على 720p** (طلب المستر الحرفي
+     2026-د: "ثبتها لي حتى 720 — ال360 وحشة جدا — الفيديوهات بتبقى 720
+     وبتبقى 360 وأنا مش فاهم"). القايمة من غير تلقائي ومن غير أي مستوى تحت
+     720 — فالفيديو مش بينزل تحت 720 أبدًا (لو المصدر نفسه أقل، البادج
+     الصادق في القايمة بيوضّح حدود الملف الأصلي). */
   const [qualityLevels, setQualityLevels] = useState<string[]>([])
   const [selectedQuality, setSelectedQuality] = useState<string>('top')
   const [showQualityMenu, setShowQualityMenu] = useState(false)
-  /* الجودة الفعلية الشغالة دلوقتي — عشان زرار الجودة يعرض الحقيقة
-     (مثلاً "1080p" تظهر بس لما التيار يكون 1080p فعلًا) */
+  /* الجودة الفعلية الشغالة دلوقتي — عشان زرار الجودة يعرض **الحقيقة**
+     من getPlaybackQuality (مش الاختيار الورقي — ده كان سبب
+     "الجودة بتتغير كتابيا بس") */
   const [actualQuality, setActualQuality] = useState<string>('')
   const selectedQualityRef = useRef('top')
   const lastQualityApplyRef = useRef(0)
   const mismatchSinceRef = useRef(0)
   const lastHardReloadRef = useRef(0)
+  const earlyPinnedRef = useRef(false)
 
   useEffect(function () { selectedQualityRef.current = selectedQuality }, [selectedQuality])
   useEffect(function () { onWatchRef.current = onWatch }, [onWatch])
+
+  /* ===== الترجمة (CC) — المحرك: افتراضي متقفل، والطالب يفتحه/يقفله ===== */
+  function applyCcTrack(p: any): boolean {
+    try {
+      var tl = p && p.getOption ? (p.getOption('captions', 'tracklist') || []) : []
+      if (tl && tl.length) {
+        var t = tl[0]
+        for (var i = 0; i < tl.length; i++) {
+          var lc = String((tl[i] && tl[i].languageCode) || '').toLowerCase()
+          if (lc.indexOf('ar') === 0) { t = tl[i]; break }
+        }
+        p.setOption('captions', 'track', t)
+        return true
+      }
+    } catch (e) {}
+    return false
+  }
+
+  function toggleCaptions() {
+    var p = playerRef.current
+    if (!p || !p.loadModule) { warnRecording('المشغل بيتجهز… جرب تاني بعد ثانية'); return }
+    var next = !captionsOnRef.current
+    captionsOnRef.current = next
+    setCaptionsOn(next)
+    if (ccPickTimerRef.current) { clearTimeout(ccPickTimerRef.current); ccPickTimerRef.current = null }
+    if (next) {
+      try { p.loadModule('captions') } catch (e) {}
+      ccPickTimerRef.current = setTimeout(function () {
+        ccPickTimerRef.current = null
+        var pp = playerRef.current
+        if (!pp || !captionsOnRef.current) return
+        if (!applyCcTrack(pp)) {
+          /* مفيش أي ترجمات متاحة في الفيديو → الحالة بترجع متقفلة بصدق */
+          captionsOnRef.current = false
+          setCaptionsOn(false)
+          try { pp.unloadModule && pp.unloadModule('captions') } catch (e) {}
+          warnRecording('مفيش ترجمة متاحة للفيديو ده')
+        } else {
+          warnRecording('الترجمة: مفعلة ✓')
+        }
+      }, 700)
+    } else {
+      try { p.setOption && p.setOption('captions', 'track', {}) } catch (e) {}
+      try { p.unloadModule && p.unloadModule('captions') } catch (e) {}
+      warnRecording('الترجمة: متوقفة')
+    }
+  }
+  useEffect(function () { toggleCaptionsRef.current = toggleCaptions })
 
   /* orientation helpers — rotate the phone to landscape while fullscreen so
      the 16:9 video FILLS the screen instead of a tiny letterboxed strip in
@@ -322,6 +469,25 @@ export function ProtectedYouTubePlayer({
     return function () { if (hideTimerRef.current) clearTimeout(hideTimerRef.current) }
   }, [playing, showControls, showQualityMenu])
 
+  /* (2026-ص4) قراءة المستويات الحقيقية وتحديث القايمة — بتقبل أي سلم أغنى */
+  function refreshQualityLevels(p: any) {
+    try {
+      var lv = p && p.getAvailableQualityLevels ? p.getAvailableQualityLevels() : []
+      var cl: string[] = []
+      for (var i = 0; i < lv.length; i++) {
+        if (lv[i] && lv[i] !== 'auto' && lv[i] !== 'default' && STANDARD_QUALITIES.indexOf(lv[i]) >= 0) cl.push(lv[i])
+      }
+      if (!cl.length) return
+      setQualityLevels(function (prev) {
+        var prevTop = prev.length ? (Q_RANK[prev[0]] || 0) : -1
+        var nextTop = Q_RANK[cl[0]] || 0
+        if (nextTop > prevTop || prev.length === 0) return cl
+        if (cl.length > prev.length) return cl
+        return prev
+      })
+    } catch (err) {}
+  }
+
   function applyQuality(q: string) {
     var p = playerRef.current
     if (!p) return
@@ -340,6 +506,19 @@ export function ProtectedYouTubePlayer({
         if (p.setPlaybackQualityRange) p.setPlaybackQualityRange(q, q)
         if (p.setPlaybackQuality) p.setPlaybackQuality(q)
       }
+    } catch (e) {}
+    lastQualityApplyRef.current = Date.now()
+  }
+
+  /* (2026-ح) آخر سلاح في سلم الجودة: **تبديل تيار حقيقي واحد** —
+     loadVideoById بنفس الثانية والمستوى المطلوب (suggestedQuality بيطلب
+     التيار بالمستوى ده من أول لحظة). مش بنكرره (سقف 3 + كولداون من الحارس) */
+  function hardReloadStream(target: string) {
+    var p = playerRef.current
+    if (!p || !ytId) return
+    try {
+      var t = (p.getCurrentTime ? p.getCurrentTime() : 0) || 0
+      if (p.loadVideoById) p.loadVideoById({ videoId: ytId, startSeconds: Math.max(0, t), suggestedQuality: target })
     } catch (e) {}
     lastQualityApplyRef.current = Date.now()
   }
@@ -383,6 +562,7 @@ export function ProtectedYouTubePlayer({
   /* create player */
   useEffect(function () {
     var cancelled = false
+    earlyPinnedRef.current = false
     loadYouTubeAPI()
       .then(function (YT) {
         if (cancelled || !playerHostRef.current) return
@@ -399,15 +579,18 @@ export function ProtectedYouTubePlayer({
             fs: 0,
             playsinline: 1,
             cc_load_policy: 0,
+            hd: 1,
             autoplay: autoplay ? 1 : 0,
           },
           events: {
             onReady: function (e: any) {
               if (cancelled) return
               setReady(true)
-              /* captions OFF — always */
-              try { e.target.unloadModule && e.target.unloadModule('captions') } catch (err) {}
-              try { e.target.setOption && e.target.setOption('captions', 'track', {}) } catch (err) {}
+              /* captions OFF by default — unless the student already turned them on */
+              if (!captionsOnRef.current) {
+                try { e.target.unloadModule && e.target.unloadModule('captions') } catch (err) {}
+                try { e.target.setOption && e.target.setOption('captions', 'track', {}) } catch (err) {}
+              }
               try { setDuration(e.target.getDuration() || 0) } catch (err) {}
               /* push the default quality BEFORE playback starts */
               applyQuality(selectedQualityRef.current)
@@ -451,17 +634,16 @@ export function ProtectedYouTubePlayer({
               }
             },
             onPlaybackQualityChange: function (e: any) {
-              /* لو يوتيوب نزّل الجودة لوحده بعد ما فرضناها → نعيد الأمر فورًا
-                 (soft) — الحارس الدوري في الأسفل بيتولّي إعادة التحميل القسرية،
-                 وبيتدخل بس لو الجودة نزلت **تحت** المطلوب (الترقية بس) */
+              /* لو يوتيوب نزّل أو طلّع الجودة لوحده بعد ما قفلناها → نعيد الأمر
+                 فورًا (soft) — القفل الاتنين اتجاهين (480 ثابتة فوق وتحت)،
+                 والسلم التصعيدي في الأسفل بيتولّي الحالات العنيدة */
               if (cancelled) return
               var wanted = selectedQualityRef.current
               if (wanted === 'auto') return
               try {
-                var qRank: any = { highres: 10, hd2160: 10, hd1440: 9, hd1080: 8, hd720: 7, large: 6, medium: 5, small: 4, tiny: 3 }
-                var effQ = wanted === 'top' ? highestAvailable(e.target) : wanted
+                var effQ = wanted === 'top' ? highestAvailable(e.target) : resolveLockLevel(e.target, wanted)
                 var curQ = e.target.getPlaybackQuality ? e.target.getPlaybackQuality() : ''
-                if (effQ && curQ && curQ !== 'unknown' && (qRank[curQ] || 0) < (qRank[effQ] || 0) && Date.now() - lastQualityApplyRef.current > 3000) {
+                if (effQ && curQ && curQ !== 'unknown' && curQ !== 'auto' && (Q_RANK[curQ] || 0) !== (Q_RANK[effQ] || 0) && Date.now() - lastQualityApplyRef.current > 2500) {
                   applyQuality(wanted)
                 }
               } catch (err) {}
@@ -471,22 +653,51 @@ export function ProtectedYouTubePlayer({
               // -1 unstarted | 0 ended | 1 playing | 2 paused | 3 buffering | 5 cued
               if (e.data === 1) {
                 setStarted(true); setPlaying(true); setShowControls(true)
-                /* keep captions OFF + re-assert quality every time playback starts
-                   (مستويات الجودة بتبقى متاحة كاملة بعد أول تشغيل — فبنعيد
-                   فرض الأعلى هنا تاني عشان الفيديو يفتح أعلى جودة من أول لحظة) */
-                try { e.target.unloadModule && e.target.unloadModule('captions') } catch (err) {}
+                /* captions stay OFF by default (unless the student turned them on)
+                   + re-assert quality every time playback starts */
+                if (!captionsOnRef.current) {
+                  try { e.target.unloadModule && e.target.unloadModule('captions') } catch (err) {}
+                } else {
+                  try { applyCcTrack(e.target) } catch (err) {}
+                }
                 applyQuality(selectedQualityRef.current)
+                /* التثبيت المبكر (مرة واحدة لكل فيديو): أول تشغيل بيبدأ بتيار
+                   ABR واطي — لو الفعلي أقل من المطلوب → تبديل تيار حقيقي واحد
+                   بالمستوى المطلوب بعد 2.5 ثانية (ده اللي بيخلي الفيديو يفتح
+                   أعلى جودة فعلًا من أول مرة) */
+                if (!earlyPinnedRef.current && selectedQualityRef.current !== 'auto') {
+                  earlyPinnedRef.current = true
+                  setTimeout(function () {
+                    var pp = playerRef.current
+                    if (!pp || selectedQualityRef.current === 'auto') return
+                    try {
+                      if (pp.getPlayerState && pp.getPlayerState() !== 1) return
+                      var effE = selectedQualityRef.current === 'top' ? highestAvailable(pp) : resolveLockLevel(pp, selectedQualityRef.current)
+                      var curE = pp.getPlaybackQuality ? pp.getPlaybackQuality() : ''
+                      if (effE && curE && curE !== 'unknown' && curE !== 'auto' && (Q_RANK[curE] || 0) < (Q_RANK[effE] || 0)) {
+                        hardReloadStream(effE)
+                      }
+                    } catch (err) {}
+                  }, 2500)
+                }
                 /* تحديث المستويات الحقيقية بعد بدء التشغيل — قبل التشغيل يوتيوب
                    بيرجّع ['auto'] بس، فالقائمة كانت بتعرض جودات مش موجودة
                    فعلًا في الفيديو (سبب "بختار 720 ومفيش حاجة بتتغير") */
-                try {
-                  var lv = e.target.getAvailableQualityLevels ? e.target.getAvailableQualityLevels() : []
-                  var cl: string[] = []
-                  for (var li = 0; li < lv.length; li++) {
-                    if (lv[li] && lv[li] !== 'auto' && lv[li] !== 'default' && STANDARD_QUALITIES.indexOf(lv[li]) >= 0) cl.push(lv[li])
-                  }
-                  setQualityLevels(function (prev) { return cl.length > 0 ? cl : prev })
-                } catch (err) {}
+                refreshQualityLevels(e.target)
+                /* (2026-ص4) إعادة قراءة المستويات في أول ثواني التشغيل — يوتيوب
+                   بيرجّع سلم قصير في الأول والسلم الحقيقي الكامل بيتكشف بعد
+                   ما المانيفست يتقري — عشان القايمة تعرض زي يوتيوب بالظبط */
+                var rpt = [1500, 4000, 8000, 14000]
+                for (var ri = 0; ri < rpt.length; ri++) {
+                  ;(function (delay: number) {
+                    setTimeout(function () {
+                      var pp = playerRef.current
+                      if (!pp || cancelled) return
+                      try { if (pp.getPlayerState && pp.getPlayerState() !== 1 && pp.getPlayerState() !== 3) return } catch (err) {}
+                      refreshQualityLevels(pp)
+                    }, delay)
+                  })(rpt[ri])
+                }
               }
               else if (e.data === 2) setPlaying(false)
               else if (e.data === 5) {
@@ -528,50 +739,64 @@ export function ProtectedYouTubePlayer({
         var d = p.getDuration() || 0
         setCurrentTime(t)
         if (d) setDuration(d)
+        /* تقرير المدة مرة واحدة (أول ما المدة تظهر) — بيتخزن في عمود
+           durationSec عشان بادج ⏱ يظهر على كارت الفيديو في القايمة
+           (طلب المستر 2026-د: "لما يتجاب يعرفوا الفيديو قد إيه") */
+        if (videoId && d > 0 && !durationReportedRef.current) {
+          durationReportedRef.current = true
+          fetch('/api/video-duration', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ videoId: videoId, durationSec: Math.round(d) }),
+          }).catch(function () {})
+        }
         if (p.getVideoLoadedFraction) setBuffered((p.getVideoLoadedFraction() || 0) * 100)
-        /* sticky quality + captions stay OFF — الحارس بيفضّل اختيار الطالب
-           (أو 'top' = الأعلى المتاح) شغال، والـ HARD enforcement بيستخدم نفس
-           المستوى المطلوب */
+        /* sticky quality + captions stay OFF by default — القفل الاتنين اتجاهين:
+           الجودة الفعلية لازم تطابق اختيار الطالب — والترجمة متقفلة افتراضيًا
+           (لو الطالب فاتحها من زرار CC أو زر C بنسيبها شغالة) */
         var wanted = selectedQualityRef.current
-        /* عرض الجودة: تلقائي/عالية → الفعلية الحية؛ اختيار محدد → **يثبت على
-           اختيار الطالب** زي قائمة يوتيوب نفسها (مش بيرقص كل نص ثانية) */
+        /* عرض الجودة: **الحقيقة الحية** من getPlaybackQuality في كل الأوضاع
+           (ده اللي خلى المستر يقول "بتتغير كتابيا" — لأن الرقم كان بيعرض
+           الاختيار مش التيار الفعلي) */
         if (p.getPlaybackQuality) {
           try {
             var aq = p.getPlaybackQuality()
-            if (aq && aq !== 'unknown' && aq !== 'auto' && (wanted === 'auto' || wanted === 'top')) {
+            if (aq && aq !== 'unknown') {
               setActualQuality(function (prev) { return prev === aq ? prev : aq })
             }
           } catch (e) {}
         }
         if (wanted !== 'auto' && p.getPlaybackQuality) {
-          var eff = wanted === 'top' ? highestAvailable(p) : wanted
+          var eff = wanted === 'top' ? highestAvailable(p) : resolveLockLevel(p, wanted)
           var cur = p.getPlaybackQuality()
-          /* الحارس بيفرض **الترقية بس**: لو الجودة الحالية أقل من المطلوب → فرض؛
-             ولو أعلى من اختيار الطالب → تقبل من غير إعادات تحميل بلا لزوم */
-          var qRank: any = { highres: 10, hd2160: 10, hd1440: 9, hd1080: 8, hd720: 7, large: 6, medium: 5, small: 4, tiny: 3 }
-          var curRank = qRank[cur] || 0
-          var effRank = qRank[eff] || 0
-          if (eff && cur && cur !== 'unknown' && curRank < effRank) {
-            /* (2026-ي) HARD enforcement **بدون reload**: لو يوتيوب استمر في
-               تجاهل الأوامر 8 ثواني → نطاق + سيك صغير بيطلب تيار جديد من غير
-               ما نكسر جلسة التشغيل (الـ reload نفسه كان بيرجع الجودة 360p)
-               — سقف 4 مرات + كولداون 20 ثانية */
+          var curRank = Q_RANK[cur] || 0
+          var effRank = Q_RANK[eff] || 0
+          if (eff && cur && cur !== 'unknown' && cur !== 'auto' && curRank !== effRank) {
+            /* سلم التصعيد (بدون لوب — كل مرحلة ليها كولداون):
+               1) أوامر API كل 2.5 ثانية
+               2) بعد 8 ثواني → nudge (سيك صغير بيطلب تيار جديد جوه النطاق)
+               3) بعد 25 ثانية → تبديل تيار حقيقي loadVideoById بالمستوى المطلوب
+                  (سقف 3 مرات + كولداون 30 ثانية) */
             if (mismatchSinceRef.current === 0) mismatchSinceRef.current = Date.now()
-            if (Date.now() - mismatchSinceRef.current > 8000 && Date.now() - lastHardReloadRef.current > 20000 && hardReloadCountRef.current < 4) {
+            var misFor = Date.now() - mismatchSinceRef.current
+            if (misFor > 25000 && Date.now() - lastHardReloadRef.current > 30000 && hardReloadCountRef.current < 3) {
               lastHardReloadRef.current = Date.now()
               mismatchSinceRef.current = 0
               hardReloadCountRef.current++
-              forceQuality(eff)
-            } else {
+              hardReloadStream(eff)
+            } else if (misFor > 8000) {
+              if (Date.now() - lastQualityApplyRef.current > 10000) forceQuality(eff)
+            } else if (Date.now() - lastQualityApplyRef.current > 2500) {
               applyQuality(wanted)
             }
           } else {
             mismatchSinceRef.current = 0
-            hardReloadCountRef.current = 0
           }
         }
-        try { if (p.unloadModule) p.unloadModule('captions') } catch (e) {}
-        try { if (p.setOption) p.setOption('captions', 'track', {}) } catch (e) {}
+        if (!captionsOnRef.current) {
+          try { if (p.unloadModule) p.unloadModule('captions') } catch (e) {}
+          try { if (p.setOption) p.setOption('captions', 'track', {}) } catch (e) {}
+        }
         if (studentId && videoId && t > 0) {
           /* CUMULATIVE: report the highest position ever reached this session
              (seeded with the saved position) — never a smaller one */
@@ -705,9 +930,11 @@ export function ProtectedYouTubePlayer({
     hardReloadCountRef.current = 0 /* اختيار جديد من الطالب = ميزانية جديدة */
     var target = q === 'top' ? highestAvailable(playerRef.current) : q
     if (target && target !== 'auto') {
-      /* (2026-ي) التبديل القسري بدون reload: نطاق + سيك صغير — بيطلب تيار
-         جديد جوه النطاق المفروض من غير ما يوتيوب يبدأ من 360p تاني */
-      forceQuality(target)
+      /* (2026-م) التبديل الحقيقي الفوري: loadVideoById بنفس الثانية وبـ
+         suggestedQuality = المستوى المطلوب — التيار نفسه بيتبدل فعلًا
+         (مش مجرد أرقام) + إعادة تأكيد النطاق بعد التحميل */
+      hardReloadStream(target)
+      setTimeout(function () { if (selectedQualityRef.current === q) applyQuality(q) }, 900)
     }
     lastQualityApplyRef.current = Date.now()
     setShowQualityMenu(false)
@@ -715,10 +942,14 @@ export function ProtectedYouTubePlayer({
 
   var fsActive = isFullscreen || fakeFs
   var progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0
-  /* القائمة بتعرض **المستويات الموجودة فعلًا في الفيديو بس** — مفيش بديل
-     وهمي: لو المستويات لسه مش معروفة (قبل أول تشغيل) بنعرض عالية/تلقائي
-     بس، وأول ما التشغيل يبدأ المستويات الحقيقية بتتبني تلقائي */
-  var menuLevels = qualityLevels
+  /* (2026-د) القايمة بتعرض **المستويات من 720 وطالع بس** — مفيش تلقائي
+     ومفيش أي مستوى تحت 720 (360/480 اتنشالوا — طلب المستر الحرفي).
+     لو الفيديو نفسه أقصى جودته أقل من 720 → القايمة فيها "عالية" بس
+     + الملاحظة الصادقة بتوضّح حدود الملف الأصلي. */
+  /* (2026-ص4) القايمة بتعرض **كل المستويات الحقيقية الموجودة في الفيديو**
+     مرتبة من الأعلى للأقل — زي قايمة يوتيوب نفسها بالظبط (نفس سياسة
+     المشغل الأصلي المعتمد controls=1) — مفيش فلتر ومفيش تلقائي. */
+  var menuLevels = qualityLevels.slice().sort(function (a, b) { return (Q_RANK[b] || 0) - (Q_RANK[a] || 0) })
 
   /* الستيج: الطبقة اللي جوه الكونتينر — في الوضع الطولي بندوّرها 90° عشان
      الفيديو + الكنترولز + الووترمارك كلهم يبانوا بالعرض على الشاشة كلها */
@@ -776,7 +1007,7 @@ export function ProtectedYouTubePlayer({
         {/* درع علوي دايمًا — عنوان يوتيوب/اسم القناة/زرار الشير عمرهم ما يظهروا */}
         <div
           className="absolute top-0 left-0 right-0 pointer-events-none"
-          style={{ height: '56px', background: 'linear-gradient(to bottom, rgba(0,0,0,.92), rgba(0,0,0,.55) 55%, rgba(0,0,0,0))' }}
+          style={{ height: '64px', background: 'linear-gradient(to bottom, rgba(0,0,0,.94), rgba(0,0,0,.6) 55%, rgba(0,0,0,0))' }}
         />
         {/* باتش الركن العلوي (فوق يمين) — طلب المستر 2026-ز: علامة الشير
             و"Watch on YouTube" اللي بيوتيوب بيعرضهم فوق يمين وقت فتح/وقف
@@ -785,14 +1016,14 @@ export function ProtectedYouTubePlayer({
             واجهة يوتيوب الداخلية LTR فالشير بيكون فوق يمين فعلًا. */}
         <div
           className="absolute pointer-events-none flex items-center justify-center"
-          style={{ top: '6px', right: '8px', width: '170px', height: '46px', borderRadius: '10px', background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+          style={{ top: '6px', right: '8px', width: '216px', height: '56px', borderRadius: '10px', background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
         >
           <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: '10px', fontWeight: 800, letterSpacing: 0, direction: 'rtl', whiteSpace: 'nowrap' }}>🔒 محتوى محمي</span>
         </div>
         {/* باتش لوجو/لينك يوتيوب (تحت يمين) — بلور + تعتيم + ووترمارك مكانه */}
         <div
           className="absolute pointer-events-none flex items-center justify-center"
-          style={{ bottom: '8px', right: '8px', width: '150px', height: '46px', borderRadius: '10px', background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+          style={{ bottom: '8px', right: '8px', width: '170px', height: '50px', borderRadius: '10px', background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
         >
           <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '9.5px', fontWeight: 800, letterSpacing: 0, direction: 'rtl', whiteSpace: 'nowrap' }}>🔒 محتوى محمي</span>
         </div>
@@ -848,11 +1079,22 @@ export function ProtectedYouTubePlayer({
           (and after it ends) YouTube paints its own chrome on the iframe
           (title bar, "Watch on YouTube", quality badge, control strip) and a
           translucent layer lets it bleed through.
-          لو الفيديو ملهوش بوستر من الأدمن → **صورة الفيديو الحقيقية من يوتيوب**
-          (طلب المستر 2026-و: صورة البرواز الدهبي ملهاش علاقة بالمنصة — اتشالت
-          خالص وبقت favicon لمنصة مستر شريف). */}
+          صورة الغلاف في النص: لو الفيديو ملهوش بوستر من الأدمن → **صورة المستر
+          بالبرواز الدهبي** (رجّعناها بطلب المستر — كانت اتشالت بالغلط)
+          بتظهر في نص الغطاء بدل الشاشة السودة. */}
       {!started && (
         <div className="absolute inset-0 z-30 pointer-events-none">
+          {/* شيب مدة الفيديو (طلب المستر 2026-د: "لما يتجاب يعرفوا الفيديو
+              قد إيه") — ظاهر من أول لحظة قبل التشغيل فوق صورة الغلاف */}
+          {duration > 0 && (
+            <div
+              className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded-lg bg-black/80 border border-white/15 px-2 py-1 text-white text-[11px] font-bold"
+              dir="ltr"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" strokeLinecap="round" /></svg>
+              {fmtDur(duration)}
+            </div>
+          )}
           {poster ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={poster} alt="فيديو الدرس" className="w-full h-full object-cover bg-black" draggable={false} />
@@ -873,7 +1115,7 @@ export function ProtectedYouTubePlayer({
               }}
             />
           )}
-          <div className="absolute inset-0 bg-black/30">
+          <div className={'absolute inset-0 ' + (poster ? 'bg-black/30' : 'bg-black/45')}>
             <div
               className="absolute left-0 right-0 flex justify-center -translate-y-1/2"
               style={{ top: fsActive ? '52%' : '50%' }}
@@ -921,15 +1163,8 @@ export function ProtectedYouTubePlayer({
               <span>عالية (الأعلى المتاح)</span>
               {selectedQuality === 'top' && <Check className="w-4 h-4" />}
             </button>
-            <button
-              type="button"
-              role="menuitem"
-              className={'w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-white hover:bg-white/10 transition-colors min-h-[36px] ' + (selectedQuality === 'auto' ? 'text-primary font-bold' : '')}
-              onClick={function (e) { e.preventDefault(); e.stopPropagation(); handleQualitySelect('auto') }}
-            >
-              <span>تلقائي</span>
-              {selectedQuality === 'auto' && <Check className="w-4 h-4" />}
-            </button>
+            {/* (2026-د) خيار "تلقائي" اتنشال خالص بطلب المستر — هو اللي كان
+                بيخلي الفيديو ينزل 360 على النت الضعيف */}
             {menuLevels.map(function (q) {
               var active = selectedQuality === q
               return (
@@ -964,7 +1199,10 @@ export function ProtectedYouTubePlayer({
           <div className="absolute top-0 left-0 h-full bg-white/40 pointer-events-none" style={{ width: buffered + '%' }} />
           <div className="absolute top-0 left-0 h-full bg-primary pointer-events-none" style={{ width: progressPercent + '%' }} />
         </div>
-        {/* 2026-و23 — الشريط بقى 60px والووترمارك السفلية واقفة على حدّه بالظبط */}
+        {/* 2026-و23 — تصغير الشريط لطلب المستر الحرفي: «عاوزك تصغره لي شوية،
+            يكون واصل لأول الـ watermark اللي هي تحت، ما يعديهاش» —
+            الشريط بقى 60px (4 تقدم + 16 فراغ + 40 زرار) والووترمارك السفلية
+            واقفة بالظبط على حدّه العلوي (bottom: 60 في VideoWatermark) */}
         <div className="flex items-center gap-1 px-4 py-2 bg-gradient-to-t from-black/80 to-transparent">
           <button
             type="button"
@@ -993,11 +1231,28 @@ export function ProtectedYouTubePlayer({
                 onTouchEnd={function (e) { e.preventDefault(); e.stopPropagation(); setShowQualityMenu(function (v) { return !v }) }}
               >
                 <Settings className={'w-5 h-5 transition-transform ' + (showQualityMenu ? 'rotate-90' : '')} />
-                {/* عرض الجودة: تلقائي/عالية → الفعلية الحية؛ اختيار محدد →
-                    **يثبت على اختيار الطالب** زي قائمة يوتيوب نفسها (2026-ي) */}
-                <span className="text-[10px] font-bold" dir="ltr">{qualityLabel((selectedQuality === 'auto' || selectedQuality === 'top') ? (actualQuality || selectedQuality) : selectedQuality)}</span>
+                {/* عرض الجودة: **الرقم الحقيقي الحي** من getPlaybackQuality —
+                    مفيش أي رقم ورقي (طلب المستر: "بتتغير كتابيا بس") */}
+                <span className="text-[10px] font-bold" dir="ltr">{qualityLabel(actualQuality || selectedQuality)}</span>
               </button>
             </div>
+            {/* الترجمة (CC) — جنب زرار الجودة بالظبط (طلب المستر الحرفي 2026-م):
+                الضغطة بتفتح/تقفل الكابشن — والافتراضي متقفل تمامًا */}
+            <button
+              type="button"
+              aria-label="الترجمة (CC)"
+              aria-pressed={captionsOn}
+              className={
+                'h-10 min-w-[44px] px-1.5 flex items-center justify-center rounded-md border text-[11px] font-black tracking-wide transition-colors shrink-0 ' +
+                (captionsOn
+                  ? 'border-primary/60 bg-primary/15 text-primary'
+                  : 'border-white/25 bg-white/10 text-white hover:text-primary')
+              }
+              onClick={function (e) { e.preventDefault(); e.stopPropagation(); toggleCaptions() }}
+              onTouchEnd={function (e) { e.preventDefault(); e.stopPropagation(); toggleCaptions() }}
+            >
+              CC
+            </button>
             <button
               type="button"
               aria-label={fsActive ? 'خروج من ملء الشاشة' : 'ملء الشاشة'}
@@ -1016,7 +1271,7 @@ export function ProtectedYouTubePlayer({
       <VideoWatermark name={studentName} phone={studentPhone} />
       </div>
 
-      {/* رسالة "التسجيل ممنوع" — فوق كل حاجة وخارج الستيج الدوّار */}
+      {/* رسالة المنع (كليك يمين/اختصارات) — فوق كل حاجة وخارج الستيج الدوّار */}
       {recMsg && (
         <div
           role="alert"
