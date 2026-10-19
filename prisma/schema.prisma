@@ -88,6 +88,11 @@ model Video {
   groupKey  String   @default("")
   orderIndex Int     @default(0)
   sortIndex  Int     @default(0)
+  /* (2026-ص2) ملاحظة المستر على الدرس — بتظهر للطالب أول ما يفتح الدرس
+     بمودال «ملاحظة خد بالك» وزرار تمام أزرق. فاضي = مفيش ملاحظة.
+     noteUpdatedAt = بصمة آخر تعديل (عشان الطالب يشوف الملاحظة تاني لو اتعدلت) */
+  note      String   @default("")
+  noteUpdatedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

@@ -84,6 +84,9 @@ var SCHEMA_COLUMNS = [
   ['Video', 'sortIndex', 'INTEGER', 'DEFAULT 0'],
   ['Video', 'fileType', 'TEXT', "DEFAULT ''"],
   ['Video', 'thumbnail', 'TEXT', "DEFAULT ''"],
+  /* (2026-ص2) ملاحظة المستر على الدرس — بتظهر للطالب أول ما يفتح الدرس */
+  ['Video', 'note', 'TEXT', "DEFAULT ''"],
+  ['Video', 'noteUpdatedAt', 'DATETIME', ''],
   ['Homework', 'questions', 'TEXT', "DEFAULT ''"],
   ['Homework', 'answerKeyPath', 'TEXT', "DEFAULT ''"],
   ['Homework', 'answerKeyType', 'TEXT', "DEFAULT ''"],
