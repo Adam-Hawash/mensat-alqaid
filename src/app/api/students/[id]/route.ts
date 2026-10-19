@@ -134,6 +134,46 @@ export async function DELETE(
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
 
+    /* (ز19) حذف نهائي متسلسل — الطالب بيتمسح بكل صفوفه عشان ما يفضلش
+       أي أثر ليه في قاعدة البيانات (بدل ما يبقى بس «مقفول/مرفوض»).
+       الفورين كيز مش مفعّلة على داتابيز الإنتاج (SQLite) فبنمسح يدويًا
+       من كل جدول مرتبط بـ studentId — كل جدول في try/catch لوحده عشان
+       فشل جدول واحد ما يمنعش باقي التنضيف ولا حذف الطالب نفسه. */
+    var studentCascadeTables = [
+      'StudentActivity', 'ExamResult', 'HomeworkResult', 'VideoProgress',
+      'VideoAccess', 'PlayTicket', 'Payment', 'Discussion', 'Complaint',
+      'Notification',
+    ]
+    for (var t = 0; t < studentCascadeTables.length; t++) {
+      try {
+        await db.$executeRawUnsafe('DELETE FROM ' + studentCascadeTables[t] + ' WHERE studentId = ?', id)
+      } catch (e) {
+        console.error('Student cascade cleanup (' + studentCascadeTables[t] + '):', e)
+      }
+    }
+    /* روابط الأبوة ParentStudent (جدول raw لو موجود) — احتياطي */
+    try { await db.$executeRawUnsafe('DELETE FROM ParentStudent WHERE studentId = ?', id) } catch (e) {}
+    try { await db.$executeRawUnsafe('DELETE FROM ParentStudent WHERE parentId IN (SELECT id FROM Parent WHERE studentId = ?)', id) } catch (e) {}
+
+    /* حسابات أولياء الأمور المرتبطة بالطالب + أجهزة Web Push بتاعتهم —
+       عشان ما يفضلش حسابات أب يتيمة على ابن اتمسح */
+    var parentIds: string[] = []
+    try {
+      var pRows: any[] = await db.$queryRawUnsafe('SELECT id FROM Parent WHERE studentId = ?', id)
+      parentIds = (pRows || []).map(function (r: any) { return String(r.id) }).filter(Boolean)
+    } catch (e) {
+      console.error('Student cascade Parent lookup:', e)
+    }
+    if (parentIds.length > 0) {
+      var ph = parentIds.map(function () { return '?' }).join(',')
+      try { await db.$executeRawUnsafe.apply(db, ['DELETE FROM ParentPushSubscription WHERE parentId IN (' + ph + ')'].concat(parentIds)) } catch (e) {
+        console.error('Student cascade ParentPushSubscription:', e)
+      }
+    }
+    try { await db.$executeRawUnsafe('DELETE FROM Parent WHERE studentId = ?', id) } catch (e) {
+      console.error('Student cascade Parent:', e)
+    }
+
     await db.student.delete({ where: { id } })
 
     return NextResponse.json({ message: 'Student deleted' })
