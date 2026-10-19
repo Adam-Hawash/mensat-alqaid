@@ -705,6 +705,23 @@ var ytHostKind = 'www';   /* 'www' | 'nocookie' */
 var rebuildTries = 0;     /* عداد إعادة بناء المشغل */
 var lastErrCode = '';
 var tickStarted = false;  /* مؤقت التقدم يتسجل مرة واحدة بس حتى مع إعادة البناء */
+/* ===== (2026-ص2 — علاج خطأ 153 على الآيفون) =====
+   يوتيوب ساعات بيقتل المشغل من جوه من غير onError خالص — بيرسم كارته
+   الداخلية (حدث خطأ 153 + زرار الذهاب لليوتيوب) على الـ iframe، ومع
+   كنترولز يوتيوب الأصلية (ز22) الزرار ده متاح للدوس مباشرة — تسريب للقناة.
+   العلاج: إخفاء سطح يوتيوب فورًا مع أي خطأ + حارس الموت المفاجئ (كشف
+   153 الصامت) + إعادة بناء/وضع بديل بمقاس حقيقي من غير scale على iOS */
+var IS_IOS = /iP(hone|od|ad)/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function hideYtSurface(){
+  /* إخفاء سطح يوتيوب بالكامل — كارت خطأ يوتيوب (زرار الذهاب لليوتيوب)
+     عمره ما يبان ولا حد يقدر يدوس عليه — طلب المستر الصريح */
+  try{ var h = document.getElementById('ytHost'); if(h) h.style.display = 'none'; }catch(e){}
+  try{ var pl = document.getElementById('ytPlain'); if(pl) pl.style.display = 'none'; }catch(e){}
+}
+function showYtSurface(){
+  try{ var h = document.getElementById('ytHost'); if(h) h.style.display = ''; }catch(e){}
+  try{ var pl = document.getElementById('ytPlain'); if(pl) pl.style.display = ''; }catch(e){}
+}
 function msgForYtError(code){
   var c = String(code || '');
   if(c === '101' || c === '150') return 'الفيديو مرفوض التشغيل هنا — يا إما صاحب الفيديو قفل التضمين، يا إما يوتيوب مرفض على الشبكة دي. غيّر الشبكة (بيانات الموبايل بدل الواي فاي) وحاول تاني — ولو تكررت بلغ الإدارة في قسم الشكاوى';
@@ -716,6 +733,9 @@ function msgForYtError(code){
 function showPlayError(msg){
   var so = document.getElementById('startOv');
   if(!so) return;
+  /* (2026-ص2) أي خطأ → سطح يوتيوب يختفي فورًا (كارت 153 وزرار الذهاب
+     لليوتيوب مخصهمش يبانوا ولا يدوس عليهم حد) */
+  hideYtSurface();
   so.style.display = 'flex';
   var old = document.getElementById('peBox');
   if(old && old.parentNode) old.parentNode.removeChild(old);
@@ -742,6 +762,7 @@ function rebuildThenPlay(kind){
     return;
   }
   rebuildTries++;
+  prevTickState = -1; /* (2026-ص2) مشغل جديد — حالة الحارس تتصرّف */
   ytHostKind = (kind === 'nocookie') ? 'nocookie' : 'www';
   try{ if(playerApi && playerApi.destroy) playerApi.destroy(); }catch(e){}
   playerApi = null;
@@ -751,8 +772,12 @@ function rebuildThenPlay(kind){
   var crop = document.getElementById('ytCrop');
   var host = document.createElement('div');
   host.id = 'ytHost';
-  host.style.cssText = 'position:absolute;top:50%;left:50%;width:1920px;height:1080px;transform:translate(-50%,-50%) scale(0.5);transform-origin:center center';
-  if(crop) crop.appendChild(host);
+  /* (2026-ص2) إعادة البناء بمقاس حقيقي 100% — نفس قرار ز22 (كان بيرجع
+     1920×1080 scale(0.5) — سكالر بيلخبط الكنترولز الأصلية وعلى iOS من
+     مسببات خطأ 153) */
+  host.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+  if(crop) crop.appendChild(host); else wrap.appendChild(host);
+  showYtSurface();
   pendingStart = true;
   try{ buildPlayer(); }catch(e){ showPlayError(msgForYtError(lastErrCode || 'auth')); }
 }
@@ -823,6 +848,7 @@ function activateFallback(reason){
     f.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;background:#000';
     wrap.appendChild(f);
   }
+  showYtSurface();
   f.src = 'https://www.youtube.com/embed/' + ytId + '?autoplay=1&controls=1&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&cc_load_policy=0&cc_lang_pref=ar&hl=ar&enablejsapi=1&origin=' + encodeURIComponent(location.origin || 'https://localhost') + '&start=' + startS;
   layoutWrap();
   toast('تمام — الفيديو شغّال دلوقتي ▶');
@@ -834,6 +860,28 @@ function scheduleFallbackIfStuck(){
     if(playerApi && playerApi.playVideo) return;
     activateFallback('stuck');
   }, 6000);
+}
+/* ===== (2026-ص2) حارس الموت المفاجئ — كاشف خطأ 153 الصامت على الآيفون =====
+   يوتيوب أحيانًا بيقفل المشغل من جوه **من غير onError** — بيرسم كارته
+   الداخلية (حدث خطأ 153 + زرار الذهاب لليوتيوب) على الـ iframe. الإشارة
+   الموثوقة: التشغيل كان شغال/بيحمّل وفجأة الحالة رجعت unstarted/cued من
+   غير أي أمر مننا → خطأ قاتل: نخفي سطح يوتيوب فورًا + نعيد البناء على
+   nocookie، ولو فشل → الوضع البديل المضمون — والفيديو يشتغل مهما حصل */
+var prevTickState = -1;
+var ytFatalLast = 0;
+function ytFatalCheck(){
+  if(fallbackActive || CFG.kind !== 'youtube') return;
+  var st = ytState();
+  if(st === 1 || st === 3 || st === 2 || st === 0){ prevTickState = st; return; }
+  if((prevTickState === 1 || prevTickState === 3) && (st === -1 || st === 5) && Date.now() - ytFatalLast > 15000){
+    ytFatalLast = Date.now();
+    prevTickState = st;
+    hideYtSurface();
+    if(ytHostKind === 'www' && rebuildTries < 1){ rebuildThenPlay('nocookie'); return; }
+    activateFallback('fatal-153');
+    return;
+  }
+  prevTickState = st;
 }
 /* قفل الجودة — **الافتراضي 480p مقفولة تلقائيًا** (طلب المستر الحرفي 2026-ح:
    "الجودة بتتغير كتابيا بس في الحقيقة لأ — لو مالهاش حل ثبتها على 480
@@ -1189,10 +1237,13 @@ function buildPlayer(){
       onError: function(ev){
         /* يوتيوب رفض الفيديو نفسه — ممنوع الصمت: سبب واضح فورًا.
            100 = الفيديو اتمسح/خاص. 2 = تعريف غلط → رسالة فورية (إعادة مش هتنفع).
-           101/150/5/auth = منع تضمين أو رفض شبكة (حماية ضد البوتات بترجع 150
+           101/150/5/auth/153 = منع تضمين أو رفض شبكة (حماية ضد البوتات بترجع 150
            برضه) → محاولة أوتوماتيك واحدة على youtube-nocookie، وبعدها
            **الوضع البديل المضمون (مشغل مباشر embed)** — الفيديو يشتغل على أي حال
-           بدل شاشة الخطأ الميّتة (2026-ط) */
+           بدل شاشة الخطأ الميّتة (2026-ط)
+           (2026-ص2) أول حاجة: سطح يوتيوب يختفي — كارت 153 وزرار الذهاب
+           لليوتيوب مخصهمش يبانوا ولا يدوس عليهم حد */
+        hideYtSurface();
         var code = '';
         try{ code = String((ev && ev.data) || ''); }catch(e){}
         lastErrCode = code;
@@ -1224,6 +1275,8 @@ function buildPlayer(){
           if(ql && aq && aq !== 'unknown') ql.textContent = (aq === 'auto') ? 'تلقائي' : qLabel(aq);
         }catch(eAQ){}
         /* حارس النهاية: لو شاشة الاقتراحات هتظهر (ENDED ماتفوتش) → غطّي فورًا */
+        /* (2026-ص2) حارس الموت المفاجئ — كاشف خطأ 153 الصامت على الآيفون */
+        ytFatalCheck();
         if(ytState()===0){
           var eo3=document.getElementById('endOv');
           if(eo3 && eo3.style.display!=='flex'){ eo3.style.display='flex'; try{ playerApi.seekTo(0,true); playerApi.pauseVideo(); }catch(e){} reportEnded(); }
@@ -1239,6 +1292,11 @@ function buildPlayer(){
               بالمستوى المطلوب) — سقف 3 مرات + كولداون 30 ثانية،
               والميزانية بترجع أول ما الجودة تظبط */
         if(ytState() === 1 && qSel !== 'auto'){
+          /* (2026-ص2) على iOS: طلب الطالب بيروح مرة واحدة بس من القايمة —
+             سلم التصعيد (setPlaybackQualityRange/loadVideoById المتكررة)
+             من أكبر مسببات خطأ 153 على الآيفون فمتقفل خالص */
+          if(IS_IOS){ qLowSince = 0; qHardTries = 0; }
+          else {
           var q = '';
           try{ q = playerApi.getPlaybackQuality() || ''; }catch(e){}
           var eff = wantedLevel();
@@ -1255,6 +1313,7 @@ function buildPlayer(){
               lastQAssert = Date.now(); applyQ();
             }
           } else { qLowSince = 0; qHardTries = 0; }
+          }
         }
         /* الكابشن ممنوع — فحص دوري خفيف كل 5 ثواني: لو الترجمة اتفتحت من
            أي سبب (إعداد حساب يوتيوب مثلاً) تتقفل فورًا قبل ما حد يشوف حاجة */
