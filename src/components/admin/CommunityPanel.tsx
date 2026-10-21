@@ -134,10 +134,10 @@ export function CommunityPanel() {
             {loading ? (
               <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
             ) : discussions.length === 0 ? (
-              <p className="text-center text-muted-foreground py-10 text-sm">مفيش رسائل في المجتمع ده لسه</p>
+              /* (و63) طلب المستر: يقدر يبعت أول رسالة حتى لو المجتمع فاضي — مش لازم الطالب يبدأ */
+              <p className="text-center text-muted-foreground py-10 text-sm">مفيش رسائل في المجتمع ده لسه — اكتب أول رسالة من تحت والطلاب هيشوفوها</p>
             ) : (
-              <>
-                <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
+              <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
                   {discussions.map((d) => {
                     const isAdmin = d.isAdminReply
                     const isEditing = editingId === d.id
@@ -224,21 +224,21 @@ export function CommunityPanel() {
                   })}
                   <div ref={chatEndRef} />
                 </div>
-
-                <div className="flex gap-2 pt-2 border-t">
-                  <Input
-                    placeholder="اكتب ردك هنا..."
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleReply()}
-                    className="flex-1"
-                  />
-                  <Button onClick={handleReply} disabled={sending || !replyText.trim()} size="icon">
-                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </>
             )}
+
+            {/* (و63) خانة الكتابة دايمًا ظاهرة — حتى لو المجتمع لسه فاضي */}
+            <div className="flex gap-2 pt-2 border-t">
+              <Input
+                placeholder="اكتب رسالتك للمجتمع هنا..."
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleReply()}
+                className="flex-1"
+              />
+              <Button onClick={handleReply} disabled={sending || !replyText.trim()} size="icon">
+                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
