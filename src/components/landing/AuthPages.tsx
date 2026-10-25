@@ -233,7 +233,8 @@ export function LoginView() {
         setLoading(false); return
       }
       if (student.status === 'pending') { setCurrentStudent(student); setView('student-pending'); toast.info('حسابك قيد المراجعة، انتظر موافقة المسؤول') }
-      else if (student.status === 'approved' || student.status === 'paid') { setCurrentStudent(student); setView('student-portal'); toast.success('مرحباً ' + student.name + '!'); fetch('/api/students/track-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studentId: student.id }) }).catch(function () {}) }
+      /* (ز30) + active — شبكة أمان: أي طالب لسه متسجل قديمًا بـ active يدخل عادي */
+      else if (student.status === 'approved' || student.status === 'paid' || student.status === 'active') { setCurrentStudent(student); setView('student-portal'); toast.success('مرحباً ' + student.name + '!'); fetch('/api/students/track-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studentId: student.id }) }).catch(function () {}) }
       else { toast.error('تم حذف حسابك من المنصة، تواصل مع المسؤول') }
     } catch (e: any) {
       /* (2026-و29) مهلة/انقطاع → رسالة واضحة بدل سطور عالقة */
@@ -399,7 +400,19 @@ export function RegisterView() {
         /* (ز29) القبول التلقائي: لو الحساب اتقبل على طول الرسالة بتفرّق — لو لسه في المراجعة بنفس الرسالة القديمة */
         var regStatus = String((data.student || {}).status || '')
         if (regStatus === 'pending') { setCurrentStudent(data.student); setView('student-pending'); toast.success('تم تسجيل طلبك بنجاح! انتظر موافقة المسؤول') }
-        else { toast.success('تم إنشاء حسابك واتقبلت تلقائي 🎉 اعمل تسجيل دخول على طول وهتدخل على المنصة'); setView('auth-login') }
+        else {
+          /* (ز30 — طلب المستر) التسجيل = دخول فوري: «عمل الحساب وتقبل تلقائي
+             خلاص يدخل على حسابه من غير ما يعمل تسجيل دخول» — وأول ما يقفل
+             المنصة ويفتحها تاني يعمل تسجيل دخول عادي زي أي حساب */
+          setCurrentStudent(data.student); setView('student-portal')
+          var firstName = String(fullName || '').trim().split(/\s+/)[0] || 'يا صديقي'
+          toast.success('أهلاً بيك يا ' + firstName + ' 🎉 — ده حسابك، وانت داخل عليه خلاص!')
+          fetch('/api/students/track-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ studentId: (data.student || {}).id })
+          }).catch(function () {})
+        }
       }
       else { toast.error(data.error || 'حدث خطأ في التسجيل') }
     } catch (e) { toast.error('حدث خطأ في الاتصال') }
