@@ -8,6 +8,8 @@ import { RadixDirection } from "@/components/RadixDirection";
 import { AIAssistant } from "@/components/student/AIAssistant";
 import { RecordingGuard } from "@/components/RecordingGuard";
 import { DevToolsGuard } from "@/components/DevToolsGuard";
+/* (2026-Z32) زرار تثبيت المنصة كتطبيق — عايم ثابت في كل الصفحات (زي Maths-Genius) */
+import { FloatingInstallButton } from "@/components/InstallPwaButton";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -103,6 +105,8 @@ export default async function RootLayout({
         <ThemeProvider><RadixDirection>{children}</RadixDirection></ThemeProvider>
         {/* (و47) المساعد الذكي رجع زي ما كان — المستر طلبه بنفس المميزات (شيرين بس هي اللي اتشالت) */}
         <AIAssistant />
+        {/* (2026-Z32) الزرار العايم الثابت «ثبّت التطبيق» — شمال تحت في كل الصفحات (زي Maths-Genius) */}
+        <FloatingInstallButton />
         {/* حماية عامة من التسجيل/التصوير + أدوات المطوّر في كل الصفحات */}
         <RecordingGuard />
         {/* (ز19) حارس أدوات المطوّر — شاشة سودة + عداد 35 ثانية + مسح الحساب (طلب المستر) */}
