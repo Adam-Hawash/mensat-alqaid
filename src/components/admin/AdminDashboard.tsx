@@ -656,6 +656,29 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
 
   useEffect(() => { loadStudents() }, [filter, filterGrade])
 
+  /* (ز29 — طلب المستر) مفتاح القبول التلقائي للتسجيلات من صفحة الأدمن:
+     مفعّل (افتراضي) ← أي طالب يعمل حساب بيتقبل على طول | مقفول ← الحساب يبقى «قيد المراجعة» والأستر هو اللي يوافقه */
+  const [autoApprove, setAutoApprove] = useState(true)
+  useEffect(() => {
+    let alive = true
+    fetch('/api/config').then(function (r) { return r.json() }).then(function (d) {
+      if (alive) setAutoApprove(String((d && d.auto_approve_students) ?? '1') !== '0')
+    }).catch(function () {})
+    return function () { alive = false }
+  }, [])
+  const toggleAutoApprove = async (v: boolean) => {
+    const prev = autoApprove
+    setAutoApprove(v)
+    try {
+      const res = await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auto_approve_students: v ? '1' : '0' }) })
+      if (!res.ok) throw new Error()
+      toast.success(v ? 'الطلاب هيتقبلوا تلقائي أول ما يعملوا حساب' : 'التسجيلات الجديدة هتستنى موافقتك (قيد المراجعة)')
+    } catch {
+      setAutoApprove(prev)
+      toast.error('مش قادر أحفظ الإعداد — جرّب تاني')
+    }
+  }
+
   // ملاحظة: قفل الأجهزة بقى صارم ودايمًا (شغال على السيرفر من غير مفتاح) —
   // الحساب بيتقفل على الجهاز اللي اتعمل بيه بس، والتحكم بيبقى لكل طالب
   // من زرار "سماح" في إدارة الطلاب.
@@ -812,6 +835,11 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
                   {f === 'pending' ? 'بانتظار' : f === 'approved' ? 'مقبول' : f === 'rejected' ? 'Rejected' : 'الكل'}
                 </Button>
               ))}
+            </div>
+            {/* (ز29) القبول التلقائي للتسجيلات — مفتاح من صفحة الأدمن */}
+            <div className="flex items-center gap-1.5 h-8 rounded-md border border-input bg-background px-2" title="لما الطالب يعمل حساب بيتقبل على طول من غير مراجعة — اقفلها لو عايز تراجع بنفسك">
+              <Switch checked={autoApprove} onCheckedChange={toggleAutoApprove} aria-label="قبول تلقائي للتسجيلات الجديدة" />
+              <span className="text-xs whitespace-nowrap">قبول تلقائي</span>
             </div>
           </div>
         </div>
