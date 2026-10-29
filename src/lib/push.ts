@@ -17,7 +17,7 @@ import webpush from 'web-push'
 import { db } from '@/lib/db'
 
 /* ============================================================
-   ✏️✏️ مفاتيح VAPID — مولدة مرة واحدة لمنصة Zicola In Math ✏️✏️
+   ✏️✏️ مفاتيح VAPID — مولدة مرة واحدة لمنصة القائد ✏️✏️
    ============================================================ */
 var VAPID_PUBLIC_KEY = 'BIE6J6fRy5AS1lV8sg8uVW3YWrygq5BnkU56J2zdHIbDukKqSiw2c1dY1erHr90zt8Frpun6a-Yey6YBUB7NTb0'
 var VAPID_PRIVATE_KEY = 'odySJC_hkCWJ-iemRSGbYJKTOIQUSTV6ZrXq7urpIq0'

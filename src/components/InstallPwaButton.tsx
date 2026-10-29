@@ -1,13 +1,18 @@
 'use client'
 
 // ============================================================
-// (2026-Z32) زرار تثبيت المنصة كتطبيق — نفس نظام Maths-Genius بالظبط
-// (المنطق النهائي و110 هناك): الزرار ظاهر دايمًا في كل الحالات
-// من غير أي استثناء (لا localStorage ولا standalone بيخفياه).
+// (2026-و110) طلب المستر: «ما فيش اي زرار تطبيق جنب الدليل» — السبب الحقيقي:
+// الزرار كان بيتخفي نهائيًا لو localStorage فيها mg-pwa-installed=1 —
+// والمستر كان ثبّت التطبيق من قبل، فالعلامة قعدت في متصفحه حتى بعد ما
+// بيمسح التطبيق — فالزرار عمره ما رجع يظهر عنده.
+// الحل النهائي: **الزرار ظاهر دايمًا في كل الحالات من غير أي استثناء**
+// (لا localStorage ولا standalone بيخفياه).
 // الضغطة عليه:
 //   1) المتصفح جاهز للتثبيت → نافذة التثبيت الرسمية فورًا — تدوس تثبيت وخلاص
 //   2) التطبيق متثبت فعلًا على الجهاز → رسالة «مثبت بالفعل» (بدل كلام فاضي)
 //   3) غير كده (آيفون/متصفح مؤجل) → تعليمات قصيرة خطوة بخطوة
+// (منصة القائد: نسخة محلية من و110/و111 — من غير نظام الترجمة useT
+//  لأن المنصة دي عربي بالكامل — كل النصوص عربي)
 // ============================================================
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -17,6 +22,44 @@ import { toast } from 'sonner'
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
+/* ============================================================
+   (Z-30) التقاط الحدث على مستوى الموديول + وعد مشترك — جذر شكوى
+   «اللابتوب بيعرض تعليمات بدل ما ينزّل التطبيق»: الحدث
+   beforeinstallprompt بيترّي مرة واحدة بعد تحميل الصفحة، ولو المستر
+   داس على زرار التثبيت **قبل** ما الحدث يوصل كان الزرار يقع على
+   التعليمات فورًا. الحل: لو الحدث لسه ما وصلش — نستنى لحد 3 ثواني
+   (الوعد المشترك بيلتقط الحدث أول ما يحصل) وبعدين نفتح نافذة
+   التثبيت الرسمية. لو حقًا مفيش حدث (آيفون/متصفح مش داعم) — وقتها بس
+   نعرض التعليمات.
+   ============================================================ */
+var _moduleDeferred: BeforeInstallPromptEvent | null = null
+var _promptWaiters: Array<(e: BeforeInstallPromptEvent | null) => void> = []
+
+if (typeof window !== 'undefined') {
+  try {
+    window.addEventListener('beforeinstallprompt', function (e: Event) {
+      e.preventDefault()
+      _moduleDeferred = e as BeforeInstallPromptEvent
+      var waiters = _promptWaiters.splice(0)
+      for (var i = 0; i < waiters.length; i++) waiters[i](_moduleDeferred)
+    })
+  } catch (e) {}
+}
+
+function waitForInstallPrompt(ms: number): Promise<BeforeInstallPromptEvent | null> {
+  return new Promise(function (resolve) {
+    if (_moduleDeferred) { resolve(_moduleDeferred); return }
+    var done = false
+    var to = setTimeout(function () {
+      if (!done) { done = true; var ws = _promptWaiters.filter(function (w) { return w !== onEvt }); _promptWaiters = ws; resolve(null) }
+    }, ms)
+    var onEvt = function (e: BeforeInstallPromptEvent | null) {
+      if (!done) { done = true; clearTimeout(to); resolve(e) }
+    }
+    _promptWaiters.push(onEvt)
+  })
 }
 
 /* منطق التثبيت المشترك — نفس الحالة للأزرار كلها (الهيدر/القايمة/العايم) */
@@ -51,14 +94,20 @@ function usePwaInstall() {
   }
 
   var install = async function () {
-    /* 1) المتصفح جاهز → نافذة التثبيت الرسمية فورًا — من غير أي خطوات يدوية */
-    if (deferred) {
+    /* 1) المتصفح جاهز → نافذة التثبيت الرسمية فورًا — من غير أي خطوات يدوية
+       (Z-30) لو الحدث لسه ما وصلش، نستنى لحد 3 ثواني قبل ما نحكم —
+       ضغطة مبكرة ما تنزلش على التعليمات غير لو المتصفح فعلًا مش داعم */
+    var ev = deferred
+    if (!ev) {
+      try { ev = await waitForInstallPrompt(3000) } catch (e) { ev = null }
+    }
+    if (ev) {
       try {
         toast.info('تثبيت التطبيق — بنفتحلك نافذة التثبيت…', {
           description: 'دوس تثبيت / Install وأيقونة التطبيق هتنزل على شاشتك',
         })
-        await deferred.prompt()
-        var choice = await deferred.userChoice
+        await ev.prompt()
+        var choice = await ev.userChoice
         if (choice.outcome === 'accepted') {
           toast.success('تم تثبيت التطبيق بنجاح 🎉', {
             description: 'افتح المنصة من أيقونة التطبيق — شاشة كاملة من غير متصفح',
@@ -109,7 +158,7 @@ function InstallHintModal({ isIos, onClose }: { isIos: boolean; onClose: () => v
           <ol className="text-sm space-y-2 text-muted-foreground list-decimal pr-5">
             <li>دوس على قائمة المتصفح <span className="font-bold text-foreground">⋮</span> فوق جنب العنوان</li>
             <li>اختار <span className="font-bold text-foreground">تثبيت التطبيق</span> أو <span className="font-bold text-foreground">إضافة إلى الشاشة الرئيسية</span></li>
-            <li>دوس <span className="font-bold text-foreground">تثبيت</span> — والتطبيق هيظهر على شاشتك</li>
+            <li>دوس <span className="font-bold text-foreground">تثبيت</span> — والتطبيق هيظهر على شاشة الموبايل</li>
           </ol>
         )}
         <p className="text-[11px] text-muted-foreground">بعد التثبيت افتح المنصة من أيقونة التطبيق مباشرة — شاشة كاملة من غير متصفح</p>
@@ -118,7 +167,8 @@ function InstallHintModal({ isIos, onClose }: { isIos: boolean; onClose: () => v
   )
 }
 
-/* زر عادي بيتركب في الهيدر/القايمة/بورتال الطالب — ظاهر دايمًا في كل الحالات */
+/* (2026-و110) زر عادي بيتركب في الهيدر/القايمة/فسحة الطالب
+   — ظاهر دايمًا في كل الحالات، والافتراضي اسمه «التطبيق» زي طلب المستر */
 export function InstallPwaButton({ variant = 'default', size, className = '', label }: { variant?: 'default' | 'outline' | 'ghost' | 'secondary'; size?: 'default' | 'sm' | 'lg' | 'icon'; className?: string; label?: string }) {
   var pwa = usePwaInstall()
   var finalLabel = label !== undefined && label !== null && label !== '' ? label : 'التطبيق'
@@ -133,7 +183,8 @@ export function InstallPwaButton({ variant = 'default', size, className = '', la
   )
 }
 
-/* الزرار العايم الثابت — شمال تحت في كل الصفحات، ظاهر دايمًا */
+/* (2026-و109) الزرار العايم الثابت — شمال تحت في كل الصفحات حتى مع النزول
+   (2026-و110) بقى ظاهر دايمًا كمان — مفيش حالة بيختفي فيها خالص */
 export function FloatingInstallButton() {
   var pwa = usePwaInstall()
   return (

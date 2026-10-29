@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     var normalized = normalizeParentPhone(phone) || parentIdRaw
 
     var out = await sendParentPush(normalized, {
-      title: '🔔 إشعار تجريبي من منصة Zicola In Math',
+      title: '🔔 إشعار تجريبي من منصة القائد',
       body: 'تمام كده! الإشعارات واصلة لموبايلك — من أول ما ابنك يسلّم امتحان أو واجب هتوصلك درجته هنا أول بأول.',
       url: '/#parent-login',
       tag: 'parent-test-' + Date.now(),
