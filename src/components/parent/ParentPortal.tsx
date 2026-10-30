@@ -26,6 +26,8 @@ import FractionText, { hasMathMarkup } from '@/components/FractionText'
 import BidiText from '@/components/BidiText'
 /* (2026-ص5) تفعيل إشعارات الموبايل (Web Push) لولي الأمر — نفس نظام جينيس/Zicola */
 import PushPermissionBanner from '@/components/parent/PushPermissionBanner'
+/* (2026-و97) إشعارات ولي الأمر الداخلية — نفس نظام جينيس/Zicola */
+import ParentNotificationsCard from '@/components/parent/ParentNotificationsCard'
 
 interface ResultRow {
   id: string
@@ -281,6 +283,9 @@ export function ParentPortal() {
 
         {/* (2026-ص5) تفعيل إشعارات الموبايل (Web Push) — بوب-أب بعد الدخول + كارت حالة */}
         <PushPermissionBanner parentId={currentParent && currentParent.id ? currentParent.id : ''} />
+
+        {/* (2026-و97) إشعارات ولي الأمر — أول حاجة يشوفها بعد الهيدر */}
+        <ParentNotificationsCard parentId={currentParent && currentParent.id ? currentParent.id : ''} />
 
         {/* كارت الطالب */}
         {student ? (
