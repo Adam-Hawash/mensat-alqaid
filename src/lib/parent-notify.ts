@@ -399,7 +399,7 @@ export async function notifyParentsOfNewContent(opts: { studentIds?: string[]; g
         var gvs = gradeVariants(String(opts.grade))
         var gPh = gvs.map(function () { return '?' }).join(',')
         var rowsG: any = await db.$queryRawUnsafe(
-          "SELECT id FROM Student WHERE status IN ('approved','paid') AND grade IN (" + gPh + ")",
+          "SELECT id FROM Student WHERE status IN ('approved','paid','active') AND grade IN (" + gPh + ")",
           ...gvs
         )
         ids = (rowsG || []).map(function (r: any) { return String(r.id) })
