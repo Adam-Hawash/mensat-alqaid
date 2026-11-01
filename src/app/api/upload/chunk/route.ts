@@ -39,6 +39,31 @@ async function ensureMediaColumns() {
   if (_mediaColsReady) return
   try {
     try { await db.$executeRawUnsafe("CREATE TABLE IF NOT EXISTS Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)") } catch (e) {}
+    /* (ز33) لو الجدول القديم معمول بـ id INTEGER (قاعدة قديمة) — Prisma بيدخل
+       cuid نصي فبيرجع SQLITE_MISMATCH لكل رفع. الترحيل: جدول جديد صحيح
+       + نسخ البيانات القديمة + استبدال. */
+    try {
+      var ddlRows: any[] = (await db.$queryRawUnsafe("SELECT sql FROM sqlite_master WHERE type='table' AND name='Media'")) || []
+      var ddlSql = String((ddlRows[0] && ddlRows[0].sql) || '')
+      if (/id\s+INTEGER\s+PRIMARY\s+KEY/i.test(ddlSql)) {
+        try { await db.$executeRawUnsafe('ALTER TABLE Media RENAME TO Media_broken_z33') } catch (e) {}
+        try {
+          await db.$executeRawUnsafe("CREATE TABLE Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)")
+          // نسخ البيانات القديمة — بكل الأعمدة المعروفة، ولو فشل ننسخ الأساسيات بس
+          try {
+            await db.$executeRawUnsafe("INSERT OR IGNORE INTO Media (id, filePath, filename, fileType, fileSize, data, category, createdAt) SELECT CAST(id AS TEXT), IFNULL(filePath,''), IFNULL(filename,''), IFNULL(fileType,'application/octet-stream'), IFNULL(fileSize,''), IFNULL(data,''), IFNULL(category,'general'), IFNULL(createdAt, CURRENT_TIMESTAMP) FROM Media_broken_z33")
+          } catch (eFull) {
+            try {
+              await db.$executeRawUnsafe("INSERT OR IGNORE INTO Media (id, data, createdAt) SELECT CAST(id AS TEXT), IFNULL(data,''), IFNULL(createdAt, CURRENT_TIMESTAMP) FROM Media_broken_z33")
+            } catch (eMin) {}
+          }
+          try { await db.$executeRawUnsafe('DROP TABLE Media_broken_z33') } catch (e) {}
+        } catch (eCreate) {
+          // لو فشل الإنشاء نرجّع القديم باسمه
+          try { await db.$executeRawUnsafe('ALTER TABLE Media_broken_z33 RENAME TO Media') } catch (e) {}
+        }
+      }
+    } catch (eDdl) {}
     try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN filePath TEXT NOT NULL DEFAULT ''") } catch (e) {}
     try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN filename TEXT NOT NULL DEFAULT ''") } catch (e) {}
     try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN fileType TEXT NOT NULL DEFAULT 'application/octet-stream'") } catch (e) {}
