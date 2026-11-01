@@ -12,16 +12,12 @@
 //   100% زي ما الطالب صوّرها، وأي retry لجزء بيكتب فوق القديم بأمان.
 
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
 import { db } from '@/lib/db'
 
 export const maxDuration = 60
 
 // بادئة صفوف الأجزاء المؤقتة — مش بتظهر كملف نهائي أبدًا
-function rowVal(row: any, key: string, idx: number): any {
-  if (Array.isArray(row)) return row[idx]
-  return row ? row[key] : undefined
-}
-
 var CHUNK_PREFIX = '__chunks/'
 // الأجزاء اللي مكتملش رفعها من أكتر من يوم بتتشال أوتوماتيك (رفع فاشل مهجور)
 var CHUNK_TTL_MS = 24 * 60 * 60 * 1000
@@ -31,76 +27,89 @@ function chunkSlotPath(uploadId: string, index: number): string {
 }
 
 function parseIndexFromPath(filePath: string): number {
-  // __chunks/<uploadId>/<index> → index رقمي (ترتيب رقمي مش نصي)
   var tail = filePath.substring(filePath.lastIndexOf('/') + 1)
   var n = parseInt(tail, 10)
-  return isNaN(n) ? -1 : n
+  return isNaN(n) ? 0 : n
 }
 
-/* (ز33) شفاء أعمدة Media الناقصة في قواعد الإنتاج القديمة —
-   عمود filename كان ناقص فكل رفع بيرجع 500 «فشلت العملية» */
-var _mediaColsReady = false
-async function ensureMediaColumns() {
-  if (_mediaColsReady) return
+/* (ز33) كل عمليات Media هنا **Raw SQL خالص** — على قاعدة القائد الإنتاجية
+   Prisma model كان بيتكلم مع سكيما مختلفة (SQLITE_MISMATCH) بينما Raw
+   شغال 100% — فالرفع كله بقى Raw متسق: إنشاء الجدول + الإدراج + القراءة.
+   وشغّال على SQLite المحلي وTurso بغض النظر عن سكيما Prisma. */
+
+var MEDIA_DDL = "CREATE TABLE IF NOT EXISTS Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)"
+
+var _mediaReady = false
+async function ensureMediaRaw(): Promise<void> {
+  if (_mediaReady) return
   try {
-    try { await db.$executeRawUnsafe("CREATE TABLE IF NOT EXISTS Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)") } catch (e) {}
-    /* (ز33) لو Media موجودة كـ VIEW (حصل في قواعد قديمة) — الإدراج بيرجع
-       SQLITE_MISMATCH. بنحذف الـ view ونعمل الجدول الصحيح. */
+    // 1) لو فيه كائن اسمه Media (جدول قديم مكسور أو view) — نشيله ونظبطه
     try {
-      var anyRows: any[] = (await db.$queryRawUnsafe("SELECT type, sql FROM sqlite_master WHERE name='Media'")) || []
-      var existingType = String(rowVal(anyRows[0], 'type', 0) || '')
-      var existingSql = String(rowVal(anyRows[0], 'sql', 1) || '')
-      if (existingType === 'view' || /id\s+INTEGER\s+PRIMARY\s+KEY/i.test(existingSql)) {
-        /* view قديمة أو id INTEGER — الاتنين بكسروا الإدراج */
-        try { await db.$executeRawUnsafe('DROP ' + (existingType === 'view' ? 'VIEW' : 'TABLE') + ' IF EXISTS Media') } catch (e) {}
-        try { await db.$executeRawUnsafe("CREATE TABLE Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)") } catch (e) {}
-      }
-      if (false) {
-        try { await db.$executeRawUnsafe('DROP VIEW IF EXISTS Media') } catch (e) {}
-        try { await db.$executeRawUnsafe("CREATE TABLE Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)") } catch (e) {}
-      }
-    } catch (eView) {}
-    /* (ز33) لو الجدول القديم معمول بـ id INTEGER (قاعدة قديمة) — Prisma بيدخل
-       cuid نصي فبيرجع SQLITE_MISMATCH لكل رفع. الترحيل: جدول جديد صحيح
-       + نسخ البيانات القديمة + استبدال. */
-    try {
-      var ddlRows: any[] = (await db.$queryRawUnsafe("SELECT sql FROM sqlite_master WHERE type='table' AND name='Media'")) || []
-      var ddlSql = String(rowVal(ddlRows[0], 'sql', 0) || '')
-      if (/id\s+INTEGER\s+PRIMARY\s+KEY/i.test(ddlSql)) {
+      var existing: any[] = (await db.$queryRawUnsafe("SELECT type, sql FROM sqlite_master WHERE name='Media'")) || []
+      var e0 = existing[0]
+      var eType = e0 ? (Array.isArray(e0) ? e0[0] : e0.type) : ''
+      var eSql = e0 ? String(Array.isArray(e0) ? e0[1] : (e0.sql || '')) : ''
+      var broken = !e0 || eType === 'view' || /id\s+INTEGER\s+PRIMARY\s+KEY/i.test(eSql)
+      if (broken && e0) {
+        // جدول قديم فيه بيانات؟ نرحّل اللي نقدر عليه
         try { await db.$executeRawUnsafe('ALTER TABLE Media RENAME TO Media_broken_z33') } catch (e) {}
         try {
-          await db.$executeRawUnsafe("CREATE TABLE Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)")
-          // نسخ البيانات القديمة — بكل الأعمدة المعروفة، ولو فشل ننسخ الأساسيات بس
+          await db.$executeRawUnsafe(MEDIA_DDL.replace('IF NOT EXISTS ', ''))
           try {
             await db.$executeRawUnsafe("INSERT OR IGNORE INTO Media (id, filePath, filename, fileType, fileSize, data, category, createdAt) SELECT CAST(id AS TEXT), IFNULL(filePath,''), IFNULL(filename,''), IFNULL(fileType,'application/octet-stream'), IFNULL(fileSize,''), IFNULL(data,''), IFNULL(category,'general'), IFNULL(createdAt, CURRENT_TIMESTAMP) FROM Media_broken_z33")
           } catch (eFull) {
-            try {
-              await db.$executeRawUnsafe("INSERT OR IGNORE INTO Media (id, data, createdAt) SELECT CAST(id AS TEXT), IFNULL(data,''), IFNULL(createdAt, CURRENT_TIMESTAMP) FROM Media_broken_z33")
-            } catch (eMin) {}
+            try { await db.$executeRawUnsafe("INSERT OR IGNORE INTO Media (id, data, createdAt) SELECT CAST(id AS TEXT), IFNULL(data,''), IFNULL(createdAt, CURRENT_TIMESTAMP) FROM Media_broken_z33") } catch (eMin) {}
           }
           try { await db.$executeRawUnsafe('DROP TABLE Media_broken_z33') } catch (e) {}
         } catch (eCreate) {
-          // لو فشل الإنشاء نرجّع القديم باسمه
           try { await db.$executeRawUnsafe('ALTER TABLE Media_broken_z33 RENAME TO Media') } catch (e) {}
         }
+      } else if (!e0) {
+        await db.$executeRawUnsafe(MEDIA_DDL)
       }
-    } catch (eDdl) {}
-    try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN filePath TEXT NOT NULL DEFAULT ''") } catch (e) {}
-    try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN filename TEXT NOT NULL DEFAULT ''") } catch (e) {}
-    try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN fileType TEXT NOT NULL DEFAULT 'application/octet-stream'") } catch (e) {}
-    try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN fileSize TEXT NOT NULL DEFAULT ''") } catch (e) {}
-    try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN category TEXT NOT NULL DEFAULT 'general'") } catch (e) {}
-    try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN data TEXT NOT NULL DEFAULT ''") } catch (e) {}
-    try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP") } catch (e) {}
-    try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN updatedAt DATETIME") } catch (e) {}
+      // 2) أعمدة ناقصة على قواعد قديمة — ALTER متسامح
+      try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN filePath TEXT NOT NULL DEFAULT ''") } catch (e) {}
+      try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN filename TEXT NOT NULL DEFAULT ''") } catch (e) {}
+      try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN fileType TEXT NOT NULL DEFAULT 'application/octet-stream'") } catch (e) {}
+      try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN fileSize TEXT NOT NULL DEFAULT ''") } catch (e) {}
+      try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN category TEXT NOT NULL DEFAULT 'general'") } catch (e) {}
+      try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN data TEXT NOT NULL DEFAULT ''") } catch (e) {}
+      try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP") } catch (e) {}
+      _mediaReady = true
+    } catch (e) {}
+  } catch (e) {}
+}
 
-    _mediaColsReady = true
+function newMediaId(): string {
+  return 'm' + Date.now().toString(36) + crypto.randomBytes(6).toString('hex')
+}
+
+async function mediaInsert(fileName: string, filePath: string, fileType: string, sizeBytes: number, base64: string, category: string): Promise<string> {
+  var id = newMediaId()
+  await db.$executeRawUnsafe(
+    "INSERT INTO Media (id, filePath, filename, fileType, fileSize, data, category, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+    id, filePath, fileName, fileType, String(sizeBytes), base64, category
+  )
+  return id
+}
+
+async function mediaDeleteByPathPrefix(prefix: string): Promise<void> {
+  try { await db.$executeRawUnsafe('DELETE FROM Media WHERE filePath LIKE ?', prefix + '%') } catch (e) {}
+}
+
+async function cleanupOrphanChunks(): Promise<void> {
+  try {
+    var cutoffSec = Math.floor((Date.now() - CHUNK_TTL_MS) / 1000)
+    try { await db.$executeRawUnsafe("DELETE FROM Media WHERE filePath LIKE ? AND createdAt < datetime(?, 'unixepoch')", CHUNK_PREFIX + '%', cutoffSec) } catch (e) {
+      // fallback بدون شرط الوقت (قواعد قديمة) — نفس الآمن: مفيش بيانات نهائية تتمسح
+      try { await db.$executeRawUnsafe('DELETE FROM Media WHERE filePath LIKE ?', CHUNK_PREFIX + '%') } catch (e2) {}
+    }
   } catch (e) {}
 }
 
 export async function POST(req: NextRequest) {
   try {
-    await ensureMediaColumns()
+    await ensureMediaRaw()
     var formData = await req.formData()
     var file = formData.get('file') as File | null
     var uploadId = String(formData.get('uploadId') || '').replace(/[^a-zA-Z0-9\-]/g, '')
@@ -124,22 +133,12 @@ export async function POST(req: NextRequest) {
     var fileType = file.type || 'application/octet-stream'
 
     // =====================================================
-    // الحالة 1: ملف صغير (جزء واحد) — حفظ مباشر زي ما هو
+    // الحالة 1: ملف صغير (جزء واحد) — حفظ مباشر
     // =====================================================
     if (totalChunks === 1) {
-      var media = await db.media.create({
-        data: {
-          filename: fileName,
-          filePath: filePath,
-          fileType: fileType,
-          fileSize: String(buffer.length),
-          data: base64,
-          category: category,
-        },
-      })
-
+      var mediaId = await mediaInsert(fileName, filePath, fileType, buffer.length, base64, category)
       return NextResponse.json({
-        filePath: '/api/files/' + media.id,
+        filePath: '/api/files/' + mediaId,
         fileType: fileType,
         filename: fileName,
         size: buffer.length,
@@ -149,29 +148,17 @@ export async function POST(req: NextRequest) {
 
     // =====================================================
     // الحالة 2: رفع مجزأ — تخزين مؤقت للجزء الحالي
-    // (delete ثم create = كتابة فوق آمنة لو حصل retry لنفس الجزء)
     // =====================================================
     if (!uploadId) {
       return NextResponse.json({ error: 'uploadId مفقود للرفع المجزأ' }, { status: 400 })
     }
 
-    // تنظيف الأجزاء المهجورة من رفعات فاشلة قديمة (بأمان — لو فشل مبيأثرش)
     await cleanupOrphanChunks()
 
     var slotPath = chunkSlotPath(uploadId, chunkIndex)
-    await db.media.deleteMany({ where: { filePath: slotPath } })
-    await db.media.create({
-      data: {
-        filename: fileName,
-        filePath: slotPath,
-        fileType: fileType,
-        fileSize: String(buffer.length),
-        data: base64,
-        category: '__chunk__',
-      },
-    })
+    try { await db.$executeRawUnsafe('DELETE FROM Media WHERE filePath = ?', slotPath) } catch (e) {}
+    await mediaInsert(fileName, slotPath, fileType, buffer.length, base64, '__chunk__')
 
-    // لسه مش آخر جزء — الخزانة شغالة، الكلينت هيكمل باقي الأجزاء
     if (chunkIndex < totalChunks - 1) {
       return NextResponse.json({
         done: false,
@@ -182,20 +169,20 @@ export async function POST(req: NextRequest) {
     }
 
     // =====================================================
-    // الحالة 3: آخر جزء وصل — تجميع كل الأجزاء بالترتيب في ملف واحد
+    // الحالة 3: آخر جزء وصل — تجميع كل الأجزاء بالترتيب
     // =====================================================
-    var parts = await db.media.findMany({
-      where: { filePath: { startsWith: CHUNK_PREFIX + uploadId + '/' } },
-      orderBy: { createdAt: 'asc' },
-    })
+    var parts: any[] = (await db.$queryRawUnsafe(
+      'SELECT id, filePath, data, createdAt FROM Media WHERE filePath LIKE ? ORDER BY createdAt ASC',
+      CHUNK_PREFIX + uploadId + '/%'
+    )) || []
 
-    // ترتيب رقمي بالفهرس (مش نصي عشان 10 ما تجيش قبل 2)
     parts.sort(function (a: any, b: any) {
-      return parseIndexFromPath(a.filePath) - parseIndexFromPath(b.filePath)
+      var pa = Array.isArray(a) ? a[1] : a.filePath
+      var pb = Array.isArray(b) ? b[1] : b.filePath
+      return parseIndexFromPath(String(pa)) - parseIndexFromPath(String(pb))
     })
 
     if (parts.length < totalChunks) {
-      // جزء ناقص (فشل شبكة في جزء وسطى) — رسالة واضحة والكلينت يعرضها
       return NextResponse.json(
         {
           error: 'اتستلم ' + parts.length + ' جزء من ' + totalChunks + ' — حاول ترفع الملف تاني',
@@ -206,11 +193,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // التجميع بالترتيب — الصورة/الملف كاملة زي ما اتبعتت
     var buffers: Buffer[] = []
     var totalSize = 0
     for (var i = 0; i < totalChunks; i++) {
-      var chunkData = parts[i].data || ''
+      var p = parts[i]
+      var chunkData = String((Array.isArray(p) ? p[2] : p.data) || '')
       var chunkBuf = Buffer.from(chunkData, 'base64')
       buffers.push(chunkBuf)
       totalSize += chunkBuf.length
@@ -218,23 +205,11 @@ export async function POST(req: NextRequest) {
     var full = Buffer.concat(buffers)
     var fullBase64 = full.toString('base64')
 
-    // الصف النهائي + تنظيف الأجزاء المؤقتة
-    var finalMedia = await db.media.create({
-      data: {
-        filename: fileName,
-        filePath: filePath,
-        fileType: fileType,
-        fileSize: String(totalSize),
-        data: fullBase64,
-        category: category,
-      },
-    })
-    await db.media.deleteMany({
-      where: { filePath: { startsWith: CHUNK_PREFIX + uploadId + '/' } },
-    })
+    var finalId = await mediaInsert(fileName, filePath, fileType, totalSize, fullBase64, category)
+    await mediaDeleteByPathPrefix(CHUNK_PREFIX + uploadId + '/')
 
     return NextResponse.json({
-      filePath: '/api/files/' + finalMedia.id,
+      filePath: '/api/files/' + finalId,
       fileType: fileType,
       filename: fileName,
       size: totalSize,
@@ -242,43 +217,6 @@ export async function POST(req: NextRequest) {
     })
   } catch (err: any) {
     console.error('Upload error:', err)
-    var ddlDump = 'none'
-    try {
-      await db.$executeRawUnsafe("CREATE TABLE IF NOT EXISTS UploadMediaZ (id TEXT PRIMARY KEY, data TEXT NOT NULL DEFAULT '', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)")
-      ddlDump = 'create:'
-      try { await db.$executeRawUnsafe("INSERT INTO UploadMediaZ (id, data) VALUES (?, ?)", 'diag-' + Date.now(), 'x') ; ddlDump += 'insert-ok' } catch (eI: any) { ddlDump += 'insert-err:' + String(eI && eI.message).slice(0, 100) }
-      var cnt: any[] = (await db.$queryRawUnsafe("SELECT COUNT(*) as c FROM UploadMediaZ")) || []
-      ddlDump += ' count=' + String(rowVal(cnt[0], 'c', 0))
-      var ddM: any[] = (await db.$queryRawUnsafe("SELECT sql FROM sqlite_master WHERE name='UploadMediaZ'")) || []
-      ddlDump += ' ddl=' + (ddM.length ? 'found' : 'no-row')
-    } catch (eD: any) { ddlDump = 'q-err: ' + String(eD && eD.message).slice(0, 150) }
-    try {
-      await (db as any).media.findMany({ take: 1 })
-      ddlDump += ' | model-ok'
-    } catch (eM: any) {
-      ddlDump += ' | model-err: ' + String(eM && eM.message).slice(0, 150)
-    }
-    try {
-      await db.$executeRawUnsafe("CREATE TABLE IF NOT EXISTS Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)")
-      ddlDump += ' | create-ok'
-    } catch (eC: any) {
-      ddlDump += ' | create-err: ' + String(eC && eC.message).slice(0, 200)
-    }
-    return NextResponse.json({ error: err.message || 'حصلت مشكلة في الرفع', mediaDdl: ddlDump }, { status: 500 })
-  }
-}
-
-// تنظيف الأجزاء المهجورة (رفع اتبدأ وماكملش خلال يوم) — بيشتغل مع كل
-// رفع مجزأ بس، والفحص على filePath فمبيقرأش البلوبات نفسها
-async function cleanupOrphanChunks() {
-  try {
-    await db.media.deleteMany({
-      where: {
-        filePath: { startsWith: CHUNK_PREFIX },
-        createdAt: { lt: new Date(Date.now() - CHUNK_TTL_MS) },
-      },
-    })
-  } catch (e) {
-    // التنظيف خدمة إضافية — فشله مبيوقفش الرفع
+    return NextResponse.json({ error: err.message || 'حصلت مشكلة في الرفع' }, { status: 500 })
   }
 }

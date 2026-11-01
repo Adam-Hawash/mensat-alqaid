@@ -22,7 +22,23 @@ export async function GET(
     var { id } = await params
     const { searchParams } = new URL(request.url)
 
-    var media = await db.media.findUnique({ where: { id } })
+    /* (ز33) قراءة Media بـ Raw SQL — على قاعدة الإنتاج Prisma model كان
+       بيقرا من سكيما مختلفة فالملفات المرفوعة بالمجلزئ كانت مش بتظهر.
+       Raw متسق مع مسار الرفع (/api/upload/chunk) — وبيقرا صيغتي الصفوف. */
+    var mediaRow: any = null
+    try {
+      var rowsM: any[] = (await db.$queryRawUnsafe('SELECT id, filePath, filename, fileType, fileSize, data, category, createdAt FROM Media WHERE id = ? LIMIT 1', id)) || []
+      var r0 = rowsM[0]
+      if (r0) {
+        mediaRow = Array.isArray(r0)
+          ? { id: r0[0], filePath: r0[1], filename: r0[2], fileType: r0[3], fileSize: r0[4], data: r0[5], category: r0[6], createdAt: r0[7] }
+          : r0
+      }
+    } catch (eRaw) {}
+    if (!mediaRow) {
+      try { mediaRow = await db.media.findUnique({ where: { id } }) } catch (eModel) {}
+    }
+    var media = mediaRow
     if (!media || !media.data) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
