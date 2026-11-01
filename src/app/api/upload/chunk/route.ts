@@ -17,6 +17,11 @@ import { db } from '@/lib/db'
 export const maxDuration = 60
 
 // بادئة صفوف الأجزاء المؤقتة — مش بتظهر كملف نهائي أبدًا
+function rowVal(row: any, key: string, idx: number): any {
+  if (Array.isArray(row)) return row[idx]
+  return row ? row[key] : undefined
+}
+
 var CHUNK_PREFIX = '__chunks/'
 // الأجزاء اللي مكتملش رفعها من أكتر من يوم بتتشال أوتوماتيك (رفع فاشل مهجور)
 var CHUNK_TTL_MS = 24 * 60 * 60 * 1000
@@ -43,8 +48,14 @@ async function ensureMediaColumns() {
        SQLITE_MISMATCH. بنحذف الـ view ونعمل الجدول الصحيح. */
     try {
       var anyRows: any[] = (await db.$queryRawUnsafe("SELECT type, sql FROM sqlite_master WHERE name='Media'")) || []
-      var existingType = String((anyRows[0] && anyRows[0].type) || '')
-      if (existingType === 'view') {
+      var existingType = String(rowVal(anyRows[0], 'type', 0) || '')
+      var existingSql = String(rowVal(anyRows[0], 'sql', 1) || '')
+      if (existingType === 'view' || /id\s+INTEGER\s+PRIMARY\s+KEY/i.test(existingSql)) {
+        /* view قديمة أو id INTEGER — الاتنين بكسروا الإدراج */
+        try { await db.$executeRawUnsafe('DROP ' + (existingType === 'view' ? 'VIEW' : 'TABLE') + ' IF EXISTS Media') } catch (e) {}
+        try { await db.$executeRawUnsafe("CREATE TABLE Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)") } catch (e) {}
+      }
+      if (false) {
         try { await db.$executeRawUnsafe('DROP VIEW IF EXISTS Media') } catch (e) {}
         try { await db.$executeRawUnsafe("CREATE TABLE Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)") } catch (e) {}
       }
@@ -54,7 +65,7 @@ async function ensureMediaColumns() {
        + نسخ البيانات القديمة + استبدال. */
     try {
       var ddlRows: any[] = (await db.$queryRawUnsafe("SELECT sql FROM sqlite_master WHERE type='table' AND name='Media'")) || []
-      var ddlSql = String((ddlRows[0] && ddlRows[0].sql) || '')
+      var ddlSql = String(rowVal(ddlRows[0], 'sql', 0) || '')
       if (/id\s+INTEGER\s+PRIMARY\s+KEY/i.test(ddlSql)) {
         try { await db.$executeRawUnsafe('ALTER TABLE Media RENAME TO Media_broken_z33') } catch (e) {}
         try {
@@ -234,7 +245,7 @@ export async function POST(req: NextRequest) {
     var ddlDump = 'no-table'
     try {
       var dd: any[] = (await db.$queryRawUnsafe("SELECT type, sql FROM sqlite_master WHERE name='Media'")) || []
-      ddlDump = String((dd[0] && dd[0].type) + ' | ' + ((dd[0] && dd[0].sql) || '')).slice(0, 500)
+      ddlDump = String(rowVal(dd[0], 'type', 0)) + ' | ' + String(rowVal(dd[0], 'sql', 1) || '').slice(0, 350)
     } catch (eD) { ddlDump = 'q-err: ' + String(eD && eD.message).slice(0, 120) }
     try {
       await db.$executeRawUnsafe("CREATE TABLE IF NOT EXISTS Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)")
