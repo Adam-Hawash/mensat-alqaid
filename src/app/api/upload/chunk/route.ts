@@ -242,11 +242,19 @@ export async function POST(req: NextRequest) {
     })
   } catch (err: any) {
     console.error('Upload error:', err)
-    var ddlDump = 'no-table'
+    var ddlDump = 'none'
     try {
-      var dd: any[] = (await db.$queryRawUnsafe("SELECT type, sql FROM sqlite_master WHERE name='Media'")) || []
-      ddlDump = String(rowVal(dd[0], 'type', 0)) + ' | ' + String(rowVal(dd[0], 'sql', 1) || '').slice(0, 350)
+      var all2: any[] = (await db.$queryRawUnsafe("SELECT type, name FROM sqlite_master ORDER BY name LIMIT 40")) || []
+      var names: string[] = []
+      for (var ai = 0; ai < all2.length; ai++) names.push(String(rowVal(all2[ai], 'type', 0)) + ':' + String(rowVal(all2[ai], 'name', 1)))
+      ddlDump = names.join(',').slice(0, 400)
     } catch (eD) { ddlDump = 'q-err: ' + String(eD && eD.message).slice(0, 120) }
+    try {
+      await (db as any).media.findMany({ take: 1 })
+      ddlDump += ' | model-ok'
+    } catch (eM: any) {
+      ddlDump += ' | model-err: ' + String(eM && eM.message).slice(0, 150)
+    }
     try {
       await db.$executeRawUnsafe("CREATE TABLE IF NOT EXISTS Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)")
       ddlDump += ' | create-ok'
