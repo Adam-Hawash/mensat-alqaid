@@ -221,7 +221,12 @@ export async function POST(req: NextRequest) {
     })
   } catch (err: any) {
     console.error('Upload error:', err)
-    return NextResponse.json({ error: err.message || 'حصلت مشكلة في الرفع' }, { status: 500 })
+    var ddlDump = ''
+    try {
+      var dd: any[] = (await db.$queryRawUnsafe("SELECT sql FROM sqlite_master WHERE type='table' AND name='Media'")) || []
+      ddlDump = String((dd[0] && dd[0].sql) || 'no-table').slice(0, 500)
+    } catch (eD) {}
+    return NextResponse.json({ error: err.message || 'حصلت مشكلة في الرفع', mediaDdl: ddlDump }, { status: 500 })
   }
 }
 
