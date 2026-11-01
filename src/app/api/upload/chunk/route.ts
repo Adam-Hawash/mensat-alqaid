@@ -39,6 +39,16 @@ async function ensureMediaColumns() {
   if (_mediaColsReady) return
   try {
     try { await db.$executeRawUnsafe("CREATE TABLE IF NOT EXISTS Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)") } catch (e) {}
+    /* (ز33) لو Media موجودة كـ VIEW (حصل في قواعد قديمة) — الإدراج بيرجع
+       SQLITE_MISMATCH. بنحذف الـ view ونعمل الجدول الصحيح. */
+    try {
+      var anyRows: any[] = (await db.$queryRawUnsafe("SELECT type, sql FROM sqlite_master WHERE name='Media'")) || []
+      var existingType = String((anyRows[0] && anyRows[0].type) || '')
+      if (existingType === 'view') {
+        try { await db.$executeRawUnsafe('DROP VIEW IF EXISTS Media') } catch (e) {}
+        try { await db.$executeRawUnsafe("CREATE TABLE Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)") } catch (e) {}
+      }
+    } catch (eView) {}
     /* (ز33) لو الجدول القديم معمول بـ id INTEGER (قاعدة قديمة) — Prisma بيدخل
        cuid نصي فبيرجع SQLITE_MISMATCH لكل رفع. الترحيل: جدول جديد صحيح
        + نسخ البيانات القديمة + استبدال. */
