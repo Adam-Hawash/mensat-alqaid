@@ -244,9 +244,14 @@ export async function POST(req: NextRequest) {
     console.error('Upload error:', err)
     var ddlDump = 'none'
     try {
-      var ddM: any[] = (await db.$queryRawUnsafe("SELECT sql FROM sqlite_master WHERE name='Media'")) || []
-      ddlDump = 'MEDIA_DDL: ' + String(rowVal(ddM[0], 'sql', 0) || 'no-row').slice(0, 450)
-    } catch (eD) { ddlDump = 'q-err: ' + String(eD && eD.message).slice(0, 120) }
+      await db.$executeRawUnsafe("CREATE TABLE IF NOT EXISTS UploadMediaZ (id TEXT PRIMARY KEY, data TEXT NOT NULL DEFAULT '', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)")
+      ddlDump = 'create:'
+      try { await db.$executeRawUnsafe("INSERT INTO UploadMediaZ (id, data) VALUES (?, ?)", 'diag-' + Date.now(), 'x') ; ddlDump += 'insert-ok' } catch (eI: any) { ddlDump += 'insert-err:' + String(eI && eI.message).slice(0, 100) }
+      var cnt: any[] = (await db.$queryRawUnsafe("SELECT COUNT(*) as c FROM UploadMediaZ")) || []
+      ddlDump += ' count=' + String(rowVal(cnt[0], 'c', 0))
+      var ddM: any[] = (await db.$queryRawUnsafe("SELECT sql FROM sqlite_master WHERE name='UploadMediaZ'")) || []
+      ddlDump += ' ddl=' + (ddM.length ? 'found' : 'no-row')
+    } catch (eD: any) { ddlDump = 'q-err: ' + String(eD && eD.message).slice(0, 150) }
     try {
       await (db as any).media.findMany({ take: 1 })
       ddlDump += ' | model-ok'
