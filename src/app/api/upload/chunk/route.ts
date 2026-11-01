@@ -38,12 +38,16 @@ var _mediaColsReady = false
 async function ensureMediaColumns() {
   if (_mediaColsReady) return
   try {
+    try { await db.$executeRawUnsafe("CREATE TABLE IF NOT EXISTS Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)") } catch (e) {}
     try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN filePath TEXT NOT NULL DEFAULT ''") } catch (e) {}
     try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN filename TEXT NOT NULL DEFAULT ''") } catch (e) {}
     try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN fileType TEXT NOT NULL DEFAULT 'application/octet-stream'") } catch (e) {}
     try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN fileSize TEXT NOT NULL DEFAULT ''") } catch (e) {}
     try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN category TEXT NOT NULL DEFAULT 'general'") } catch (e) {}
     try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN data TEXT NOT NULL DEFAULT ''") } catch (e) {}
+    try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP") } catch (e) {}
+    try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN updatedAt DATETIME") } catch (e) {}
+
     _mediaColsReady = true
   } catch (e) {}
 }
