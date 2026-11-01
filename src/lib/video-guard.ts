@@ -191,10 +191,25 @@ export async function checkSequentialUnlock(
   try {
     const video = await db.video.findUnique({ where: { id: videoId } })
     if (!video) return { ok: true }
-    const gradeVideos = await db.video.findMany({
+    var gradeVideos = await db.video.findMany({
       where: { grade: video.grade },
       orderBy: { createdAt: 'asc' },
       select: { id: true, url: true, filePath: true, fileType: true, price: true },
+    })
+    /* (ز28 — طلب المستر): الإخفاء = مش موجود. الفيديو المخفي عن الطالب
+       (VideoSchedule.hiddenStudentIds) ما بيدخلش في سلسلة التسلسل خالص —
+       عشان فيديو الطالب مش شايفه عمره ما يحجب اللي بعده. */
+    var hidBySchedule: Record<string, boolean> = {}
+    try {
+      var hSchRows: any[] = await db.$queryRawUnsafe('SELECT videoId, hiddenStudentIds FROM VideoSchedule')
+      for (var hsi = 0; hsi < (hSchRows || []).length; hsi++) {
+        var hSchIds: string[] = []
+        try { hSchIds = JSON.parse(String(hSchRows[hsi].hiddenStudentIds || '[]')) } catch (eHS) {}
+        if (Array.isArray(hSchIds) && hSchIds.indexOf(String(studentId)) !== -1) hidBySchedule[String(hSchRows[hsi].videoId || '')] = true
+      }
+    } catch (eHS2) { /* جدول ناقص — من غير إخفاء فيديوهات */ }
+    gradeVideos = gradeVideos.filter(function (hv: any) {
+      return !hidBySchedule[String(hv.id)]
     })
     const idx = gradeVideos.findIndex((v) => v.id === videoId)
     // أول فيديو في الترتيب دايمًا مفتوح

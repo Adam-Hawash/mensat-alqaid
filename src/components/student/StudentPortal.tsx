@@ -675,6 +675,12 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
     })
   }, [videos])
 
+  /* (ز28 — طلب المستر): الإخفاء = مش موجود. الفيديو المخفي عن الطالب
+     (جدولة) ما بيدخلش في سلسلة القفل خالص — فالفيديو اللي بعده يفتح على طول */
+  const visibleOrderedVideos = useMemo(function () {
+    return orderedVideos.filter(function (v) { return !hiddenVideoIds.has(v.id) })
+  }, [orderedVideos, hiddenVideoIds])
+
   // قفل التسلسل (طلب المستر): الفيديو ميفتحش غير لما اللي قبله يتشاف كامل 100%
   // (ز22) الفيديو اللي بفلوس = اختياري صامت — مش بيحجب اللي بعده (طلب المستر:
   // «الفيديو اللي بفلوس يكون اختياري بس متكتبش ان هو اختياري — لو الطالب
@@ -682,7 +688,7 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
   const lockedMap = useMemo(function () {
     var map: Record<string, boolean> = {}
     var prevTrackable: string | null = null
-    orderedVideos.forEach(function (v) {
+    visibleOrderedVideos.forEach(function (v) {
       var k = videoKindOf(v)
       var trackable = k === 'youtube' || k === 'file'
       if (progressLoaded && trackable && prevTrackable) {
@@ -695,14 +701,14 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
       if (trackable && !paidNoAccess) prevTrackable = v.id
     })
     return map
-  }, [orderedVideos, mergedProgress, progressLoaded])
+  }, [visibleOrderedVideos, mergedProgress, progressLoaded])
 
   // الفيديو اللي قبل كل فيديو (عشان نعرض نسبته على كارت المقفول)
   // (ز22) نفس قاعدة الاختياري الصامت: المسعّر ما بيعدّش «اللي قبله»
   const prevVideoMap = useMemo(function () {
     var map: Record<string, string> = {}
     var prevTrackable: string | null = null
-    orderedVideos.forEach(function (v) {
+    visibleOrderedVideos.forEach(function (v) {
       var k = videoKindOf(v)
       var trackable = k === 'youtube' || k === 'file'
       if (trackable && prevTrackable) map[v.id] = prevTrackable
@@ -710,7 +716,7 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
       if (trackable && !paidNoAccess) prevTrackable = v.id
     })
     return map
-  }, [orderedVideos])
+  }, [visibleOrderedVideos])
 
   // فتح أي درس (يوتيوب أو ملف مرفوع): بنطلب تذكرة تشغيل واحدة الاستخدام
   // من /api/video-ticket — مفيش أي YouTube ID أو رابط ملف بيرجع للصفحة.
