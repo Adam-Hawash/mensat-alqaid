@@ -186,9 +186,9 @@ var SCHEMA_FIXES = [
   // اللي رفعها المستر عمرو رشدي) — أسرع في مصر ومفيش اعتماد على هوست صور خارجي، والفولباك في الكود
   // نفس الملف بالظبط (idempotent — لو الأدمن رفع صورة تانية بعدين مش هتتلمس)
   "UPDATE SiteConfig SET value = '/images/instructor.jpg' WHERE key = 'instructor_photo' AND (value LIKE '%i.imghos.co%' OR value LIKE '%instructor.webp%')",
-  // ===== (و78) شفاء الاسم المخزّن غلط «Adam Hawash» → «Adham Hawash» — ترحيلة دائمة (idempotent)
-  // بتكمّل إصلاح القراءة اللي في /api/config GET (NAME_REPAIR_KEYS)
-  "UPDATE SiteConfig SET value = REPLACE(value, 'Adam Hawash', 'Adham Hawash') WHERE (key LIKE '%made_by%' OR key LIKE '%developer_label%') AND value LIKE '%Adam Hawash%'",
+  // ===== (Z-36b) شفاء الاسم المخزّن غلط «Adham Hawash» → «Adam Hawash» — ترحيلة دائمة (idempotent)
+  // كانت بالعكس (Adam → Adham) واتقلبت — بتكمّل إصلاح القراءة اللي في /api/config GET (NAME_REPAIR_KEYS)
+  "UPDATE SiteConfig SET value = REPLACE(value, 'Adham Hawash', 'Adam Hawash') WHERE (key LIKE '%made_by%' OR key LIKE '%developer_label%') AND value LIKE '%Adham Hawash%'",
   // ===== (ز16) إزالة تكرار SiteConfig قبل إنشاء الفهرس الفريد — علة 500 في upsert على جداول قديمة
   // بنحتفظ بأحدث صف لكل مفتاح (أكبر rowid) — لو مفيش تكرار الاستعلام مش بيمسح حاجة (idempotent)
   'DELETE FROM SiteConfig WHERE rowid NOT IN (SELECT MAX(rowid) FROM SiteConfig GROUP BY key)',

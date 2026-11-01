@@ -157,6 +157,8 @@ function detectRenames(originals: GradeItem[], current: GradeItem[]): Array<{ fr
 export function GradesSchedulePanel() {
   var siteConfig = useAppStore(function (s) { return s.siteConfig })
   var configLoaded = useAppStore(function (s) { return s.configLoaded })
+  // (Z-36b) الكتابة في /api/site-config بقت محتاجة أدمن موثّق — بنمرر adminId في الـ query
+  var adminId = useAppStore(function (s) { return s.currentAdmin?.id || '' })
 
   // ===== القسم أ: الصفوف الدراسية =====
   var [grades, setGrades] = useState<GradeItem[]>(function () { return gradesFromConfig(siteConfig) })
@@ -263,10 +265,11 @@ export function GradesSchedulePanel() {
     var renames = detectRenames(originalGrades, grades)
     setSavingGrades(true)
     try {
+      if (!adminId) { toast.error('مفيش جلسة أدمن'); return }
       var value = JSON.stringify(grades.map(function (g) {
         return { ar: g.ar.trim(), en: g.en.trim(), emoji: g.emoji.trim(), short: g.short.trim() }
       }))
-      var res = await fetch('/api/site-config', {
+      var res = await fetch('/api/site-config?adminId=' + encodeURIComponent(adminId), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: 'grades_data', value: value }),
@@ -400,13 +403,14 @@ export function GradesSchedulePanel() {
     }
     setSavingSchedule(true)
     try {
+      if (!adminId) { toast.error('مفيش جلسة أدمن'); return }
       var value = JSON.stringify(schedule.map(function (d) {
         return {
           day: d.day,
           slots: d.slots.map(function (s) { return { time: s.time.trim(), grade: s.grade.trim() } }),
         }
       }))
-      var res = await fetch('/api/site-config', {
+      var res = await fetch('/api/site-config?adminId=' + encodeURIComponent(adminId), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: 'schedule_data', value: value }),

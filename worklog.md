@@ -178,3 +178,25 @@ Work Log:
 Stage Summary:
 - المنصات كلها دلوقتي: نزول واجب/امتحان = إشعار فوري لولي الأمر (وللطالب) + تحذير 24 ساعة قبل قفل الامتحانات المحددة بوقت + تنبيه بعد 24 ساعة من غير حل — كل الإشعارات داخلية وPush بصورة فافيكون كل منصة — والسبب الجذري (استبعاد طلاب active) اتصلح في كل ملفات الإشعارات
 - للمستر: لو عايز تشغّل الماسح يدويًا في أي وقت: /api/notify-sweep?force=1 — والتشخيص: /api/notify-sweep?diag=1
+
+---
+Task ID: Z-36b
+Agent: Z.ai Code (Sub)
+Task: سد ثغرة /api/site-config — GET كان بيرجّع كل الصفوف الخام (حتى الأسرار) وPUT/POST مفتوحين لأي زائر + توحيد البرند Adam Hawash
+
+Work Log:
+- **إعادة كتابة src/app/api/site-config/route.ts** بنفس النمط المُصلَّب بتاع المنصة الشقيقة:
+  - GET بقى بيرجّع المفاتيح العامة بس (PUBLIC_KEYS = grades_data, schedule_data, video_sequence_lock, wm_enabled, wm_opacity, wm_interval) وبشكل مقصوص {key, value, updatedAt} — بدل ما كان بيفضّح كل صفوف SiteConfig الخام بما فيها الأسرار زي session_secret. لو محتاج كل الصفوف: ?all=1&adminId=... مع تحقق isAdmin من '@/lib/video-guard' (بنفس توقيع (adminId) => Promise<boolean>)
+  - PUT/POST كانوا مفتوحين لأي زائر يكتب أي مفتاح — بقوا يتحققوا من isAdmin(adminId) في الـ query وإلا 401 {error:'غير مصرح'} + تحقق من المفتاح (نص ≤ 120 حرف وإلا 400) + رفض صريح لمفتاح session_secret بـ 403 {error:'مفتاح محمي'} مهما كانت الصلاحيات
+  - POST كانت create بيفشل لو المفتاح موجود — بقت upsert (نفس سلوك PUT) للأمان
+- **توصيل adminId في كل المستهلكين** (بنفس نمط BooksManager: `useAppStore(function (s) { return s.currentAdmin?.id || '' })` + encodeURIComponent):
+  - src/components/admin/GradesSchedulePanel.tsx — PUT grades_data + PUT schedule_data بقوا يبعتوا ?adminId= + حارس «مفيش جلسة أدمن» قبل الحفظ (القراءة عنده من الستور مش من الـ API فمتأثرةش)
+  - src/components/admin/VideoProtectionSettings.tsx — أُضيف استيراد useAppStore من '@/stores/app-store' + adminId hook + PUT يبعت ?adminId= + نفس الحارس. الـ GET بتاعها بيقرا wm_* وده مفاتيح عامة فالـ GET العادي شغال زي ما هو
+  - ما فيش أي مستهلك تاني لـ /api/site-config في src/ (اتأكدت بـ grep) — محدش بيقرا مفاتيح غير عامة من الـ GET العام فمفيش حاجة اتكسرت
+- **توحيد البرند Adham → Adam Hawash** (الافتراضيات والمُصلِّح الذاتي بس — قيم الداتابيز المنتجة متلمستش):
+  - الفولباك في src/components/landing/Footer.tsx + Navbar.tsx (سطر madeByLabel) بقى 'Developed by Adam Hawash' حرفيًا (Adam مش Adham)
+  - src/components/admin/AdminDashboard.tsx: فولباك وplaceholder ومثال النص في لوحة «كلمة Made by» بقوا Adam
+  - src/app/api/config/route.ts: DEFAULTS.footer_made_by_label = "Developed by Adam Hawash" + **قلبت اتجاه المُصلِّح الذاتي (و78→Z-36b)**: كان بيعمل Adam→Adham على كل قراءة وكان هيعبّث في الافتراضي الجديد — بقى Adham→Adam (NAME_REPAIR_KEYS زي ما هي)
+  - src/lib/ensure-schema.ts: ترحيلة (و78) في SCHEMA_FIXES اتقلبت Adham→Adam (idempotent) عشان ترحيلة الداتابيز ماترجعش الاسم الغلط تاني مع كل نشر
+التحقق: tsc نظيف على الملفات المتغيرة
+Stage Summary: الكونفج العام بس اللي بيخرج للعامة، وأي كتابة محتاجة أدمن موثّق بنفس نظام adminId بتاع المنصة

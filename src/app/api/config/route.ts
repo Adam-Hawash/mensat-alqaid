@@ -28,7 +28,7 @@ var DEFAULTS = {
   hero_stat3_label: "متابعة التقدم",
   hero_developer_url: "https://prime-developer-portfolio-11.vercel.app/",
   hero_developer_label: "Prime Developer",
-  footer_made_by_label: "Developed by Adham Hawash",
+  footer_made_by_label: "Developed by Adam Hawash",
   prime_developer_url: "https://prime-developer-portfolio-11.vercel.app/",
 
   // === Schedule Page (24-e — صفحة مواعيد السنتر + لوحة الأدمن) ===
@@ -133,15 +133,16 @@ var DEFAULTS = {
 
 }
 
-// (و78) شفاء ذاتي للاسم المخزّن غلط «Adam Hawash» — الإصلاح الصحيح «Adham Hawash».
+// (Z-36b) شفاء ذاتي للاسم المخزّن غلط «Adham Hawash» — الإصلاح الصحيح «Adam Hawash».
+// كانت بتشتغل بالعكس (Adam → Adham) وده كان بيعبّث في الافتراضي الجديد — اتقلبت الاتجاه.
 // بتشتغل على القراءة (GET) + فيه ترحيلة دائمة في SCHEMA_FIXES (ensure-schema.ts).
 var NAME_REPAIR_KEYS = ['footer_made_by_label', 'footer_made_by_label_en', 'hero_developer_label', 'hero_developer_label_en']
 
 function repairDeveloperName(map) {
   for (var i = 0; i < NAME_REPAIR_KEYS.length; i++) {
     var key = NAME_REPAIR_KEYS[i]
-    if (typeof map[key] === 'string' && map[key].indexOf('Adam Hawash') !== -1) {
-      map[key] = map[key].split('Adam Hawash').join('Adham Hawash')
+    if (typeof map[key] === 'string' && map[key].indexOf('Adham Hawash') !== -1) {
+      map[key] = map[key].split('Adham Hawash').join('Adam Hawash')
     }
   }
 }
