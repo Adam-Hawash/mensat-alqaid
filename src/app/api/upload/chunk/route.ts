@@ -244,10 +244,8 @@ export async function POST(req: NextRequest) {
     console.error('Upload error:', err)
     var ddlDump = 'none'
     try {
-      var all2: any[] = (await db.$queryRawUnsafe("SELECT type, name FROM sqlite_master ORDER BY name LIMIT 40")) || []
-      var names: string[] = []
-      for (var ai = 0; ai < all2.length; ai++) names.push(String(rowVal(all2[ai], 'type', 0)) + ':' + String(rowVal(all2[ai], 'name', 1)))
-      ddlDump = names.join(',').slice(0, 400)
+      var ddM: any[] = (await db.$queryRawUnsafe("SELECT sql FROM sqlite_master WHERE name='Media'")) || []
+      ddlDump = 'MEDIA_DDL: ' + String(rowVal(ddM[0], 'sql', 0) || 'no-row').slice(0, 450)
     } catch (eD) { ddlDump = 'q-err: ' + String(eD && eD.message).slice(0, 120) }
     try {
       await (db as any).media.findMany({ take: 1 })
