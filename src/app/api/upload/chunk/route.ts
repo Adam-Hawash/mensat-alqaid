@@ -32,8 +32,23 @@ function parseIndexFromPath(filePath: string): number {
   return isNaN(n) ? -1 : n
 }
 
+/* (ز33) شفاء أعمدة Media الناقصة في قواعد الإنتاج القديمة —
+   عمود filename كان ناقص فكل رفع بيرجع 500 «فشلت العملية» */
+var _mediaColsReady = false
+async function ensureMediaColumns() {
+  if (_mediaColsReady) return
+  try {
+    try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN filename TEXT NOT NULL DEFAULT ''") } catch (e) {}
+    try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN fileType TEXT NOT NULL DEFAULT 'application/octet-stream'") } catch (e) {}
+    try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN fileSize TEXT NOT NULL DEFAULT ''") } catch (e) {}
+    try { await db.$executeRawUnsafe("ALTER TABLE Media ADD COLUMN category TEXT NOT NULL DEFAULT 'general'") } catch (e) {}
+    _mediaColsReady = true
+  } catch (e) {}
+}
+
 export async function POST(req: NextRequest) {
   try {
+    await ensureMediaColumns()
     var formData = await req.formData()
     var file = formData.get('file') as File | null
     var uploadId = String(formData.get('uploadId') || '').replace(/[^a-zA-Z0-9\-]/g, '')
