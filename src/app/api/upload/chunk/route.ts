@@ -231,11 +231,17 @@ export async function POST(req: NextRequest) {
     })
   } catch (err: any) {
     console.error('Upload error:', err)
-    var ddlDump = ''
+    var ddlDump = 'no-table'
     try {
-      var dd: any[] = (await db.$queryRawUnsafe("SELECT sql FROM sqlite_master WHERE type='table' AND name='Media'")) || []
-      ddlDump = String((dd[0] && dd[0].sql) || 'no-table').slice(0, 500)
-    } catch (eD) {}
+      var dd: any[] = (await db.$queryRawUnsafe("SELECT type, sql FROM sqlite_master WHERE name='Media'")) || []
+      ddlDump = String((dd[0] && dd[0].type) + ' | ' + ((dd[0] && dd[0].sql) || '')).slice(0, 500)
+    } catch (eD) { ddlDump = 'q-err: ' + String(eD && eD.message).slice(0, 120) }
+    try {
+      await db.$executeRawUnsafe("CREATE TABLE IF NOT EXISTS Media (id TEXT PRIMARY KEY, filePath TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL DEFAULT '', fileType TEXT NOT NULL DEFAULT 'application/octet-stream', fileSize TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)")
+      ddlDump += ' | create-ok'
+    } catch (eC: any) {
+      ddlDump += ' | create-err: ' + String(eC && eC.message).slice(0, 200)
+    }
     return NextResponse.json({ error: err.message || 'حصلت مشكلة في الرفع', mediaDdl: ddlDump }, { status: 500 })
   }
 }
