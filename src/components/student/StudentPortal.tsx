@@ -685,15 +685,25 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
   // (ز22) الفيديو اللي بفلوس = اختياري صامت — مش بيحجب اللي بعده (طلب المستر:
   // «الفيديو اللي بفلوس يكون اختياري بس متكتبش ان هو اختياري — لو الطالب
   // مشافش الفيديو اللي بعده يتفتح») — والسيرفر هو الحَكم الدقيق بالوصول الفعلي
+  /* المخفي عن الطالب مش موجود عنده أصلًا — مش بيدخل سلسلة القفل خالص
+     (إصلاح: «الفيديو اللي خفيته يتلغي من عند الطالب يبقى أول فيديو ليه
+     اللي هو الفيديو الموجود عنده» — نفس فلاتر السيرفر بالحرف) */
+  const seqChain = useMemo(function () {
+    return orderedVideos.filter(function (v) { return !hiddenVideoIds.has(v.id) })
+  }, [orderedVideos, hiddenVideoIds])
+
   const lockedMap = useMemo(function () {
     var map: Record<string, boolean> = {}
     var prevTrackable: string | null = null
-    visibleOrderedVideos.forEach(function (v) {
+    seqChain.forEach(function (v) {
       var k = videoKindOf(v)
       var trackable = k === 'youtube' || k === 'file'
       if (progressLoaded && trackable && prevTrackable) {
         var pct = mergedProgress[prevTrackable] || 0
-        map[v.id] = pct < 99
+        /* اللي الطالب شافه أو بدأه قبل كده (أي نسبة > 0) عمره ما يتقفل تاني
+           — نفس قاعدة السيرفر بالحرف (مفيش «شفته 16% ومش راضي يفتح») */
+        var myPct = mergedProgress[v.id] || 0
+        map[v.id] = myPct <= 0 && pct < 99
       } else {
         map[v.id] = false
       }
@@ -701,14 +711,14 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
       if (trackable && !paidNoAccess) prevTrackable = v.id
     })
     return map
-  }, [visibleOrderedVideos, mergedProgress, progressLoaded])
+  }, [seqChain, mergedProgress, progressLoaded])
 
   // الفيديو اللي قبل كل فيديو (عشان نعرض نسبته على كارت المقفول)
   // (ز22) نفس قاعدة الاختياري الصامت: المسعّر ما بيعدّش «اللي قبله»
   const prevVideoMap = useMemo(function () {
     var map: Record<string, string> = {}
     var prevTrackable: string | null = null
-    visibleOrderedVideos.forEach(function (v) {
+    seqChain.forEach(function (v) {
       var k = videoKindOf(v)
       var trackable = k === 'youtube' || k === 'file'
       if (trackable && prevTrackable) map[v.id] = prevTrackable
@@ -716,7 +726,7 @@ function VideosTab({ videos, watchedIds, studentId, grade }: { videos: VideoType
       if (trackable && !paidNoAccess) prevTrackable = v.id
     })
     return map
-  }, [visibleOrderedVideos])
+  }, [seqChain])
 
   // فتح أي درس (يوتيوب أو ملف مرفوع): بنطلب تذكرة تشغيل واحدة الاستخدام
   // من /api/video-ticket — مفيش أي YouTube ID أو رابط ملف بيرجع للصفحة.
