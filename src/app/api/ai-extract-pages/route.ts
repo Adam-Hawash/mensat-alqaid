@@ -28,7 +28,18 @@ import { callGemini as callGeminiCentral, hasGeminiKey } from '@/lib/gemini'
 import { repairModelJson, repairCorruptMath } from '@/lib/math-text'
 /* (و45) تصنيف موحّد اختياري/مقالي — سؤال له اختيارات صور = اختياري مش مقالي
    (ز43) splitEmbeddedOptions — تفكيك الاختيارات المدموجة جوه نص السؤال */
-import { isWritingQuestion, splitEmbeddedOptions } from '@/lib/question-figures'
+import { isWritingQuestion } from '@/lib/question-figures'
+/* (وN5) إبادة حرف الـ N وبقايا escapes الاستخراج — تنظيف وقت الاستخراج */
+import { cleanTextDeep } from '@/lib/math-text-n5'
+import { splitEmbeddedOptions } from '@/lib/question-split'
+
+/* (وN5) لكل سؤال q قبل الإرجاع/الحفظ: splitEmbeddedOptions(cleanTextDeep(q).val) */
+function n5CleanQ(q: any): any {
+  try { return splitEmbeddedOptions(cleanTextDeep(q).val) } catch (e) { return q }
+}
+function n5CleanArr(arr: any[]): any[] {
+  try { return (Array.isArray(arr) ? arr : []).map(n5CleanQ) } catch (e) { return arr }
+}
 
 export const runtime = 'nodejs'
 export const maxDuration = 180
@@ -178,8 +189,8 @@ async function callGeminiParts(parts: any[]): Promise<{ ok: boolean; text?: stri
 /* توحيد سؤال على شكل المنصة القانوني + الحفاظ على sourcePage + حقول ورقة العمل (و40-w) */
 function finalizeQuestion(q: any): any | null {
   if (!q || typeof q !== 'object') return null
-  /* (ز43) العقل الذكي: تفكيك الاختيارات المدموجة جوه نص السؤال */
-  q = splitEmbeddedOptions(q)
+  /* (ز43 + وN5) تفكيك الاختيارات المدموجة + إبادة حرف الـ N وبقايا escapes */
+  q = splitEmbeddedOptions(cleanTextDeep(q).val)
   var qText = normalizeMath(q.question || q.q || '')
   if (!qText || !String(qText).trim()) return null
   var sourcePage = typeof q.sourcePage === 'number' ? q.sourcePage : (parseInt(String(q.sourcePage), 10) || 0)
@@ -269,7 +280,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, extracted: { title: '', content: '', questions: [], answerKey: '', stats: { mcq: 0, writing: 0, total: 0, batches: 0, pages: 0, skippedBatches: 0, topSelected: false } } })
       }
       if (selCount >= selQs.length) {
-        return NextResponse.json({ success: true, extracted: { title: '', content: '', questions: selQs, answerKey: '', stats: { mcq: 0, writing: 0, total: selQs.length, batches: 0, pages: 0, skippedBatches: 0, topSelected: false } } })
+        return NextResponse.json({ success: true, extracted: { title: '', content: '', questions: n5CleanArr(selQs), answerKey: '', stats: { mcq: 0, writing: 0, total: selQs.length, batches: 0, pages: 0, skippedBatches: 0, topSelected: false } } })
       }
       var textParts = [{ text: buildSelectTopPrompt(selCount) + '\n\nQUESTIONS JSON:\n' + JSON.stringify(selQs) }]
       var selRes = await callGeminiParts(textParts)
@@ -287,11 +298,11 @@ export async function POST(request: NextRequest) {
           if (dk && byKey[dk]) safeSelected.push(byKey[dk])
         }
         if (safeSelected.length > 0) {
-          return NextResponse.json({ success: true, extracted: { title: '', content: '', questions: safeSelected, answerKey: '', stats: { mcq: 0, writing: 0, total: safeSelected.length, batches: 0, pages: 0, skippedBatches: 0, topSelected: true } } })
+          return NextResponse.json({ success: true, extracted: { title: '', content: '', questions: n5CleanArr(safeSelected), answerKey: '', stats: { mcq: 0, writing: 0, total: safeSelected.length, batches: 0, pages: 0, skippedBatches: 0, topSelected: true } } })
         }
       }
       /* فشل الاختيار الذكي → فولباك حتمي: أول count سؤال في ترتيب الكتاب */
-      return NextResponse.json({ success: true, extracted: { title: '', content: '', questions: selQs.slice(0, selCount), answerKey: '', stats: { mcq: 0, writing: 0, total: Math.min(selCount, selQs.length), batches: 0, pages: 0, skippedBatches: 0, topSelected: false } } })
+      return NextResponse.json({ success: true, extracted: { title: '', content: '', questions: n5CleanArr(selQs).slice(0, selCount), answerKey: '', stats: { mcq: 0, writing: 0, total: Math.min(selCount, selQs.length), batches: 0, pages: 0, skippedBatches: 0, topSelected: false } } })
     }
 
     /* ===== المسار 1: استخراج من صور الصفحات ===== */
@@ -339,6 +350,9 @@ export async function POST(request: NextRequest) {
       }
       if (!topSelected) allQuestions = allQuestions.slice(0, count) /* فولباك حتمي */
     }
+
+    /* (وN5) تمريرة نهائية على كل سؤال قبل الإرجاع/الحفظ */
+    allQuestions = n5CleanArr(allQuestions)
 
     var mcqCount = allQuestions.filter(function (q) { return q.type === 'mcq' }).length
     var writingCount = allQuestions.filter(function (q) { return q.type === 'writing' }).length

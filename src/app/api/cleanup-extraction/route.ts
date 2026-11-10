@@ -18,8 +18,8 @@
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
-import { cleanTextDeep } from '@/lib/math-text'
-import { splitEmbeddedOptions } from '@/lib/question-figures'
+import { cleanTextDeep } from '@/lib/math-text-n5'
+import { splitEmbeddedOptions } from '@/lib/question-split'
 import { isAdmin } from '@/lib/video-guard'
 
 export const runtime = 'nodejs'
@@ -36,6 +36,17 @@ function cleanQuestionsArr(questions: any[]): { arr: any[]; changed: boolean } {
     var r = cleanTextDeep(q)
     var qq = splitEmbeddedOptions(r.val)
     if (qq && typeof qq === 'object' && qq._figureSplitPending) delete qq._figureSplitPending
+    /* (2026-وN2) إبادة حشو «N/A» في الاختيارات القديمة — حرف الـ N كان بيظهر
+       للطالب في أي حتة؛ الحشو بيرجع نص فاضي (ورسومات الاختيارات لو موجودة بتفضل) */
+    if (qq && typeof qq === 'object' && Array.isArray(qq.options)) {
+      var hadNA = false
+      var optsC = qq.options.map(function (o: any) {
+        var s = String(o == null ? '' : o)
+        if (s === 'N/A') { hadNA = true; return '' }
+        return o
+      })
+      if (hadNA) { qq = Object.assign({}, qq, { options: optsC }); changed = true }
+    }
     if (r.changed || qq !== q) changed = true
     return qq
   })
@@ -82,9 +93,17 @@ export async function POST(request: NextRequest) {
 
     var stats = { scanned: 0, fixed: 0, homeworks: 0, exams: 0, models: 0 }
 
-    /* 1) الواجبات */
+    /* 1) الواجبات — (وN5) لف على كل السجلات مش آخر 200 بس */
     try {
-      var hws = await db.homework.findMany({ orderBy: { createdAt: 'desc' }, take: TAKE })
+      var hws: any[] = []
+      var skipHwN5 = 0
+      for (;;) {
+        var batchHw = await db.homework.findMany({ orderBy: { createdAt: 'desc' }, skip: skipHwN5, take: TAKE })
+        if (!batchHw || batchHw.length === 0) break
+        hws = hws.concat(batchHw)
+        if (batchHw.length < TAKE) break
+        skipHwN5 += TAKE
+      }
       for (var i = 0; i < hws.length; i++) {
         var h = hws[i]
         stats.scanned++
@@ -100,9 +119,17 @@ export async function POST(request: NextRequest) {
       }
     } catch (eH) { /* جدول ناقص في منصة — نكمل */ }
 
-    /* 2) الامتحانات (الأسئلة + النماذج) */
+    /* 2) الامتحانات (الأسئلة + النماذج) — (وN5) لف على كل السجلات */
     try {
-      var exs = await db.exam.findMany({ orderBy: { createdAt: 'desc' }, take: TAKE })
+      var exs: any[] = []
+      var skipExN5 = 0
+      for (;;) {
+        var batchEx = await db.exam.findMany({ orderBy: { createdAt: 'desc' }, skip: skipExN5, take: TAKE })
+        if (!batchEx || batchEx.length === 0) break
+        exs = exs.concat(batchEx)
+        if (batchEx.length < TAKE) break
+        skipExN5 += TAKE
+      }
       for (var j = 0; j < exs.length; j++) {
         var e = exs[j]
         stats.scanned++

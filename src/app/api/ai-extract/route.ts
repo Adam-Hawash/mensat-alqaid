@@ -19,7 +19,10 @@ import { NextResponse } from 'next/server'
 import { callGemini as callGeminiCentral, hasGeminiKey } from '@/lib/gemini'
 /* (و45) تصنيف موحّد اختياري/مقالي — سؤال له اختيارات (حتى لو صور) = اختياري
    (ز43) splitEmbeddedOptions — تفكيك الاختيارات المدموجة جوه نص السؤال */
-import { isWritingQuestion, splitEmbeddedOptions } from '@/lib/question-figures'
+import { isWritingQuestion } from '@/lib/question-figures'
+/* (وN5) إبادة حرف الـ N وبقايا escapes الاستخراج — تنظيف وقت الاستخراج */
+import { cleanTextDeep } from '@/lib/math-text-n5'
+import { splitEmbeddedOptions } from '@/lib/question-split'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -142,9 +145,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Could not parse AI response' }, { status: 500 })
     }
     var questions = (parsed.questions || []).map(function(q) {
-      /* (ز43) العقل الذكي: تفكيك الاختيارات المدموجة جوه نص السؤال
-         «…\na. 2\nb. …\nc. …» → سؤال + اختيارات حقيقية A B C */
-      q = splitEmbeddedOptions(q)
+      /* (ز43 + وN5) العقل الذكي: تفكيك الاختيارات المدموجة جوه نص السؤال
+         «…\na. 2\nb. …\nc. …» → سؤال + اختيارات حقيقية A B C
+         + إبادة \na. الحرفية / na. nb. الملتحومة قبل كل حاجة */
+      q = splitEmbeddedOptions(cleanTextDeep(q).val)
       var qText = q.question || q.q || ''
       /* (و45) سؤال له اختيارات (نص أو صور/رسومات) = اختياري دايمًا — ممنوع يتحول مقالي */
       var isWriting = isWritingQuestion(q)

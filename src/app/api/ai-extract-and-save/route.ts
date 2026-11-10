@@ -2,8 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
 import { parseAiJson } from '@/lib/parse-ai-json'
-/* (ز43) splitEmbeddedOptions — تفكيك الاختيارات المدموجة جوه نص السؤال */
-import { splitEmbeddedOptions } from '@/lib/question-figures'
+/* (ز43) splitEmbeddedOptions — تفكيك الاختيارات المدموجة جوه نص السؤال
+   (وN5) + cleanTextDeep — إبادة حرف الـ N وبقايا escapes الاستخراج */
+import { cleanTextDeep } from '@/lib/math-text-n5'
+import { splitEmbeddedOptions } from '@/lib/question-split'
 import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
 import { storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
@@ -138,8 +140,8 @@ export async function POST(request: NextRequest) {
 
       var questions = parsed.questions || []
       extractedQuestions = questions.map(function(q) {
-        /* (ز43) تفكيك الاختيارات المدموجة جوه نص السؤال قبل التجميع */
-        q = splitEmbeddedOptions(q)
+        /* (ز43 + وN5) تفكيك الاختيارات المدموجة + إبادة \na. الحرفية / na. nb. الملتحومة */
+        q = splitEmbeddedOptions(cleanTextDeep(q).val)
         var opts = Array.isArray(q.options) ? q.options : ['لا يوجد', 'لا يوجد', 'لا يوجد', 'لا يوجد']
         while (opts.length < 4) opts.push('لا يوجد')
         var correct = typeof q.correct === 'number' ? q.correct : 0
@@ -246,6 +248,10 @@ export async function POST(request: NextRequest) {
         correct: q.correct
       }, worksheetFields(q))
     })
+
+    /* (وN5) لكل سؤال q قبل الحفظ: splitEmbeddedOptions(cleanTextDeep(q).val)
+       — إبادة حرف الـ N وبقايا escapes + تفكيك الاختيارات المدموجة */
+    dbQuestions = dbQuestions.map(function(q: any) { return splitEmbeddedOptions(cleanTextDeep(q).val) })
 
     // Save to database
     var savedItem = null

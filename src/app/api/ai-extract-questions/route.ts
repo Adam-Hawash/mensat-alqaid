@@ -10,6 +10,9 @@ import { NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
 import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
 import { storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
+/* (وN5) إبادة حرف الـ N وبقايا escapes الاستخراج — تنظيف وقت الحفظ */
+import { cleanTextDeep } from '@/lib/math-text-n5'
+import { splitEmbeddedOptions } from '@/lib/question-split'
 
 export const runtime = 'nodejs'
 
@@ -161,6 +164,10 @@ export async function POST(request) {
         dbQuestions[sj] = stemp
       }
     }
+
+    /* (وN5) لكل سؤال q قبل الحفظ: splitEmbeddedOptions(cleanTextDeep(q).val)
+       — إبادة \na. الحرفية / na. nb. الملتحومة + تفكيك الاختيارات المدموجة */
+    dbQuestions = dbQuestions.map(function(q: any) { return splitEmbeddedOptions(cleanTextDeep(q).val) })
 
     var questionsStr = JSON.stringify(dbQuestions)
     var savedItem = null

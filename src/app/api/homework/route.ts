@@ -5,6 +5,7 @@ import { notifyStudents } from '@/lib/notify'
 import { notifyAssignmentPosted } from '@/lib/assignment-notify'
 import { notifyParentsOfNewContent } from '@/lib/parent-notify'
 import { isAdmin } from '@/lib/video-guard'
+import { autoCleanHomework } from '@/lib/stored-questions-clean' // (وN5) تنظيف تلقائي وقت القراءة
 import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
 import { gradeWhere, storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
@@ -88,7 +89,11 @@ export async function GET(request: NextRequest) {
       ? visibleHw.map(function (h: any) { return isScheduledFuture(h) ? { ...h, scheduled: true } : h })
       : visibleHw
 
-    return NextResponse.json({ homework: outHomework, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
+    /* (وN5) تنظيف تلقائي وقت القراءة — حرف الـ N والـ \na. الحرفية بيموتوا هنا
+       والنسخة النضيفة بتتكتب في القاعدة في الخلفية (fire-and-forget) */
+    var outCleanHwN5 = (outHomework as any[]).map(function (h: any) { return autoCleanHomework(h && h.id, h) })
+
+    return NextResponse.json({ homework: outCleanHwN5, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
   } catch (error: any) {
     console.error('Homework fetch error:', error)
     return NextResponse.json({ error: 'Server error: ' + (error.message || String(error)) }, { status: 500 })
