@@ -147,20 +147,21 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    /* (وN5) تنظيف تلقائي وقت القراءة — على الصفوف الخام **قبل** توزيع النماذج
+       للطالب عشان الكتابة للقاعدة تفضل من الصف الخام ومحصلش إن أسئلة نموذج
+       تتكتب مكان أسئلة الامتحان */
+    var cleanedVisibleExN5 = (visibleExams as any[]).map(function (e: any) { return autoCleanExam(e && e.id, e) })
+
     // بادج «مجدول» للأدمن على العناصر المستقبلية
     const flagged = admin
-      ? visibleExams.map(function (e: any) { return isScheduledFuture(e) ? { ...e, scheduled: true } : e })
-      : visibleExams
+      ? cleanedVisibleExN5.map(function (e: any) { return isScheduledFuture(e) ? { ...e, scheduled: true } : e })
+      : cleanedVisibleExN5
 
     // توزيع النموذج للطالب (عشوائي ثابت أو نموذج واحد ثابت للكل حسب اختيار
     // المستر) — وإلا الامتحان زي ما هو
     const outExams = studentId ? flagged.map(function (e: any) { return applyModelForStudent(e, studentId) }) : flagged
 
-    /* (وN5) تنظيف تلقائي وقت القراءة — حرف الـ N والـ \na. الحرفية بيموتوا هنا
-       والنسخة النضيفة بتتكتب في القاعدة في الخلفية (fire-and-forget) */
-    var outCleanExN5 = (outExams as any[]).map(function (e: any) { return autoCleanExam(e && e.id, e) })
-
-    return NextResponse.json({ exams: outCleanExN5, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
+    return NextResponse.json({ exams: outExams, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
   } catch (error: any) {
     console.error('Exams fetch error:', error)
     return NextResponse.json({ error: 'Server error: ' + (error.message || String(error)) }, { status: 500 })
