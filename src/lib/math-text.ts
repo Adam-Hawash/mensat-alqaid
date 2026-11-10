@@ -40,7 +40,14 @@ var LATEX_KEEP_RE = /(\\(?:dfrac|tfrac|frac|cbrt|sqrt|times|div|text|left|right|
 export function cleanEscapeGarbage(input: string): string {
   if (!input) return input
   var s = String(input)
-  if (s.indexOf('\\') === -1 && s.indexOf('\u0001') === -1) return input
+  /* الحارس: شرطة أو مَعلم أو n ملتحومة (بلا شرطة — استخراجات قديمة) —
+     من غير ده النص الملتحوم بس («na. nb. nc.») بيرجع زي ما هو غلط */
+  var hasBackslash = s.indexOf('\\') !== -1
+  var hasMarker = s.indexOf('\u0001') !== -1
+  var hasFusedN = !hasBackslash && !hasMarker && (
+    /([0-9a-zA-Z])n([a-hA-H][).:\-–])/.test(s) || /(\s)n([a-hA-H][).:\-–])/.test(s)
+  )
+  if (!hasBackslash && !hasMarker && !hasFusedN) return input
   /* 0) \uXXXX الحرفية → الحرف الحقيقي */
   s = s.replace(/\\u([0-9a-fA-F]{4})/g, function (_m: string, hex: string) {
     return String.fromCharCode(parseInt(hex, 16))
@@ -64,6 +71,13 @@ export function cleanEscapeGarbage(input: string): string {
   var fusedN = s.match(/([0-9a-zA-Z])n([a-hA-H][).:\-–])/g)
   if (fusedN && fusedN.length >= 2) {
     s = s.replace(/([0-9a-zA-Z])n([a-hA-H][).:\-–])/g, '$1\n$2')
+  }
+  /* 3ج) الـ n الملتحومة بمسافة — «rectangles. na. nb. nc.» — نفس العلة
+     بس بمسافة قبل الـ n (استخراجات قديمة الشرطة اتشالت والسطر بقى مسافة)
+     — نفس الحارس: مرتين أو أكتر في نفس النص عشان ما نلمسش نص سليم */
+  var fusedN2 = s.match(/\s?n([a-hA-H][).:\-–])/g)
+  if (fusedN2 && fusedN2.length >= 2) {
+    s = s.replace(/\s?n([a-hA-H][).:\-–])/g, '\n$1')
   }
   /* 4) \\ (لاين بريك لاتكس) → سطر جديد — وأي شرطة قبل غير الحروف أو شرطة يتيمة → تتشال */
   s = s.replace(/\\\\/g, '\n')
@@ -123,8 +137,7 @@ export function cleanTextDeep(node: any): { val: any; changed: boolean } {
 export function repairCorruptMath(input: string): string {
   if (!input) return input
   var s = String(input)
-  /* (ز43) أول طبقة: إبادة حرف الـ N وبقايا \n \a \b — كل القمامة
-     المتبقية من escapes الاستخراج تتشال قبل أي إصلاح تاني */
+  /* (ز43) أول طبقة: إبادة حرف الـ N وبقايا \n \a \b — كل القمامة المتبقية من escapes الاستخراج تتشال قبل أي إصلاح تاني */
   s = cleanEscapeGarbage(s)
   // U+FFFD replacement chars are lossy-encoding leftovers — never legitimate
   s = s.replace(/\uFFFD/g, '')
@@ -213,4 +226,36 @@ export function repairModelJson(raw: string): string {
     out += '\\\\' + next; i += 2; continue
   }
   return out
+}
+
+/*
+ * normalizeLooseRoots — (2026-و111) توحيد كتابة الجذور اللي الموديلات بتحب
+ * تكتبها خام: «sqrt(3)» و «cbrt(8)» و «√3» و «∛8» — كلها بترجع لـ
+ * \sqrt{3} و \sqrt[3]{8} عشان عارض المنصة يرسمها جذر حقيقي بالخط
+ * المتصل على المحتوى (طلب المستر حرفيًا: «الـ root بيتكتب غلط —
+ * عاوزه كلهم يبقوا متوصلين ببعض... يبقى شكله حقيقي»).
+ *
+ * آمنة على أي نص:
+ *   - مفيش lookbehind (متصفحات قديمة بترمي SyntaxError وقت بناء الـ regex)
+ *   - \sqrt و \cbrt المكتوبين صح بيتحموا بمَعلَم مؤقت قبل التحويل ويرجعوا زي ما هما
+ *   - الأقواس العادية جوه sqrt(...) بتبقى جسم الجذر (حد 60 حرف ومفيش أقواس متداخلة)
+ */
+export function normalizeLooseRoots(input: string): string {
+  if (!input) return input
+  var s = String(input)
+  /* حماية الأوامر المكتوبة صح من أي تحويل */
+  s = s.replace(/\\sqrt/g, '\u0001SRQ').replace(/\\cbrt/g, '\u0001CBQ')
+  /* cbrt(8) → \sqrt[3]{8} — قبل sqrt عشان «rt(» ما تفضلش عالقة */
+  s = s.replace(/\bcbrt\s*\(([^()]{1,60})\)/gi, '\\sqrt[3]{$1}')
+  /* sqrt(3) / SQRT(x+1) → \sqrt{...} */
+  s = s.replace(/\bsqrt\s*\(([^()]{1,60})\)/gi, '\\sqrt{$1}')
+  /* √(72/2) → \sqrt{72/2} و √3 → \sqrt{3} */
+  s = s.replace(/√\s*\(([^()]{1,60})\)/g, '\\sqrt{$1}')
+  s = s.replace(/√\s*([0-9٠-٩A-Za-z][0-9٠-٩A-Za-z.]*)/g, '\\sqrt{$1}')
+  /* ∛(8) → \sqrt[3]{8} و ∛8 → \sqrt[3]{8} */
+  s = s.replace(/∛\s*\(([^()]{1,60})\)/g, '\\sqrt[3]{$1}')
+  s = s.replace(/∛\s*([0-9٠-٩A-Za-z][0-9٠-٩A-Za-z.]*)/g, '\\sqrt[3]{$1}')
+  /* رجّع المحمي زي ما كان */
+  s = s.replace(/\u0001SRQ/g, '\\sqrt').replace(/\u0001CBQ/g, '\\cbrt')
+  return s
 }
