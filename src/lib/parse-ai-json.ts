@@ -6,6 +6,17 @@
 //            b) truncation — response cut mid-object (rare, long outputs)
 //          This parser survives both instead of failing the whole extraction.
 
+import { cleanTextDeep } from '@/lib/math-text'
+
+/* (ز43) تنظيف عميق لكل نصوص النتيجة بعد النجاح — حرف الـ N وبقايا
+   \n \a \b بتموت هنا قبل ما أي حاجة تتخزن — نفس نمط ai-json.sanitizeParsed */
+function sanitizeParsed(obj: any): any {
+  try {
+    var r = cleanTextDeep(obj)
+    return r.val
+  } catch (e) { return obj }
+}
+
 export function parseAiJson(text: string): any | null {
   if (!text || !text.trim()) return null
   var objMatch = text.match(/\{[\s\S]*\}/)
@@ -17,7 +28,7 @@ export function parseAiJson(text: string): any | null {
 
   // 1) direct parse
   try {
-    return JSON.parse(raw)
+    return sanitizeParsed(JSON.parse(raw))
   } catch (e) {}
 
   // 2) trailing-garbage tolerance: walk back over earlier '}' / ']'
@@ -28,7 +39,7 @@ export function parseAiJson(text: string): any | null {
     if (c === '}' || c === ']') {
       attempts++
       try {
-        return JSON.parse(raw.substring(0, i + 1))
+        return sanitizeParsed(JSON.parse(raw.substring(0, i + 1)))
       } catch (e) {}
     }
   }
@@ -57,7 +68,7 @@ export function parseAiJson(text: string): any | null {
     if (inStr || esc) repaired += '"'
     while (stack.length) repaired += stack.pop()
     try {
-      return JSON.parse(repaired)
+      return sanitizeParsed(JSON.parse(repaired))
     } catch (e) {}
   }
 

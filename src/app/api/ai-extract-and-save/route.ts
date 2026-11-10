@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
 import { parseAiJson } from '@/lib/parse-ai-json'
+/* (ز43) splitEmbeddedOptions — تفكيك الاختيارات المدموجة جوه نص السؤال */
+import { splitEmbeddedOptions } from '@/lib/question-figures'
 import { ensureExamSettingsColumns } from '@/lib/ensure-schema'
 import { storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
 
@@ -136,11 +138,14 @@ export async function POST(request: NextRequest) {
 
       var questions = parsed.questions || []
       extractedQuestions = questions.map(function(q) {
+        /* (ز43) تفكيك الاختيارات المدموجة جوه نص السؤال قبل التجميع */
+        q = splitEmbeddedOptions(q)
         var opts = Array.isArray(q.options) ? q.options : ['لا يوجد', 'لا يوجد', 'لا يوجد', 'لا يوجد']
         while (opts.length < 4) opts.push('لا يوجد')
         var correct = typeof q.correct === 'number' ? q.correct : 0
-        if (correct < 0 || correct > 3) correct = 0
-        return { question: q.question || '', options: opts.slice(0, 4), correct: correct }
+        if (correct < 0 || correct > 7) correct = 0
+        /* (ز43) سقف 8 اختيارات بدل 4 — كتب بتيجي بـ 5 و7 اختيارات */
+        return { question: q.question || '', options: opts.slice(0, 8), correct: correct }
       }).filter(function(q) { return q.question.trim().length > 0 })
     }
 

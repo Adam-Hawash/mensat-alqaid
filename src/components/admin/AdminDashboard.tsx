@@ -43,6 +43,8 @@ import { openPdf, renderPageToJpeg } from '@/lib/pdf-pages'
    (و45) isWritingQuestion — تصنيف موحّد: سؤال له اختيارات (حتى لو صور) = اختياري */
 import { ensureFigureUrls, isWritingQuestion } from '@/lib/question-figures'
 import { WorksheetTableReadonly, WorksheetFigure } from '@/components/worksheet/WorksheetParts'
+/* (و52 + ز42) محرر قص الرسمات اليدوي — لصق تلقائي على أقرب رسمة حقيقية + مقترحات مرئية + ضبط دقيق */
+import FigureCropEditor, { type FigureCropTarget } from './FigureCropEditor'
 /* (2026-و40) الكتب والملازم — تاب مكتبة الكتب للطالب */
 import { BooksManager } from './BooksManager'
 /* (ز13) تحدي المستر — بنك أسئلة + فلاش كاردز + إنشاء التحدي الأسبوعي */
@@ -1917,7 +1919,7 @@ function ExamTrackingPanel() {
           if (isWritingQuestion(q)) {
             return { q: q.question || '', options: [] as string[], correct: -1, points: q.points || 5, type: 'writing', modelAnswer: q.modelAnswer || '', acceptedAnswers: q.acceptedAnswers || [] }
           }
-          return { q: q.question || '', options: (q.options || ['','','','']).slice(0, 4), correct: q.correct || 0, points: q.points || 1, type: 'mcq', modelAnswer: q.modelAnswer || '' }
+          return { q: q.question || '', options: (q.options || ['','','','']).slice(0, 8), correct: q.correct || 0, points: q.points || 1, type: 'mcq', modelAnswer: q.modelAnswer || '' }
         })
         setExamModels(function (prev) {
           var letters = ['أ', 'ب', 'ج', 'د', 'هـ', 'و', 'ز', 'ح']
@@ -3012,7 +3014,7 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
           if (isWriting) {
             return { type: 'writing', question: q.question || '', options: [], correct: -1, points: q.points || 5, modelAnswer: q.modelAnswer || '' }
           }
-          return { type: 'mcq', question: q.question || '', options: (q.options || ['','','','']).slice(0, 4), correct: q.correct || 0, points: q.points || 1 }
+          return { type: 'mcq', question: q.question || '', options: (q.options || ['','','','']).slice(0, 8), correct: q.correct || 0, points: q.points || 1 }
         })
         setMcqQuestions(extracted)
         var wCount = extracted.filter(function(q: any) { return q.type === 'writing' }).length
@@ -3436,12 +3438,77 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
   /* (و45) وضع الكتاب بلينك: «أو ضع رابط PDF» — بيتحمل من خلال /api/books/proxy */
   const [bookUrl, setBookUrl] = useState('')
   const [bookLinkLoading, setBookLinkLoading] = useState(false)
+  /* (2026-و106) فلتر المرحلة في وضع الكتاب — «أختار المرحلة تظهر لي كتبها» */
+  const [bookGradeFilter, setBookGradeFilter] = useState('')
+  var filteredSavedBooks = useMemo(function () {
+    if (!bookGradeFilter) return savedBooks
+    var needle = bookGradeFilter.replace(/\s+/g, '')
+    return savedBooks.filter(function (b: any) {
+      var g = String(b.grade || '').replace(/\s+/g, '')
+      return g && (g === needle || g.indexOf(needle) !== -1 || needle.indexOf(g) !== -1)
+    })
+  }, [savedBooks, bookGradeFilter])
+  /* (و48) مصدر القص الأخير — بنحتفظ بيه عشان زرار «✂️ عدّل القص» في
+     شاشة المراجعة يقدر يفتح صفحة الأصل ويحرّك المربع بإيده */
+  const lastCropSourceRef = useRef<{ file?: File | null; doc?: any | null }>({})
+  /* (و50) ملف المصدر متخزن على السيرفر (Media) — القائد مفيش عليه روت رندر
+     سيرفري فبيفضل فاضي — المحرر بيتعامل مع الفاضي زي ما هو بدون كسر */
+  const sourceMediaRef = useRef<string>('')
+  /* (و52) محرر القص اليدوي — الهدف المفتوح دلوقتي (سؤال أو اختيار) */
+  const [cropEdit, setCropEdit] = useState<FigureCropTarget | null>(null)
+  /* (ز43) تنظيف رموز الاستخراج — حرف الـ N وبقايا \n \a \b + تفكيك الاختيارات المدموجة
+     — ضغطة واحدة بتنضف كل الواجبات والامتحانات ونماذجها المتخزنة */
+  const currentAdmin = useAppStore(function (s) { return s.currentAdmin })
+  const adminId = (currentAdmin && currentAdmin.id) || ''
+  const [cleanupBusy, setCleanupBusy] = useState(false)
+  var runCleanupGarbage = async function () {
+    if (cleanupBusy) return
+    if (!adminId) { toast.error('مفيش جلسة أدمن — سجل دخول تاني', { duration: 8000 }); return }
+    setCleanupBusy(true)
+    try {
+      var resC = await fetch('/api/cleanup-extraction', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminId: adminId }),
+      })
+      var dC = await resC.json()
+      if (!resC.ok) { toast.error(dC.error || 'فشل التنظيف — جرب تاني', { duration: 8000 }); return }
+      if (dC.fixed > 0) {
+        toast.success('اتنضفت ' + dC.fixed + ' سجل (اتفحص ' + dC.scanned + ') ✓ — واجبات: ' + dC.homeworks + ' • امتحانات: ' + dC.exams + ' • نماذج: ' + dC.models + ' — حرف الـ N وكل الرموز الغريبة اتشالوا والاختيارات المدموجة اتفككت', { duration: 12000 })
+      } else {
+        toast.success('كل الأسئلة نضيفة أصلًا — مفيش رموز غريبة في ' + dC.scanned + ' سجل ✓', { duration: 8000 })
+      }
+      onRefresh()
+    } catch (e) {
+      toast.error('فشل التنظيف — جرب تاني', { duration: 8000 })
+    }
+    setCleanupBusy(false)
+  }
+
+  /* (و52) تطبيق نتيجة محرر القص اليدوي — الرسمة الجديدة تتكتب في السؤال فورًا */
+  var applyFigureCrop = function (t: FigureCropTarget, url: string, bbox: { x: number; y: number; w: number; h: number }, page: number) {
+    setExtractedQuestions(function (prev: any[]) {
+      return prev.map(function (q: any, i: number) {
+        if (i !== t.qi || !q) return q
+        if (t.kind === 'q') {
+          return Object.assign({}, q, { figure: Object.assign({}, q.figure || {}, { url: url, bbox: bbox, page: page }) })
+        }
+        var ofs = Array.isArray(q.optionFigures) ? q.optionFigures.slice() : []
+        while (ofs.length <= t.oi) ofs.push(null)
+        ofs[t.oi] = Object.assign({}, ofs[t.oi] || {}, { url: url, bbox: bbox, page: page })
+        return Object.assign({}, q, { optionFigures: ofs })
+      })
+    })
+    setCropEdit(null)
+    toast.success('الرسمة اتقصّت من الصفحة الأصلية واتحفظت ✓')
+  }
 
   var resetAll = function() {
     setStep(1); setExtractType('exam'); setGrade(''); setTitle('')
     setFile(null); setFileUrl(''); setYoutubeUrl(''); setNumQuestions(10)
     setExtractedQuestions([]); setStatusMsg('')
     setExShowResult(false); setExTimeLimit(''); setExScheduledAt('')
+    sourceMediaRef.current = ''
+    lastCropSourceRef.current = {}
     /* (2026-و40) تصفير وضع الكتاب */
     setSrcMode('file')
     setBookFile(null); setBookNumPages(0); setBookFrom(1); setBookTo(1)
@@ -3484,6 +3551,11 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
         if (!q) return
         if (q.figure && q.figure.bbox && !q.figure.url) needCrop++
       })
+      /* (و48/و52) توثيق مصدر القص — منه زرار ✂️ عدّل القص بيرندر صفحة الأصل */
+      lastCropSourceRef.current = {
+        file: (cropSource && cropSource.file) || null,
+        doc: (cropSource && cropSource.doc) || null,
+      }
       if (needCrop > 0) {
         setStatusMsg('جهز الرسومات 0 من ' + needCrop + '…')
         await ensureFigureUrls(newQs, cropSource || {}, function (done: number, total: number) {
@@ -3577,7 +3649,7 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
         var data = await res.json()
         if (res.ok && data.extracted && data.extracted.questions && data.extracted.questions.length > 0) {
           var extracted = data.extracted.questions.map(function(q: any) {
-            return { question: q.question || '', options: (q.options || ['-','-','-','-']).slice(0, 4), correct: q.correct || 0 }
+            return { question: q.question || '', options: (q.options || ['-','-','-','-']).slice(0, 8), correct: q.correct || 0 }
           })
           setStatusMsg('')
           /* (2026-و40-w) قص الرسومات + دمج أكتر من ملف عبر النقطة المشتركة */
@@ -3683,15 +3755,17 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
         var extracted = data.extracted.questions.map(function(q: any) {
           /* (و45) تصنيف موحّد: سؤال له اختيارات (نص أو صور/رسومات) = اختياري دايمًا */
           var isWriting = isWritingQuestion(q)
-          /* (2026-و40-w) حقول ورقة العمل بتعد pass-through (الجدول/الرسمة/صفحة المصدر) */
+          /* (2026-و40-w) حقول ورقة العمل بتعد pass-through (الجدول/الرسمة/صفحة المصدر)
+             (ز43) مع علامة تقطيع الرسمة العريضة لرسومات اختيارات */
           var wsFields: any = {}
-          ;['sourcePage', 'srcName', 'table', 'figure', 'optionFigures'].forEach(function (k: string) {
+          ;['sourcePage', 'srcName', 'table', 'figure', 'optionFigures', '_figureSplitPending'].forEach(function (k: string) {
             if (q[k] !== undefined && q[k] !== null) wsFields[k] = q[k]
           })
           if (isWriting) {
             return Object.assign({ type: 'writing', question: q.question || '', options: [], correct: -1, points: q.points || 5, modelAnswer: q.modelAnswer || '' }, wsFields)
           }
-          return Object.assign({ type: 'mcq', question: q.question || '', options: (q.options || ['-','-','-','-']).slice(0, 4), correct: q.correct || 0, points: q.points || 1 }, wsFields)
+          /* (ز43) سقف 8 اختيارات بدل 4 — كتب بتيجي بـ 5 و7 اختيارات */
+          return Object.assign({ type: 'mcq', question: q.question || '', options: (q.options || ['-','-','-','-']).slice(0, 8), correct: q.correct || 0, points: q.points || 1 }, wsFields)
         })
         var wCount = extracted.filter(function(q: any) { return q.type === 'writing' }).length
         setStatusMsg('')
@@ -4008,6 +4082,17 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
           </button>
         </div>
 
+        {/* (ز43) تنظيف رموز الاستخراج — حرف الـ N وبقايا escapes + تفكيك الاختيارات المدموجة */}
+        <button
+          type="button"
+          onClick={runCleanupGarbage}
+          disabled={cleanupBusy}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-rose-300 bg-rose-50 dark:bg-rose-950/30 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs font-medium hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors disabled:opacity-60"
+        >
+          {cleanupBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <span>🧹</span>}
+          {cleanupBusy ? 'بيينضف…' : 'تنظيف رموز الاستخراج — حرف الـ N والرموز الغريبة + تفكيك الاختيارات المدموجة (ضغطة واحدة على كل الواجبات والامتحانات)'}
+        </button>
+
         {srcMode === 'file' && (
         <>
         <div className="p-4 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 space-y-3">
@@ -4095,19 +4180,27 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
               <p className="text-[10px] text-muted-foreground">لو حطيت ملف ورابط، الملف هو اللي هيفتح. اللينك بيتحمل عن طريق المنصة (حماية + بلا مشاكل CORS) — مستحسن للكتب الكبيرة على Drive</p>
             </div>
             {/* (2026-و44) الكتب المحفوظة — سهم يفتح قايمة الكتب المضافة من تاب
-               «الكتب والملازم» (ملف أو لينك) — دوست على الكتاب يفتح وتحدد صفحاته */}
+               «الكتب والملازم» (ملف أو لينك) — دوست على الكتاب يفتح وتحدد صفحاته
+               (2026-و106) ١ — اختيار المرحلة الأول: كتب المرحلة بتتصفي على طول */}
             <div className="space-y-1.5">
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-sky-700 dark:text-sky-300">١) اختار مرحلة الكتاب</Label>
+                <select value={bookGradeFilter} onChange={function(e) { setBookGradeFilter(e.target.value); if (e.target.value && savedBooks.length === 0 && !savedBooksLoading) loadSavedBooks(); if (e.target.value) setShowSavedBooks(true) }} className="w-full h-9 rounded-md border border-sky-300/60 bg-transparent px-3 text-sm">
+                  <option value="">كل الكتب — أو اختار مرحلة تتصفي بيها</option>
+                  {gradesList.map(function (g) { return <option key={g.ar} value={g.ar}>{(g.emoji ? g.emoji + ' ' : '') + g.ar}</option> })}
+                </select>
+              </div>
               <button type="button" onClick={function () { var next = !showSavedBooks; setShowSavedBooks(next); if (next && savedBooks.length === 0 && !savedBooksLoading) loadSavedBooks() }} className="w-full flex items-center justify-between rounded-md border border-sky-300/60 bg-white/70 dark:bg-transparent px-3 py-2 text-sm font-bold text-sky-700 dark:text-sky-300 hover:bg-sky-100/60 dark:hover:bg-sky-900/30 transition-colors cursor-pointer">
-                <span>📚 الكتب المحفوظة {savedBooks.length > 0 ? '(' + savedBooks.length + ')' : ''} — دوس على الكتاب يفتح على طول</span>
+                <span>٢) الكتب المحفوظة {bookGradeFilter ? (filteredSavedBooks.length + ' من ' + savedBooks.length + ' — ' + bookGradeFilter) : (savedBooks.length > 0 ? '(' + savedBooks.length + ')' : '')} — دوس على الكتاب يفتح على طول</span>
                 <ChevronDown className={'h-4 w-4 transition-transform' + (showSavedBooks ? ' rotate-180' : '')} />
               </button>
               {showSavedBooks && (
                 <div className="max-h-60 overflow-y-auto custom-scrollbar rounded-md border border-border">
                   {savedBooksLoading ? (
                     <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
-                  ) : savedBooks.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-4 px-3">مفيش كتب محفوظة — ضيف الكتب من تاب «الكتب والملازم» بالملف أو باللينك وهتلاقيها هنا ثابتة</p>
-                  ) : savedBooks.map(function (b: any) {
+                  ) : filteredSavedBooks.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4 px-3">{bookGradeFilter ? 'مفيش كتب محفوظة للمرحلة دي — غير الفلتر أو ضيف كتب من تاب «الكتب والملازم»' : 'مفيش كتب محفوظة — ضيف الكتب من تاب «الكتب والملازم» بالملف أو باللينك وهتلاقيها هنا ثابتة'}</p>
+                  ) : filteredSavedBooks.map(function (b: any) {
                     var srcLabel = b.sourceUrl ? '🔗 لينك خارجي' : (b.filePath ? '📄 ملف محفوظ' : '')
                     return (
                       <button key={b.id} type="button" onClick={function () { openSavedBook(b) }} className="w-full text-right px-3 py-2 border-b border-border/50 last:border-0 hover:bg-muted/60 transition-colors cursor-pointer">
@@ -4119,6 +4212,16 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
                 </div>
               )}
             </div>
+            {/* (ز42) شارة الكتاب المفتوح — تأكيد واضح: الاستخراج هينزل من الكتاب ده بالظبط */}
+            {bookFile && bookNumPages > 0 && (
+              <div className="flex items-start gap-2 p-2.5 rounded-lg border border-emerald-400/50 bg-emerald-500/10">
+                <span className="text-lg leading-none mt-0.5">📕</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 truncate">الكتاب المفتوح: {bookName || bookFile.name} ✓</p>
+                  <p className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 mt-0.5">ده المصدر اللي هيطلع منه الاستخراج — الصفحات هتتوخذ من الكتاب ده بالظبط ({bookNumPages} صفحة). عايز كتاب تاني؟ اختاره من «الكتب المحفوظة» فوق أو ارفع ملف جديد.</p>
+                </div>
+              </div>
+            )}
             {bookFile && <p className="text-xs text-muted-foreground text-center">{(bookFile.size / 1024 / 1024).toFixed(1)} MB</p>}
             {bookNumPages > 0 && <p className="text-xs text-center font-medium text-sky-600 dark:text-sky-400">عدد صفحات الكتاب: {bookNumPages}</p>}
             <div className="grid grid-cols-2 gap-2">
@@ -4418,7 +4521,11 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
                 )}
                 {hasFigurePreview && (
                   <div className="p-2 rounded-md bg-violet-500/5 border border-violet-500/20">
-                    <p className="text-[9px] font-semibold text-muted-foreground mb-1">📐 رسمة السؤال:</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[9px] font-semibold text-muted-foreground mb-1">📐 رسمة السؤال:</p>
+                      {/* (و52/ز42) محرر قص يدوي — أي قص أوتوماتيك طلع ناقص/متلخبط يتظبط بإيد المستر في ثواني */}
+                      <button type="button" onClick={function() { setCropEdit({ qi: qi, kind: 'q', oi: -1, page: parseInt(String((q.figure && q.figure.page) || q.sourcePage || 1), 10) || 1, bbox: (q.figure && q.figure.bbox) || null }) }} className="text-[9px] font-bold text-violet-600 dark:text-violet-400 hover:underline">✂️ عدّل القص</button>
+                    </div>
                     <WorksheetFigure figure={q.figure} />
                   </div>
                 )}
@@ -4471,6 +4578,10 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
                             {/* (و43) رفع صورة للاختيار — أداة اختيارية بالكامل (و45) */}
                             <input ref={function (el) { figureInputRefs.current['q' + qi + '_' + oi] = el }} type="file" accept="image/*" className="hidden" onChange={function (e) { var f = e.target.files && e.target.files[0]; e.target.value = ''; handleOptionFigureUpload(qi, oi, f || null) }} />
                             <button type="button" title="رفع صورة للاختيار (اختياري)" className="text-[11px] leading-none px-1 py-1 rounded border border-border shrink-0 transition-colors hover:bg-muted" onClick={function () { var el = figureInputRefs.current['q' + qi + '_' + oi]; if (el) el.click() }}>📷</button>
+                            {/* (و52/ز42) ✂️ تعديل قص رسمة الاختيار — لما القص الأوتوماتيك يطلع ناقص أو متلخبط */}
+                            {q.optionFigures && q.optionFigures[oi] && (q.optionFigures[oi].bbox || q.optionFigures[oi].url) && (
+                              <button type="button" title="تعديل قص رسمة الاختيار" onClick={function () { setCropEdit({ qi: qi, kind: 'of', oi: oi, page: parseInt(String((q.optionFigures[oi] && q.optionFigures[oi].page) || q.sourcePage || 1), 10) || 1, bbox: (q.optionFigures[oi] && q.optionFigures[oi].bbox) || null }) }} className="text-[11px] leading-none px-1 py-1 rounded border border-violet-400/50 text-violet-600 dark:text-violet-400 shrink-0 transition-colors hover:bg-violet-500/10">✂️</button>
+                            )}
                           </div>
                           {optFigUrl && (
                             <div className="flex items-center gap-1">
@@ -4549,6 +4660,16 @@ function AIExtractionPanel({ onRefresh }: { onRefresh: () => void }) {
         {step === 1 && renderStep1()}
         {step === 2 && renderStep2()}
         {step === 3 && renderStep3()}
+        {/* (و52/ز42) محرر قص الرسمات اليدوي — يشتغل من مصدر القص الأخير (المستند المفتوح أو الملف الأصلي) */}
+        {cropEdit && (
+          <FigureCropEditor
+            target={cropEdit}
+            source={{ file: (lastCropSourceRef.current && lastCropSourceRef.current.file) || null, doc: (lastCropSourceRef.current && lastCropSourceRef.current.doc) || null }}
+            sourceMediaId={sourceMediaRef.current || ''}
+            onSaved={function (url, bbox, page) { applyFigureCrop(cropEdit, url, bbox, page) }}
+            onClose={function () { setCropEdit(null) }}
+          />
+        )}
       </CardContent>
     </Card>
   )

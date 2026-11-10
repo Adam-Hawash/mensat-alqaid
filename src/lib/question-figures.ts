@@ -17,6 +17,9 @@
 
 import { openPdf, renderPageToJpeg } from '@/lib/pdf-pages'
 import { chunkedUpload } from '@/lib/chunked-upload'
+/* (ز42) حارس الحبر — لصق القص الفاضي على أقرب رسمة حقيقية
+   (ز43) تقطيع الرسمة العريضة لرسومات اختيارات */
+import { analysisPixelsDom, snapCropFromPx, splitRegionIntoPartsFromPx } from '@/lib/figure-locator'
 
 export interface FigureCropSource {
   file?: File | null   // ملف المصدر (PDF أو صورة) — وضع الملف
@@ -56,6 +59,135 @@ export function isWritingQuestion(q: any): boolean {
     return allNA
   }
   return true
+}
+
+/* ============================================================
+ * (ز43) SPLIT-EMBEDDED-OPTIONS — العقل الذكي لتفكيك الاختيارات المدموجة
+ * ============================================================
+ * طلب المستر الحرفي: «لو السؤال من الكتاب فيه A B C فهو يقسمهم سؤال واحد
+ * A B C ويقص الرسومات زيهم — التلات رسومات يكونوا في السؤال واحد».
+ *
+ * الموديل ساعات بيرجّع الاختيارات مدموجة جوه نص السؤال:
+ *   «Use two different formulas…\na. 2\nb. 2 x (1 + w)\nc. 4 x s»
+ * بعد تنظيف escapes (cleanEscapeGarbage) السطر بيبقى:
+ *   «…\na. 2\nb. 2 x (1 + w)\nc. 4 x s»
+ * والفانكشن دي بتلاقي علامات الاختيارات المتتالية (a,b,c / 1,2,3 / أ,ب,ج)
+ * وتفكّها: نص السؤال يفضل السؤال، وكل جزء يبقى اختيار حقيقي — ولو فيه
+ * رسمة واحدة عريضة، بنعلّم السؤال بـ _figureSplitPending عشان مرحلة
+ * القص تقطّعها لرسومات اختيارات (شوف ensureFigureUrls).
+ *
+ * شروط الأمان (لو أي شرط فشل → السؤال يرجع زي ما هو):
+ *   • مفيش اختيارات حقيقية ولا رسومات اختيارات بالفعل
+ *   • علامتين متتاليتين على الأقل من نفس العائلة بالترتيب
+ *   • نص السؤال قبل أول علامة ≥ 6 حروف
+ * ============================================================ */
+
+interface OptMarker { idx: number; len: number; sym: string; order: number }
+
+var OPT_FAMILIES: { name: string; re: RegExp; order: (s: string) => number }[] = [
+  {
+    name: 'latin',
+    re: /(?:^|[\n\s(•\-–—])(([a-hA-H])\s*[).:\-–\]]\s*)/g,
+    order: function (s: string) { return 'abcdefgh'.indexOf(String(s).toLowerCase()) },
+  },
+  {
+    name: 'arabic',
+    re: /(?:^|[\n\s(•\-–—])(([أ-ه])\s*[).:\-–]\s*)/g,
+    order: function (s: string) { return 'أبجده'.indexOf(String(s)) },
+  },
+  {
+    name: 'digit',
+    re: /(?:^|[\n\s(•\-–—])(([1-6])\s*[).:\-–\]]\s*)/g,
+    order: function (s: string) { return parseInt(String(s), 10) - 1 },
+  },
+]
+
+function findOptionRun(text: string): { family: string; first: OptMarker; marks: OptMarker[] } | null {
+  var best: { family: string; first: OptMarker; marks: OptMarker[] } | null = null
+  for (var fi = 0; fi < OPT_FAMILIES.length; fi++) {
+    var fam = OPT_FAMILIES[fi]
+    fam.re.lastIndex = 0
+    var all: OptMarker[] = []
+    var m: RegExpExecArray | null
+    while ((m = fam.re.exec(text)) !== null) {
+      var full = m[1]
+      var sym = m[2]
+      var ord = fam.order(sym)
+      if (ord < 0) continue
+      var idx = m.index + m[0].indexOf(full)
+      all.push({ idx: idx, len: full.length, sym: sym, order: ord })
+      if (m[0].length === 0) fam.re.lastIndex++
+    }
+    if (all.length < 2) continue
+    /* أطول سلسلة متتالية بالترتيب (a ثم b ثم c…) */
+    all.sort(function (a, b) { return a.idx - b.idx })
+    var run: OptMarker[] = []
+    var bestRun: OptMarker[] = []
+    for (var i = 0; i < all.length; i++) {
+      if (run.length === 0 || all[i].order === run[run.length - 1].order + 1) {
+        run.push(all[i])
+        if (run.length > bestRun.length) bestRun = run.slice()
+      } else if (all[i].order === run[run.length - 1].order) {
+        continue /* نفس الحرف مكرر — تجاهل */
+      } else {
+        run = [all[i]]
+      }
+    }
+    if (bestRun.length >= 2) {
+      var latW = fam.name === 'latin' ? 1 : 0
+      var better =
+        !best ||
+        bestRun.length > best.marks.length ||
+        (bestRun.length === best.marks.length && fam.name === 'latin' && best.family !== 'latin')
+      if (better) best = { family: fam.name, first: bestRun[0], marks: bestRun }
+      void latW
+    }
+  }
+  return best
+}
+
+export function splitEmbeddedOptions(q: any): any {
+  try {
+    if (!q || typeof q !== 'object') return q
+    /* شرط 1: مفيش اختيارات حقيقية ولا رسومات اختيارات — وإلا هو أصلاً مظبوط */
+    var hasRealOpts = Array.isArray(q.options) && q.options.some(function (o: any) { return String(o == null ? '' : o).trim() !== '' })
+    if (hasRealOpts) return q
+    if (hasVisualOptions(q)) return q
+    var text = String(q.question || q.q || '')
+    if (text.length < 12) return q
+    /* شرط 2: علامات متتالية */
+    var run = findOptionRun(text)
+    if (!run || run.marks.length < 2) return q
+    /* شرط 3: نص السؤال قبل أول علامة */
+    var stem = text.substring(0, run.first.idx).trim()
+    if (stem.length < 6) return q
+    /* بناء الاختيارات من القطع بين العلامات */
+    var segs: string[] = []
+    for (var i = 0; i < run.marks.length; i++) {
+      var start = run.marks[i].idx + run.marks[i].len
+      var end = i + 1 < run.marks.length ? run.marks[i + 1].idx : text.length
+      segs.push(text.substring(start, end).replace(/[\n\r]+/g, ' ').trim())
+    }
+    if (segs.length > 8) segs = segs.slice(0, 8)
+    /* لو كل القطع فاضية ومفيش رسمة → مفيش فايدة */
+    var anySeg = segs.some(function (s: string) { return s !== '' })
+    if (!anySeg && !q.figure) return q
+    var out = Object.assign({}, q)
+    out.question = stem
+    out.options = segs
+    out.type = 'mcq'
+    var corr = typeof q.correct === 'number' ? q.correct : (parseInt(String(q.correct), 10) || -1)
+    out.correct = (corr >= 0 && corr < segs.length) ? corr : -1
+    /* رسومات الاختيارات: لو موجودة فضلوا، وإلا علّم عشان القص يقطّع الرسمة العريضة */
+    if (Array.isArray(q.optionFigures) && q.optionFigures.length > 0) {
+      var ofs = q.optionFigures.slice(0, segs.length)
+      while (ofs.length < segs.length) ofs.push(null)
+      out.optionFigures = ofs
+    } else if (q.figure && q.figure.bbox) {
+      out._figureSplitPending = segs.length
+    }
+    return out
+  } catch (e) { return q }
 }
 
 /* تطبيع bbox: كل القيم 0..1 وw/h أكبر من صفر — وإلا null (مفيش قص) */
@@ -186,11 +318,45 @@ export async function ensureFigureUrls(
       var pageCanvas = await getPageCanvas(page)
       if (!pageCanvas) { done++; if (onProgress) onProgress(done, total); continue }
 
+      /* (ز43) تقطيع الرسمة العريضة لرسومات اختيارات — سؤال اتفككت اختياراته
+         من splitEmbeddedOptions (_figureSplitPending) وله رسمة واحدة عريضة:
+         بنقطّعها عند أوسع الفواصل البيضا على المحور المهيمن — كل جزء يبقى
+         رسمة اختيار حقيقية: «التلات رسومات يكونوا في السؤال واحد» */
+      if (tgt.kind === 'q' && q._figureSplitPending >= 2 && q.figure && q.figure.bbox) {
+        try {
+          var wantParts = Math.min(8, q._figureSplitPending)
+          var pxSp = analysisPixelsDom(pageCanvas, 1000)
+          var partsSp = pxSp ? splitRegionIntoPartsFromPx(pxSp, bbox, wantParts) : null
+          if (partsSp && partsSp.length === wantParts) {
+            var ofsSp: any[] = []
+            for (var piSp = 0; piSp < partsSp.length; piSp++) {
+              ofsSp.push({ page: page, bbox: partsSp[piSp] })
+              targets.push({ q: q, kind: 'of', oi: piSp })
+            }
+            q.optionFigures = ofsSp
+            q.figure = Object.assign({}, q.figure, { bbox: null })
+            q._figureSplitPending = 0
+            done++; if (onProgress) onProgress(done, total); continue
+          }
+        } catch (eSpl) {}
+      }
+
       var sw = Math.round(bbox.w * pageCanvas.width)
       var sh = Math.round(bbox.h * pageCanvas.height)
       var sx = Math.min(Math.max(0, Math.round(bbox.x * pageCanvas.width)), pageCanvas.width - 1)
       var sy = Math.min(Math.max(0, Math.round(bbox.y * pageCanvas.height)), pageCanvas.height - 1)
       if (sw < 8 || sh < 8) { done++; if (onProgress) onProgress(done, total); continue }
+
+      /* (ز42) حارس الحبر — لو bbox الـ AI واقعة في مكان فاضي على الصفحة
+         (وده سبب «القص بيقص حاجة تانية / الرسمة بتطلع فاضية»)، بنلصق
+         منطقة القص على أقرب كتلة رسمة حقيقية مكشوفة من بكسلات الصفحة نفسها */
+      try {
+        var pxL = analysisPixelsDom(pageCanvas, 760)
+        if (pxL) {
+          var snapR = snapCropFromPx(pxL, bbox, { x: sx, y: sy, w: sw, h: sh })
+          if (snapR) { sx = snapR.x; sy = snapR.y; sw = snapR.w; sh = snapR.h }
+        }
+      } catch (eInk) {}
 
       /* تصغير لأقصى ضلع 1200 — الحفاظ على النسبة */
       var scale = Math.min(1, 1200 / Math.max(sw, sh))

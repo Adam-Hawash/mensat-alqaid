@@ -17,8 +17,9 @@ import { parseAiJson } from '@/lib/parse-ai-json'
 
 import { NextResponse } from 'next/server'
 import { callGemini as callGeminiCentral, hasGeminiKey } from '@/lib/gemini'
-/* (و45) تصنيف موحّد اختياري/مقالي — سؤال له اختيارات (حتى لو صور) = اختياري */
-import { isWritingQuestion } from '@/lib/question-figures'
+/* (و45) تصنيف موحّد اختياري/مقالي — سؤال له اختيارات (حتى لو صور) = اختياري
+   (ز43) splitEmbeddedOptions — تفكيك الاختيارات المدموجة جوه نص السؤال */
+import { isWritingQuestion, splitEmbeddedOptions } from '@/lib/question-figures'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -141,6 +142,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Could not parse AI response' }, { status: 500 })
     }
     var questions = (parsed.questions || []).map(function(q) {
+      /* (ز43) العقل الذكي: تفكيك الاختيارات المدموجة جوه نص السؤال
+         «…\na. 2\nb. …\nc. …» → سؤال + اختيارات حقيقية A B C */
+      q = splitEmbeddedOptions(q)
       var qText = q.question || q.q || ''
       /* (و45) سؤال له اختيارات (نص أو صور/رسومات) = اختياري دايمًا — ممنوع يتحول مقالي */
       var isWriting = isWritingQuestion(q)
@@ -154,6 +158,8 @@ export async function POST(request) {
       /* (و43) figure بـ url بس (رفع يدوي من شاشة المراجعة) بيتقبل برضه — مش bbox بس */
       if (q.figure && (q.figure.bbox || q.figure.url)) wsFields.figure = q.figure
       if (Array.isArray(q.optionFigures)) wsFields.optionFigures = q.optionFigures
+      /* (ز43) علامة تقطيع الرسمة العريضة لرسومات اختيارات — بتتصرف في مرحلة القص */
+      if (q._figureSplitPending) wsFields._figureSplitPending = q._figureSplitPending
       if (isWriting) {
         return Object.assign({
           type: 'writing',
@@ -168,16 +174,17 @@ export async function POST(request) {
          عشان الفهارس تبقى متوافقة والسؤال يفضل اختياري صور مش مقالي */
       var opts = Array.isArray(q.options) ? q.options.filter(function(o: any) { return o !== null && o !== undefined }).slice() : []
       if (opts.length === 0 && Array.isArray(q.optionFigures) && q.optionFigures.length > 0) {
-        for (var ofi = 0; ofi < q.optionFigures.length && ofi < 4; ofi++) opts.push('')
+        for (var ofi = 0; ofi < q.optionFigures.length && ofi < 8; ofi++) opts.push('')
       }
       if (opts.length === 0) opts = ['N/A', 'N/A', 'N/A', 'N/A']
       while (opts.length < 4) { opts.push('N/A') }
       var c = typeof q.correct === 'number' ? q.correct : 0
-      if (c < 0 || c > 3) { c = 0 }
+      if (c < 0 || c > 7) { c = 0 }
       return Object.assign({
         type: 'mcq',
         question: qText,
-        options: opts.slice(0, 4),
+        /* (ز43) سقف 8 اختيارات بدل 4 — كتب بتيجي بـ 5 و7 اختيارات */
+        options: opts.slice(0, 8),
         correct: c,
         points: (typeof q.points === 'number' && q.points > 0) ? q.points : 1,
         modelAnswer: q.modelAnswer || '',

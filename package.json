@@ -2,6 +2,7 @@
   "name": "leader-platform",
   "version": "1.0.0",
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.9",
     "@prisma/adapter-libsql": "^6.19.3",
     "@prisma/client": "^6.19.3",
     "@radix-ui/react-alert-dialog": "^1.1.23",

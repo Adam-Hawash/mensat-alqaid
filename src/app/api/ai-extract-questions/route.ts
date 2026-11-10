@@ -119,7 +119,8 @@ export async function POST(request) {
 
       // Shuffle question order
       // (shuffle options and update correct index)
-      var opts = Array.isArray(q.options) ? q.options.slice(0, 4) : []
+      /* (ز43) سقف 8 اختيارات بدل 4 — كتب بتيجي بـ 5 و7 اختيارات */
+      var opts = Array.isArray(q.options) ? q.options.slice(0, 8) : []
       /* (و46) سؤال الرسومات: نملأ الاختيارات بنفس عدد الرسومات على الأقل —
          نص فاضي = الاختيار صورة بس (الطالب يشوف الرسمة الصغيرة ويختارها) */
       var minOpts = hasVisual && Array.isArray(q.optionFigures) ? q.optionFigures.length : 0

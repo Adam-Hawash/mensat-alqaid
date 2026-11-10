@@ -17,6 +17,8 @@ import { parseAiJson } from '@/lib/parse-ai-json'
 
 import { NextResponse } from 'next/server'
 import { callGemini as callGeminiCentral, hasGeminiKey } from '@/lib/gemini'
+/* (ز43) splitEmbeddedOptions — تفكيك الاختيارات المدموجة جوه نص السؤال */
+import { splitEmbeddedOptions } from '@/lib/question-figures'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -122,6 +124,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Could not parse AI response' }, { status: 500 })
     }
     var questions = (parsed.questions || []).map(function(q) {
+      /* (ز43) تفكيك الاختيارات المدموجة جوه نص السؤال */
+      q = splitEmbeddedOptions(q)
       var qText = q.question || q.q || ''
       var isWriting = q.type === 'writing' || q.type === 'essay'
       if (!isWriting && (!Array.isArray(q.options) || q.options.length === 0)) isWriting = true
@@ -138,11 +142,12 @@ export async function POST(request) {
       var opts = Array.isArray(q.options) ? q.options.slice() : ['N/A', 'N/A', 'N/A', 'N/A']
       while (opts.length < 4) { opts.push('N/A') }
       var c = typeof q.correct === 'number' ? q.correct : 0
-      if (c < 0 || c > 3) { c = 0 }
+      if (c < 0 || c > 7) { c = 0 }
       return {
         type: 'mcq',
         question: qText,
-        options: opts.slice(0, 4),
+        /* (ز43) سقف 8 اختيارات بدل 4 — كتب بتيجي بـ 5 و7 اختيارات */
+        options: opts.slice(0, 8),
         correct: c,
         points: (typeof q.points === 'number' && q.points > 0) ? q.points : 1,
         modelAnswer: q.modelAnswer || '',
