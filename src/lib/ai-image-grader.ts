@@ -93,15 +93,23 @@ function parseAIJson(text: string): any | null {
  * "٢٠١٣" === "2013", "1952م" === "1952", " محمد علي " === "محمد علي"
  * ------------------------------------------------------------------ */
 export function normalizeFinalAnswer(s: string): string {
-  var out = String(s || '').toLowerCase()
-  // Arabic-Indic digits → Western digits
-  var arabicDigits = '٠١٢٣٤٥٦٧٨٩'
-  out = out.replace(/[٠-٩]/g, function (d) { return String(arabicDigits.indexOf(d)) })
+  var out = String(s || '')
+  /* (وN7) شكل موحّد للحروف والمحارف + كل الحروف كابتن = سمول */
+  try { out = out.normalize('NFKC') } catch (eN) {}
+  out = out.toLowerCase()
+  // (وN7) محارف خفية واتجاهات بتتلصق من النسخ واللصق — مالهاش حكم
+  out = out.replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, '')
+  // (وN7) التشكيل العربي مالوش قيمة: «مُستطيل» === «مستطيل»
+  out = out.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
+  // Arabic-Indic digits → Western (٤٢ = 42)
+  out = out.replace(/[٠-٩]/g, function (d) { return String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)) })
   out = out.replace(/[۰-۹]/g, function (d) { return String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)) })
+  // (وN7) حروف عربية متكافئة: الهمزات = ألف، الألف المقصورة = ياء، التاء المربوطة = هاء
+  out = out.replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
   // Arabic decimal separator ٫ → .  , and "3,5" → "3.5" (decimal comma)
   out = out.replace(/٫/g, '.')
   out = out.replace(/(\d)\s*,\s*(\d)/g, '$1.$2')
-  // unicode superscripts → ^digits (kept from math heritage, harmless)
+  // unicode superscripts → ^digits
   var supMap: Record<string, string> = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' }
   out = out.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, function (m) {
     var r = '^'
@@ -113,15 +121,18 @@ export function normalizeFinalAnswer(s: string): string {
     out = out.replace(/\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, '$1/$2')
   }
   // unify operators & strip noise characters
-  out = out.replace(/[×·]/g, '*')
+  // (وN7) × · ✕ ✖ = *  و ÷ = /  و السالب الطويل/الشرطات الطويلة − – — ― = -
+  out = out.replace(/[×·✕✖]/g, '*')
   out = out.replace(/÷/g, '/')
+  out = out.replace(/[−–—―]/g, '-')
   out = out.replace(/[\s{}$]/g, '')
   out = out.replace(/\\left|\\right/g, '')
   out = out.replace(/\\/g, '')
-  // aaaa… (letter run of 3+) → a^n so "aaaaaaa" === "a^7"
+  // aaaa… (letter run of 3+) → a^n  so "aaaaaaa" === "a^7"
   out = out.replace(/([a-z])\1{2,}/g, function (m, ch) { return ch + '^' + m.length })
-  // strip common Arabic era/punctuation decorations after dates
+  // strip common Arabic era/punctuation decorations after dates (kept — مً / m)
   out = out.replace(/[مًm]+$/g, '')
+  // strip trailing punctuation
   out = out.replace(/[.,;:،؛]+$/, '')
   return out
 }
@@ -432,7 +443,9 @@ export async function gradeImageAnswer(params: {
   prompt += '   (b) If there is no box → the final answer is the LAST thing they wrote: after the last "=" or ":", or the concluding line/keyword.\n'
   prompt += '   CRITICAL: every intermediate step, every middle fact, every scratched-out attempt is NOT the answer. Do NOT judge an intermediate note. Many students write messy middle work and still end with the CORRECT boxed final answer — that is CORRECT, full marks. If you compare a middle step against the model answer instead of the boxed/last value, you FAIL. Read it UNDERSTANDING what they mean — messy handwriting DOES NOT matter.\n'
   prompt += 'STEP 5 — Compare the student\'s final answer with the MODEL ANSWER (الإجابة النموذجية) and accepted answers by MEANING and by VALUE, not by exact wording. The student does NOT need to copy the model answer word-for-word; if their answer conveys the same correct fact(s), names, dates, numbers or reasons, it is CORRECT. Equivalent forms are CORRECT: ١٩٥٢ = 1952 = 1952م, different Arabic spellings of the same name or term, listing the same points in a different order, numeric forms ٥٠٪ = 50% = 0.5, 3:4 = 3/4, 3,5 = 3.5, and units/labels are IGNORED (12 سم = 12 cm = 12), a final value contained inside the model\'s fuller answer.\n'
-  prompt += '- LETTER CASE NEVER MATTERS (وN6): "K - 18" === "k - 18", "X = 5" === "x = 5" — capital and small letters are THE SAME value in math; a difference ONLY in letter case (K vs k) is NEVER a wrong answer\n'
+  prompt += '- LETTER CASE NEVER MATTERS for ALL letters (وN6): "K - 18" === "k - 18", "X = 5" === "x = 5", "2K + 3" === "2k + 3" — capital and small letters are THE SAME value in math; a difference ONLY in letter case (K vs k) is NEVER a wrong answer\n'
+  prompt += '- SPACES NEVER MATTER (وN7): "K - 18" === "k-18" === "K  -  18" === "K- 18" — missing, extra or doubled spaces NEVER change the answer\n'
+  prompt += '- ARABIC FORMS NEVER MATTER (وN7): "مُستطيل" === "مستطيل" (tashkeel ignored), "أب" === "اب" === "إب" === "آب" (hamza forms = alef), "مربعه" === "مربعة" — Arabic diacritics and letter variants NEVER change the answer\n'
   prompt += 'STEP 6 — Grade by the KEY FACTS the question asks for: a complete correct key fact earns credit; missing or wrong key facts lose credit proportionally. A correct final answer with messy/unreadable steps is still CORRECT (full points). A genuinely DIFFERENT final answer is WRONG even if the wording looks nice. Never mark an answer wrong just because the handwriting is hard to read — judge the final answer.\n'
   prompt += 'STEP 6.5 — UNDERSTAND the solution like a human teacher (as if the student is explaining it to you), NEVER literal matching: a small SLIP in a MIDDLE step (a naming slip, a small factual slip the student self-corrected right after, a crossed-out attempt) does NOT make the work wrong when the student ENDED at the correct final answer with the right key facts. Judge where they ENDED.\n'
   prompt += 'STEP 6.6 — READ THE HANDWRITING CAREFULLY (the worst failure is grading a CORRECT answer as wrong because you misread it): read every handwritten digit/word with FULL attention (4 vs 9, 1 vs 7, 5 vs 3, 0 vs 6). Re-read the final answer TWICE before deciding. If what you read matches the model answer → it is CORRECT, full stop.\n'
