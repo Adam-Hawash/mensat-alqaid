@@ -1614,8 +1614,36 @@ function ExamSettingsRow({ exam, adminId, onDone }: { exam: any; adminId: string
     setBusy(false)
   }
 
+  /* (ر2 — طلب المستر) تغيير اسم الامتحان بعد النشر */
+  var [renaming, setRenaming] = useState(false)
+  var [nameVal, setNameVal] = useState('')
+  var saveExamName = function () {
+    var nv = nameVal.trim()
+    if (!nv) { toast.error('اكتب الاسم الجديد الأول'); return }
+    patch({ title: nv }, 'تم تغيير اسم الامتحان إلى «' + nv + '»')
+    setNameVal(''); setRenaming(false)
+  }
+
   return (
     <div className="mt-2 pt-2 border-t border-dashed space-y-2" onClick={function (e) { e.stopPropagation() }}>
+      {/* (ر2 — طلب المستر) سطر تغيير اسم الامتحان */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {!renaming ? (
+          <Button type="button" size="sm" variant="outline" className="h-7 text-[10px] px-2"
+            onClick={function () { setRenaming(true); setNameVal(exam.title || '') }}>
+            📝 تغيير الاسم
+          </Button>
+        ) : (
+          <>
+            <Input value={nameVal} onChange={function (e) { setNameVal(e.target.value) }}
+              placeholder={exam.title || ''} className="h-7 text-[11px] max-w-[240px]" />
+            <Button type="button" size="sm" variant="outline" className="h-7 text-[10px] px-2"
+              disabled={!nameVal.trim()} onClick={saveExamName}>حفظ الاسم</Button>
+            <Button type="button" size="sm" variant="ghost" className="h-7 text-[10px] px-2"
+              onClick={function () { setRenaming(false); setNameVal('') }}>إلغاء</Button>
+          </>
+        )}
+      </div>
       {/* سوتش إظهار الإجابات — يكتب فورًا */}
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
@@ -2886,6 +2914,10 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
   /* (2026-و25 نقل 25-b1) جدولة ظهور الواجب: في الإضافة + محرر موعد لكل عنصر */
   const [formScheduledAt, setFormScheduledAt] = useState('')
   const [schedEditId, setSchedEditId] = useState<string | null>(null)
+  /* (ر2 — طلب المستر) تغيير اسم الواجب بعد النشر */
+  const [nameEditId, setNameEditId] = useState<string | null>(null)
+  const [nameEditVal, setNameEditVal] = useState('')
+  const [nameSaving, setNameSaving] = useState(false)
   const [schedValue, setSchedValue] = useState('')
   const [schedBusy, setSchedBusy] = useState(false)
   /* (2026-و26) استهداف الطلاب للواجب — زي الفيديوهات بالظبط */
@@ -3099,6 +3131,28 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
     setSchedBusy(false)
   }
 
+  /* (ر2 — طلب المستر) PATCH تغيير اسم الواجب — نفس تحقق الأدمن */
+  const patchHwTitle = async function (id: string, title: string) {
+    setNameSaving(true)
+    try {
+      var res = await fetch(`${apiPath}/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminId, title }),
+      })
+      if (res.ok) {
+        toast.success('تم تغيير اسم الواجب إلى «' + title + '»')
+        setNameEditId(null); setNameEditVal('')
+        loadItems(false)
+      } else {
+        var dT: any = {}
+        try { dT = await res.json() } catch {}
+        toast.error(dT.error || 'خطأ في تغيير الاسم')
+      }
+    } catch { toast.error('خطأ في الاتصال') }
+    setNameSaving(false)
+  }
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -3304,6 +3358,13 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
                       <CalendarClock className="h-4 w-4" />
                     </Button>
                   )}
+                  {/* (ر2 — طلب المستر) زرار تغيير اسم الواجب */}
+                  {isHomeworkManager && (
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0" title="تغيير اسم الواجب"
+                      onClick={() => { if (nameEditId === item.id) { setNameEditId(null); setNameEditVal('') } else { setNameEditId(item.id); setNameEditVal(item.title || '') } }}>
+                      📝
+                    </Button>
+                  )}
                   {/* (2026-و26) زرار استهداف الطلاب — مين يشوف الواجب (زي الفيديوهات) */}
                   {isHomeworkManager && (
                     <Button size="icon" variant="ghost"
@@ -3366,6 +3427,25 @@ function ContentManager<T extends { id: string; grade: string; createdAt: string
                     {isScheduledFuture((item as any).scheduledAt) && (
                       <Button type="button" size="sm" variant="ghost" className="h-7 text-[10px] px-2 text-destructive" disabled={schedBusy} onClick={() => patchSchedule(item.id, null)}>إلغاء الجدولة</Button>
                     )}
+                  </div>
+                )}
+                {/* (ر2 — طلب المستر) محرر تغيير اسم الواجب المضغوط */}
+                {isHomeworkManager && nameEditId === item.id && (
+                  <div className="w-full pt-2 mt-1 border-t border-dashed flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] font-medium shrink-0">الاسم الجديد:</span>
+                    <Input value={nameEditVal} onChange={(e) => setNameEditVal(e.target.value)}
+                      placeholder={renderTitle(item)}
+                      className="h-7 w-[220px] text-[11px]" />
+                    <Button type="button" size="sm" variant="outline" className="h-7 text-[10px] px-2"
+                      disabled={nameSaving || !nameEditVal.trim()}
+                      onClick={() => patchHwTitle(item.id, nameEditVal.trim())}>
+                      حفظ الاسم
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" className="h-7 text-[10px] px-2"
+                      disabled={nameSaving}
+                      onClick={() => { setNameEditId(null); setNameEditVal('') }}>
+                      إلغاء
+                    </Button>
                   </div>
                 )}
               </div>
