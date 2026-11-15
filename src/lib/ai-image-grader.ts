@@ -27,7 +27,10 @@
 //             no image/answer at all, no API key, or AI failed twice.
 
 import { db } from '@/lib/db'
-import { callGemini as callGeminiCentral, hasGeminiKey } from '@/lib/gemini'
+import { callGemini as callGeminiCentral, GEMINI_MODELS, GEMINI_GRADING_MODELS } from '@/lib/gemini'
+/* (2026-وN8) طلب المستر: «فيا ريت في نموذج أعلى من كده يفهم الماث» —
+   محرك ZAI بتفكير عميق للمقالي + شبكة أمان vision للصور — مجاني بلا مفاتيح */
+import { zaiGradeText, zaiGradeVision } from './zai-grader'
 import { repairModelJson, repairCorruptMath } from '@/lib/parse-ai-json'
 /* (2026-و33) ملاحظات المصحح برموز المنصة + تنقية من $ و ** الخام */
 import { sanitizeMathText, NOTATION_RULES, ENGLISH_TERMS_RULE } from '@/lib/math-sanitize'
@@ -41,11 +44,34 @@ import { sanitizeMathText, NOTATION_RULES, ENGLISH_TERMS_RULE } from '@/lib/math
    كان بيسقط على فولباك الصفر. timeoutMs: 35s افتراضي للنص — الصور بتمرر 60s
    (صور الحل الكبيرة كانت بتقطع لو قللناه — درس 2026-و12). */
 async function callGrader(parts: any[], timeoutMs?: number): Promise<{ ok: boolean; text?: string; error?: string }> {
+  /* (2026-وN8) تحديد نوع النداء: فيه صور inlineData ولا نص بس؟
+     النص ← ZAI بتفكير عميق أولاً (أقوى في الماث ومجاني)
+     الصور ← Gemini Pro أولاً (vision مثبت) وبعده Flash وبعده ZAI vision */
+  var imgUrls: string[] = []
+  var promptText = ''
+  for (var pi = 0; pi < parts.length; pi++) {
+    if (parts[pi] && parts[pi].inlineData && parts[pi].inlineData.data) {
+      imgUrls.push('data:' + (parts[pi].inlineData.mimeType || 'image/jpeg') + ';base64,' + parts[pi].inlineData.data)
+    }
+    if (parts[pi] && parts[pi].text) promptText += (promptText ? '\n\n' : '') + parts[pi].text
+  }
+  var textOnly = imgUrls.length === 0
   var lastErr = ''
+
+  /* (2026-وN8) المحرك الأول للنصوص: ZAI بتفكير عميق (Chain-of-Thought رياضي حقيقي — مجاني بلا مفاتيح) */
+  if (textOnly) {
+    var zr = await zaiGradeText(promptText, { timeoutMs: timeoutMs || 60000, thinking: true })
+    if (zr.ok) return { ok: true, text: zr.text }
+    lastErr = zr.error || 'zai failed'
+    console.error('[callGrader] ZAI engine failed:', lastErr)
+  }
+
+  /* (2026-وN8) سلسلة Gemini للتصحيح: Pro أولاً وبعده Flash — 3 محاولات بـ backoff */
   var backoffs = [1500, 4000]
   for (var attempt = 0; attempt < 3; attempt++) {
     var result = await callGeminiCentral({
       parts: parts,
+      models: GEMINI_GRADING_MODELS.concat(GEMINI_MODELS),
       generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
       timeoutMs: timeoutMs || 35000,
       thinking: 'low',
@@ -54,6 +80,14 @@ async function callGrader(parts: any[], timeoutMs?: number): Promise<{ ok: boole
     lastErr = result.error || 'unknown'
     if (attempt < 2) await new Promise(function (r) { setTimeout(r, backoffs[attempt]) })
   }
+
+  /* (وN8) شبكة الأمان الأخيرة: لو النداء فيه صور وكل محاولات Gemini وقعت
+     بنجرب ZAI vision — بيشتغل حتى من غير أي مفتاح Gemini */
+  if (!textOnly) {
+    var zv = await zaiGradeVision(imgUrls, promptText, { timeoutMs: Math.max(timeoutMs || 35000, 45000), thinking: true })
+    if (zv.ok) return { ok: true, text: zv.text }
+    lastErr = lastErr + ' | ' + (zv.error || 'zai vision failed')
+  }
   return { ok: false, error: lastErr }
 }
 
@@ -61,7 +95,15 @@ async function callGrader(parts: any[], timeoutMs?: number): Promise<{ ok: boole
    الإجابة النهائية بس. 2 محاولات بتايم أوت قصير (20s) — دي مكالمة صغيرة
    (رد JSON سطر واحد). */
 async function callVerifier(parts: any[]): Promise<{ ok: boolean; text?: string; error?: string }> {
-  var lastErr = ''
+  /* (2026-وN8) المحرك الأول: ZAI بتفكير عميق — بيفهم تكافؤ القيم صح
+     («1/4 = x» === «x = 1/4» و 0.5 = 50% = ½) ومجاني بلا حصص — Gemini احتياطي */
+  var promptText = ''
+  for (var pi = 0; pi < parts.length; pi++) {
+    if (parts[pi] && parts[pi].text) promptText += (promptText ? '\n' : '') + parts[pi].text
+  }
+  var zr = await zaiGradeText(promptText, { timeoutMs: 25000, thinking: true })
+  if (zr.ok) return { ok: true, text: zr.text }
+  var lastErr = zr.error || ''
   for (var attempt = 0; attempt < 2; attempt++) {
     var result = await callGeminiCentral({
       parts: parts,
@@ -308,7 +350,6 @@ export async function verifyFinalAnswerEqual(params: {
   modelFinals: string[]
   question?: string
 }): Promise<boolean> {
-  if (!hasGeminiKey()) return false
   var cut = function (v: string) { return String(v || '').trim().substring(0, 80) }
   var sVals = (params.studentFinals || []).map(cut).filter(Boolean).slice(0, 3)
   var mVals = (params.modelFinals || []).map(cut).filter(Boolean).slice(0, 3)
@@ -387,9 +428,6 @@ export async function gradeImageAnswer(params: {
 
   if (!mediaId) {
     return Object.assign({}, MANUAL, { feedback: 'mediaId required', error: 'mediaId required' })
-  }
-  if (!hasGeminiKey()) {
-    return Object.assign({}, MANUAL, { feedback: 'AI غير متاح — هتتراجع من المستر', error: 'no api key' })
   }
 
   // Fetch the media record (image stored as base64)
@@ -709,7 +747,6 @@ export async function gradeTextAnswer(params: {
   // modelAnswer is OPTIONAL now: when missing, the AI answers the question
   // itself and grades against its own solution (nothing left ungraded)
   if (!studentAnswer || (!modelAnswer && !question)) return null
-  if (!hasGeminiKey()) return null
 
   var acceptedStr = acceptedAnswers.length > 0
     ? '\nOther accepted answers: ' + acceptedAnswers.join(' | ')
