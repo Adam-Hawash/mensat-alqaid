@@ -10,7 +10,20 @@ const nextConfig: NextConfig = {
     '@prisma/adapter-libsql',
     '@libsql/isomorphic-fetch',
     '@libsql/isomorphic-ws',
+    '@prisma/client',
+    '@prisma/engines',
+    '@napi-rs/canvas',
+    'pdfjs-dist',
   ],
+  outputFileTracingIncludes: {
+    '/api/**': [
+      './node_modules/@prisma/engines/**',
+      './node_modules/.prisma/**',
+      './node_modules/@prisma/client/**',
+      './node_modules/pdfjs-dist/**',
+      './node_modules/@napi-rs/canvas/**',
+    ],
+  },
   experimental: {
     serverActions: { bodySizeLimit: '500mb' },
     optimizePackageImports: ['lucide-react', 'framer-motion', 'embla-carousel-react', 'react-day-picker', 'date-fns'],

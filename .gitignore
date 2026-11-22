@@ -38,3 +38,7 @@ db/*.db-journal
 
 # dev server log
 dev.log
+
+# opennext cloudflare
+.open-next/
+.wrangler/
