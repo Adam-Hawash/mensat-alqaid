@@ -1,0 +1,22 @@
+/**
+ * تشغيل منصة منصّة القائد في الإنتاج على سيرفر أوراكل عبر PM2
+ * الاستخدام:  pm2 start ecosystem.config.cjs
+ * بعدها:      pm2 save  ثم  pm2 startup  (ونفّذ السطر اللي بيطلعلك)
+ */
+module.exports = {
+  apps: [
+    {
+      name: 'mensat-alqaid',
+      cwd: __dirname,
+      script: 'node_modules/next/dist/bin/next',
+      args: 'start -p 3002',
+      env: {
+        NODE_ENV: 'production',
+        PORT: '3002',
+      },
+      autorestart: true,
+      max_memory_restart: '900M',
+      time: true,
+    },
+  ],
+}
