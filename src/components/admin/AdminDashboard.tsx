@@ -20,7 +20,7 @@ import {
   Link2, Activity, Eye, ImagePlus, Trophy, UserX, Camera,
   PlayCircle, Pause, Film, Search, FileDown, PictureInPicture2, Save, Sparkles, Wallet,
   /* (و45) LinkIcon — زرار «أو ضع رابط PDF» في وضع الكتاب */
-  LinkIcon, Smartphone, RotateCcw, ShieldCheck, Monitor, Tablet, Flag, GraduationCap, CalendarClock, UsersRound, PieChart, BookOpen, ChevronDown, Swords
+  LinkIcon, Smartphone, RotateCcw, ShieldCheck, Monitor, Tablet, Flag, GraduationCap, CalendarClock, UsersRound, PieChart, BookOpen, ChevronDown, Swords, Ban
 } from 'lucide-react'
 import { AdminComplaints } from './AdminComplaints'
 import { CMSPanel } from './CMSPanel'
@@ -713,6 +713,29 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
     } catch { toast.error('خطأ في تحديث حالة الطالب') }
   }
 
+  /* (ر5 — طلب المستر): رفض الحساب نهائيًا — الطالب مش بيدخل المنصة خالص
+     ومش هيقدر يجي تاني، والمستر هو الوحيد اللي يقدر يعيد تفعيله.
+     الرفض مش مسح — الحساب بيفضل موجود بأول بياناته. */
+  const handleRejectAction = async (id: string) => {
+    if (!window.confirm('رفض الحساب نهائيًا؟ الطالب مش هيقدر يدخل المنصة خالص لحد ما تعيد تفعيله من هنا.')) return
+    try {
+      await fetch(`/api/students/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'rejected' }) })
+      toast.success('تم رفض الحساب — الطالب متمنعش يدخل المنصة نهائيًا')
+      loadStudents(false); onStatsRefresh()
+    } catch { toast.error('خطأ في رفض الحساب') }
+  }
+
+  /* (ر5 — طلب المستر): إعادة التفعيل — الطالب المرفوض (من فخ الفيديو أو
+     يدويًا) بيرجع يدخل المنصة عادي بحسابه وجهازه زي ما كان */
+  const handleRestoreAction = async (id: string) => {
+    if (!window.confirm('إعادة تفعيل الحساب؟ الطالب هيرجع يدخل المنصة عادي تاني.')) return
+    try {
+      await fetch(`/api/students/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved' }) })
+      toast.success('تم إعادة تفعيل الحساب — الطالب يقدر يدخل عادي تاني')
+      loadStudents(false); onStatsRefresh()
+    } catch { toast.error('خطأ في إعادة تفعيل الحساب') }
+  }
+
   /* (ز19 — طلب المستر): زرار الباسكت = حذف نهائي حقيقي من قاعدة البيانات —
      الطالب بيتمسح هو وكل صفوفه (نتايج/تقدم/إشعارات/ولي الأمر/الدفعات...)
      وما يبقاش موجود أصلًا في أي قايمة — مش مجرد «مقفول» أو مرفوض.
@@ -739,8 +762,8 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
     } catch { toast.error('خطأ في فك الربط — جرب تاني') }
   }
 
-  const statusColors: Record<string, string> = { pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', approved: 'bg-teal-50 text-teal-700 dark:bg-emerald-900/30 dark:text-emerald-400', rejected: 'bg-rose-50 text-rose-400 dark:bg-red-900/30 dark:text-red-400' }
-  const statusLabels: Record<string, string> = { pending: 'قيد المراجعة', approved: 'مقبول', rejected: 'Rejected' }
+  const statusColors: Record<string, string> = { pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', approved: 'bg-teal-50 text-teal-700 dark:bg-emerald-900/30 dark:text-emerald-400', rejected: 'bg-rose-50 text-rose-400 dark:bg-red-900/30 dark:text-red-400', refused: 'bg-rose-50 text-rose-400 dark:bg-red-900/30 dark:text-red-400', paid: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400', active: 'bg-teal-50 text-teal-700 dark:bg-emerald-900/30 dark:text-emerald-400' }
+  const statusLabels: Record<string, string> = { pending: 'قيد المراجعة', approved: 'مقبول', rejected: 'مرفوض', refused: 'مرفوض', paid: 'مدفوع', active: 'مفعل' }
   // أسماء أنواع الأجهزة بالعربي — تظهر في بادج الطالب
   const deviceTypeLabels: Record<string, string> = { mobile: 'موبايل', tablet: 'تابلت', computer: 'كمبيوتر' }
   const deviceIcon = (t?: string) => t === 'computer' ? <Monitor className="h-2.5 w-2.5" /> : t === 'tablet' ? <Tablet className="h-2.5 w-2.5" /> : <Smartphone className="h-2.5 w-2.5" />
@@ -838,7 +861,7 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
             <div className="flex gap-1 bg-muted rounded-lg p-1">
               {(['pending', 'all', 'approved', 'rejected'] as const).map((f) => (
                 <Button key={f} variant={filter === f ? 'default' : 'ghost'} size="sm" className="text-xs h-7 px-2" onClick={() => setFilter(f)}>
-                  {f === 'pending' ? 'بانتظار' : f === 'approved' ? 'مقبول' : f === 'rejected' ? 'Rejected' : 'الكل'}
+                  {f === 'pending' ? 'بانتظار' : f === 'approved' ? 'مقبول' : f === 'rejected' ? 'مرفوض' : 'الكل'}
                 </Button>
               ))}
             </div>
@@ -908,6 +931,14 @@ function StudentsManager({ onStatsRefresh }: { onStatsRefresh: () => void }) {
                   {s.status === 'pending' && (<>
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" onClick={() => handleAction(s.id, 'approved')}><Check className="h-4 w-4" /></Button>
                                       </>)}
+                  {/* (ر5 — طلب المستر): رفض الحساب نهائيًا + إعادة التفعيل —
+                      الحساب المرفوض مش بيدخل خالص وبيظهر في تاب «مرفوض» */}
+                  {s.status !== 'rejected' && s.status !== 'refused' && (
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20" onClick={() => handleRejectAction(s.id)} title="رفض الحساب — مش هيقدر يدخل خالص لحد ما تعيد تفعيله"><Ban className="h-4 w-4" /></Button>
+                  )}
+                  {(s.status === 'rejected' || s.status === 'refused') && (
+                    <Button size="sm" variant="outline" className="h-8 px-2.5 text-xs border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-700" onClick={() => handleRestoreAction(s.id)} title="إعادة التفعيل — الطالب يرجع يدخل عادي"><RotateCcw className="h-3.5 w-3.5" />إعادة التفعيل</Button>
+                  )}
                   {/* (ز19 — طلب المستر): زرار الباسكت = حذف نهائي حقيقي — الطالب مش موجود أصلًا */}
                   <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRejectDelete(s.id)} title="حذف نهائي من النظام"><Trash2 className="h-4 w-4" /></Button>
                 </div>

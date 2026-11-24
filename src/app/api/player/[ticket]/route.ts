@@ -613,7 +613,7 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape' && isFakeF
 /* ===== التقدم → postMessage للأب (من غير أي لينك) ===== */
 var lastCur = 0;
 function reportProgress(cur, dur){
-  try{ if(window.parent && window.parent !== window) window.parent.postMessage({type:'mg_vp', videoId:CFG.videoId, cur:cur, dur:dur}, '*'); }catch(e){}
+  try{ if(window.parent && window.parent !== window) window.parent.postMessage({type:'mg_vp', videoId:CFG.videoId, cur:cur, dur:dur, tm:Date.now()}, '*'); }catch(e){}
 }
 function reportEnded(){ try{ if(window.parent && window.parent !== window) window.parent.postMessage({type:'mg_ended', videoId:CFG.videoId}, '*'); }catch(e){} }
 

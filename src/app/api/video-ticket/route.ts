@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { computePlayback, isAdmin, ensurePlayTicketTable, checkSequentialUnlock } from '@/lib/video-guard'
+import { logVideoOpen, sweepStaleVideoOpens } from '@/lib/video-open-log'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,6 +84,23 @@ export async function GET(request: NextRequest) {
       else return NextResponse.json({ error: result.reason }, { status: result.code })
     }
     if (!authorized) return NextResponse.json({ error: 'غير مسموح' }, { status: 401 })
+
+    // (ر5) فخ الفيديو — الطبقة الصارمة على السيرفر: أي فتح فيديو عالق
+    // أكتر من 60 ثانية من غير قفل = الطالب عاند بعد مهلة التحذير
+    // (10 ثواني) → الحساب يترفض نهائيًا حتى لو حجب طلبات المنصة من
+    // أدوات المطوّر. وبعدها بنسجل الفتح الجديد في VideoOpenLog.
+    if (studentId) {
+      try {
+        var swept = await sweepStaleVideoOpens(studentId)
+        if (swept) {
+          return NextResponse.json(
+            { error: '❌ حسابك مرفوض من المنصة — لو ده حصل بالغلط كلم المستر' },
+            { status: 403 }
+          )
+        }
+      } catch (eSw) {}
+      try { await logVideoOpen(studentId, videoId) } catch (eLog) {}
+    }
 
     // تنظيف التذاكر القديمة (فرصة — نسيب الداتابيز نضيفة)
     try {

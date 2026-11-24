@@ -233,8 +233,10 @@ export function LoginView() {
         setLoading(false); return
       }
       if (student.status === 'pending') { setCurrentStudent(student); setView('student-pending'); toast.info('حسابك قيد المراجعة، انتظر موافقة المسؤول') }
+      /* (ر5 — طلب المستر): الحساب المرفوض — رسالة المستر الحرفية */
+      else if (student.status === 'rejected' || student.status === 'refused') { toast.error('❌ حسابك مرفوض من المنصة — لو عندك أي استفسار كلم المستر', { duration: 12000 }) }
       /* (ز30) + active — شبكة أمان: أي طالب لسه متسجل قديمًا بـ active يدخل عادي */
-      else if (student.status === 'approved' || student.status === 'paid' || student.status === 'active') { setCurrentStudent(student); setView('student-portal'); toast.success('مرحباً ' + student.name + '!'); fetch('/api/students/track-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studentId: student.id }) }).catch(function () {}) }
+      else if (student.status === 'approved' || student.status === 'paid' || student.status === 'active') { setCurrentStudent(student); setView('student-portal'); toast.success('مرحباً ' + student.name + '!'); try { sessionStorage.removeItem('dv_guard_locked') } catch (eLock) {}; fetch('/api/students/track-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studentId: student.id }) }).catch(function () {}) }
       else { toast.error('تم حذف حسابك من المنصة، تواصل مع المسؤول') }
     } catch (e: any) {
       /* (2026-و29) مهلة/انقطاع → رسالة واضحة بدل سطور عالقة */

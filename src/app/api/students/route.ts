@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, safeWrite } from '@/lib/db'
 import { makeLibsqlClient, ensureSchema } from '@/lib/ensure-schema'
 import { gradeWhere, storeGrade } from '@/lib/grade-names' // (S-4b توحيد الصفوف)
+import { sweepStaleVideoOpens } from '@/lib/video-open-log' // (ر5) فخ الفيديو
 
 // ============================================================
 // نظام ربط الجهاز — إصدار 5 (البساطة نفسها)
@@ -247,14 +248,27 @@ export async function GET(request: NextRequest) {
         if (!password || normPwd(student.password) !== normPwd(password)) {
           return NextResponse.json({ students: [], total: 0, page: 1, pageSize: 1, totalPages: 0, reason: 'wrong_password' }, { headers: noStore })
         }
-        // الحسابات المرفوضة ممنوع تدخل خالص
+        // الحسابات المرفوضة ممنوع تدخل خالص — رسالة المستر الحرفية (ر5)
         var st = (student as any).status
         if (st === 'rejected' || st === 'refused') {
           return NextResponse.json(
-            { students: [], deviceBlocked: false, error: '❌ Your account has been rejected from the platform. If you have any questions, contact the teacher' },
+            { students: [], deviceBlocked: false, error: '❌ حسابك مرفوض من المنصة — لو عندك أي استفسار كلم المستر' },
             { status: 403 }
           )
         }
+
+        // (ر5) فخ الفيديو — الفحص الصارم عند الدخول: أي فتح فيديو عالق
+        // أكتر من 60 ثانية من غير قفل = الطالب عاند بعد مهلة التحذير
+        // وحاجب طلبات المنصة → الحساب يترفض أول ما يحاول يدخل تاني
+        try {
+          var sweptLogin = await sweepStaleVideoOpens(String((student as any).id))
+          if (sweptLogin) {
+            return NextResponse.json(
+              { students: [], deviceBlocked: false, error: '❌ حسابك مرفوض من المنصة — لو ده حصل بالغلط كلم المستر' },
+              { status: 403 }
+            )
+          }
+        } catch (eSweep) {}
 
         // ============================================================
         // قاعدة الجهاز الواحد — بأبسط شكل ممكن:
@@ -516,11 +530,11 @@ export async function POST(request: NextRequest) {
       var dup = await db.student.findFirst({ where: { phone }, select: { id: true, status: true } })
       if (dup) {
         /* (2026-ز12 — طلب المستر): المرفوض لو حاول يسجل تاني بنفس الرقم
-           → رسالة الرفض الصريحة زي الدخول بالظبط */
+           → رسالة الرفض الصريحة بالعربي (ر5) زي الدخول بالظبط */
         var dupSt = String((dup as any).status || '')
         if (dupSt === 'rejected' || dupSt === 'refused') {
           return NextResponse.json(
-            { error: '❌ Your account has been rejected from the platform. If you have any questions, contact the teacher' },
+            { error: '❌ حسابك مرفوض من المنصة — لو عندك أي استفسار كلم المستر' },
             { status: 403 }
           )
         }

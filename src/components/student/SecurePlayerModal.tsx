@@ -48,6 +48,43 @@ export function SecurePlayerModal({
   var onWatchRef = useRef(onWatch)
   useEffect(function () { onWatchRef.current = onWatch }, [onWatch])
 
+  // ===== (ر5 — طلب المستر) فخ الفيديو: إبلاغ حارس أدوات المطوّر =====
+  // أول ما المودال يتفتح (فيديو مفتوح) نطلق vtrap-open — ولو الطالب
+  // فاتح أدوات المطوّر والفيديو جاي: الشاشة سودة فورًا + عد 10 ثواني.
+  // + الطبقة الصارمة: بلاغ «قفل» للسيرفر أول ما المودال يتقفل
+  // (fetch keepalive أو sendBeacon) عشان سجل الفتح في VideoOpenLog
+  // يتقفل — لو الطالب حجب البلاغ من الـ Network السجل يفضل مفتوح
+  // والسيرفر بيرفض الحساب في الـ sweep.
+  var sidRef = useRef(studentId)
+  useEffect(function () {
+    var sid = sidRef.current || ''
+    if (!sid) return
+    var reported = false
+    try { window.dispatchEvent(new CustomEvent('vtrap-open')) } catch (e) {}
+    function reportClose() {
+      if (reported) return
+      reported = true
+      try { window.dispatchEvent(new CustomEvent('vtrap-close')) } catch (e) {}
+      try {
+        var body = JSON.stringify({ studentId: sid })
+        var beaconOK = false
+        try {
+          if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+            beaconOK = navigator.sendBeacon('/api/video-open/close', new Blob([body], { type: 'application/json' }))
+          }
+        } catch (eB) {}
+        if (!beaconOK) {
+          fetch('/api/video-open/close', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true }).catch(function () {})
+        }
+      } catch (e) {}
+    }
+    try { window.addEventListener('pagehide', reportClose) } catch (e) {}
+    return function () {
+      try { window.removeEventListener('pagehide', reportClose) } catch (e) {}
+      reportClose()
+    }
+  }, [])
+
   // ===== ملء الشاشة (بيتحكم فيه الأب) =====
   var stageRef = useRef<HTMLDivElement>(null)
   var iframeRef = useRef<HTMLIFrameElement>(null)
