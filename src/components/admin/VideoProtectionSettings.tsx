@@ -12,7 +12,9 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
-import { ShieldCheck, Loader2 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { ShieldCheck, Loader2, Timer } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/stores/app-store'
 
@@ -123,6 +125,10 @@ export function VideoProtectionSettings() {
           </div>
         </div>
 
+        {/* (ر6) مهلة حارس الفيديو وأدوات المطوّر — طلب المستر الحرفي:
+            «المهلة 8 ثواني بدل 10 والمهلة أقدر أتحكم فيها من صفحة الأدمن» */}
+        <GuardCountdownSetting adminId={adminId} onSave={save} loading={loading} />
+
         {/* ملخص المنظومة */}
         <div className="rounded-lg bg-muted/50 p-3 text-[11px] leading-relaxed text-muted-foreground space-y-1">
           <p className="font-bold text-foreground text-xs">🛡️ منظومة الحماية الشغالة:</p>
@@ -135,5 +141,74 @@ export function VideoProtectionSettings() {
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+/* ============================================================
+   (ر6) GuardCountdownSetting — مهلة حارس الفيديو وأدوات المطوّر
+   طلب المستر الحرفي: «المهلة 8 ثواني بدل 10 ثواني؟ والمهلة برضه
+   أنا أقدر أتحكم فيها من صفحة الأدمن» — مفتاح guard_countdown_seconds
+   في site-config — الحارس (DevToolsGuard) بيقراه أول ما يشتغل.
+   ============================================================ */
+function GuardCountdownSetting(props: {
+  adminId: string
+  onSave: (key: string, value: string) => Promise<void> | void
+  loading: boolean
+}) {
+  var adminId = props.adminId
+  var onSave = props.onSave
+  var loading = props.loading
+  var cfg = useConfig('guard_countdown_seconds', '8')
+  var val = cfg[0]
+  var setVal = cfg[1]
+  var saving = useState(false)
+  var savingOn = saving[0]
+  var setSaving = saving[1]
+
+  var saveNow = async function () {
+    var n = parseInt(val, 10)
+    if (isNaN(n) || n < 3 || n > 120) {
+      toast.error('اكتب رقم من 3 لـ 120 ثانية')
+      return
+    }
+    if (!adminId) { toast.error('مفيش جلسة أدمن'); return }
+    setSaving(true)
+    try {
+      await onSave('guard_countdown_seconds', String(n))
+      toast.success('اتحفظت المهلة: ' + n + ' ثانية — بتشتغل على الطلاب من أول تحميل جديد للمنصة')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
+      <div className="flex items-center gap-2">
+        <Timer className="h-4 w-4 text-primary" />
+        <p className="text-sm font-bold">مهلة حارس الفيديو وأدوات المطوّر (ثواني)</p>
+      </div>
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        العد التنازلي اللي بيظهر للطالب قبل رفض حسابه — تنبيه فتح الفيديو وشاشة السودة اللي بتطلع أول ما حد يفتح
+        Developer Tools. الافتراضي <b className="text-foreground">8 ثواني</b> (يقبل من 3 لـ 120). لو الطالب قفل
+        الأدوات أو الفيديو خلال العدّ بيتسامح وبيكمل عادي — لو العد خلص حسابه بيترفض نهائيًا وانت اللي بترجّعه
+        من تاب المرفوضين.
+      </p>
+      <div className="flex items-center gap-2">
+        <Input
+          type="number"
+          min={3}
+          max={120}
+          value={val}
+          onChange={function (e) { setVal(e.target.value) }}
+          className="w-24 text-center font-bold"
+          aria-label="مهلة العد التنازلي بالثواني"
+        />
+        <Button size="sm" onClick={saveNow} disabled={savingOn || loading} className="font-bold">
+          {savingOn && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          حفظ المهلة
+        </Button>
+        <span className="text-[10px] text-muted-foreground">بتشتغل على الطلاب من أول تحميل جديد للمنصة</span>
+      </div>
+    </div>
   )
 }

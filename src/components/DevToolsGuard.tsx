@@ -46,7 +46,11 @@ import { useEffect } from 'react'
 import { getDeviceCandidates, getDeviceId } from '@/lib/device'
 
 const LOCK_KEY = 'dv_guard_locked'
-const COUNT_MS = 10 * 1000
+/* (ر6) مهلة العدّ من إعدادات الأدمن — طلب المستر الحرفي: «المهلة 8 ثواني بدل 10
+   والمهلة أقدر أتحكم فيها من صفحة الأدمن» — مفتاح guard_countdown_seconds
+   في site-config، افتراضي 8 ثواني ويقبل من 3 لـ 120 */
+const GUARD_COUNTDOWN_KEY = 'guard_countdown_seconds'
+const GUARD_COUNTDOWN_DEFAULT = 8
 const Z_GAP = 170
 
 export function DevToolsGuard() {
@@ -77,6 +81,27 @@ export function DevToolsGuard() {
     var deadline = 0
     var dtGraceUsed = false
     var lastShown = -1
+    /* (ر6) المهلة القابلة للتحكم من الأدمن — بتتقرا من site-config أول ما الحارس يشتغل */
+    var countMs = GUARD_COUNTDOWN_DEFAULT * 1000
+    var armedDurMs = 0
+    try {
+      fetch('/api/site-config')
+        .then(function (r) { return r.json() })
+        .then(function (arr: any) {
+          if (!Array.isArray(arr)) return
+          for (var i = 0; i < arr.length; i++) {
+            var c = arr[i]
+            if (c && c.key === GUARD_COUNTDOWN_KEY && c.value !== '' && c.value != null) {
+              var n = parseInt(String(c.value), 10)
+              if (isNaN(n)) return
+              if (n < 3) n = 3
+              if (n > 120) n = 120
+              countMs = n * 1000
+            }
+          }
+        })
+        .catch(function () {})
+    } catch (e) {}
 
     /* إشارات أدوات المطوّر */
     var dpr0 = (window.devicePixelRatio as number) || 1
@@ -200,7 +225,8 @@ export function DevToolsGuard() {
       }
       if (!running) {
         running = true
-        deadline = Date.now() + COUNT_MS
+        deadline = Date.now() + countMs
+        armedDurMs = countMs
         dtGraceUsed = !!dtOpen
         mode = dtOpen ? 'black' : 'warn'
         renderMode()
@@ -208,7 +234,7 @@ export function DevToolsGuard() {
         paintCount()
       } else if (dtOpen && mode !== 'black') {
         mode = 'black'
-        if (!dtGraceUsed) { deadline = Date.now() + COUNT_MS; dtGraceUsed = true }
+        if (!dtGraceUsed) { deadline = Date.now() + countMs; armedDurMs = countMs; dtGraceUsed = true }
         renderMode()
         lastShown = -1
         paintCount()
@@ -277,7 +303,7 @@ export function DevToolsGuard() {
       lastShown = left
       if (left < 0) left = 0
       if (numBlack) numBlack.textContent = String(left)
-      if (barBlack) barBlack.style.width = Math.max(0, (left * 1000) / COUNT_MS * 100) + '%'
+      if (barBlack) barBlack.style.width = Math.max(0, armedDurMs > 0 ? Math.min(100, (left * 1000) / armedDurMs * 100) : 0) + '%'
       if (numWarn) numWarn.textContent = String(left)
     }
 
@@ -297,6 +323,8 @@ export function DevToolsGuard() {
 
     function renderMode() {
       removeUI()
+      /* (ر6) الثواني المعروضة من المهلة القابلة للتحكم من الأدمن */
+      var secs = Math.max(1, Math.round(countMs / 1000))
       if (mode === 'black') {
         var o = document.createElement('div')
         o.id = 'vtrap-black'
@@ -307,9 +335,9 @@ export function DevToolsGuard() {
           '<div style="max-width:560px;display:flex;flex-direction:column;align-items:center;gap:16px">' +
           '<div style="font-size:60px;line-height:1">🛡️</div>' +
           '<div style="font-size:24px;font-weight:900;letter-spacing:.5px">أدوات المطوّر ممنوعة على المنصة</div>' +
-          '<div style="font-size:15px;color:#d4d4d8;line-height:1.9">عندك <b style="color:#fbbf24">10 ثواني</b> بس — اقفل أدوات المطوّر والفيديو فورًا<br/>' +
+          '<div style="font-size:15px;color:#d4d4d8;line-height:1.9">عندك <b style="color:#fbbf24">' + secs + ' ثواني</b> بس — اقفل أدوات المطوّر والفيديو فورًا<br/>' +
           '<b style="color:#f87171">إلا هتخرج من المنصة وحسابك هيترفض نهائيًا</b> ومش هتقدر تدخل تاني</div>' +
-          '<div id="vtrap-num-b" style="font-size:92px;font-weight:900;color:#f87171;font-variant-numeric:tabular-nums;line-height:1">10</div>' +
+          '<div id="vtrap-num-b" style="font-size:92px;font-weight:900;color:#f87171;font-variant-numeric:tabular-nums;line-height:1">' + secs + '</div>' +
           '<div style="width:100%;max-width:340px;height:8px;border-radius:99px;background:rgba(255,255,255,.14);overflow:hidden">' +
           '<div id="vtrap-bar" style="height:100%;width:100%;background:#f87171;border-radius:99px;transition:width .5s linear"></div>' +
           '</div>' +
@@ -330,9 +358,9 @@ export function DevToolsGuard() {
         w.innerHTML =
           '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center">' +
           '<div style="font-size:15px;font-weight:900">⚠️ الفيديوهات ممنوعة على المنصة — اقفل الفيديو فورًا</div>' +
-          '<div style="font-size:12px;color:#fecdd3;line-height:1.7">عندك 10 ثواني — إلا ما قفلتش الفيديو <b style="color:#fff">حسابك هيترفض من المنصة نهائيًا</b></div>' +
+          '<div style="font-size:12px;color:#fecdd3;line-height:1.7">عندك ' + secs + ' ثواني — إلا ما قفلتش الفيديو <b style="color:#fff">حسابك هيترفض من المنصة نهائيًا</b></div>' +
           '</div>' +
-          '<div id="vtrap-num-w" style="font-size:40px;font-weight:900;color:#fecdd3;font-variant-numeric:tabular-nums;line-height:1;min-width:56px">10</div>'
+          '<div id="vtrap-num-w" style="font-size:40px;font-weight:900;color:#fecdd3;font-variant-numeric:tabular-nums;line-height:1;min-width:56px">' + secs + '</div>'
         document.body.appendChild(w)
         numWarn = w.querySelector('#vtrap-num-w')
       }
